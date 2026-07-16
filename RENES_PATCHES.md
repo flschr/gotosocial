@@ -27,6 +27,21 @@ This intentionally differs from Mastodon's convention of returning only the
 username for local accounts. The change is isolated in commit history so it can
 be removed when clients or upstream handle split-domain accounts as desired.
 
+### Mastodon-compatible link preview cards
+
+For non-sensitive statuses, the API converter finds the first ordinary HTTP(S)
+link, excluding mentions and hashtags, and fills the existing Mastodon `card`
+field from Open Graph, Twitter Card, or standard HTML metadata.
+
+Preview requests use GoToSocial's shared outgoing HTTP client, retaining its
+SSRF protection and blocked-address rules. Fetches are fast-fail, limited to
+four seconds and 1 MiB of HTML, and cached for 24 hours (failed previews for one
+hour). Newly created local posts fetch synchronously so their create response
+contains the card. Older and remote statuses warm the cache in the background,
+preventing a timeline with several uncached links from blocking serially.
+Sensitive statuses never trigger a preview request. Preview images are
+referenced by their public URL and are not copied into instance storage.
+
 ## Updating upstream
 
 1. Read the upstream release and migration notes.

@@ -21,6 +21,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/admin"
 	"code.superseriousbusiness.org/gotosocial/internal/cache"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
+	"code.superseriousbusiness.org/gotosocial/internal/httpclient"
 	"code.superseriousbusiness.org/gotosocial/internal/storage"
 	"code.superseriousbusiness.org/gotosocial/internal/workers"
 	"codeberg.org/gruf/go-mutexes"
@@ -40,6 +41,10 @@ type State struct {
 
 	// DB provides access to the database.
 	DB db.DB
+
+	// HTTPClient is the shared, SSRF-protected client used for outgoing
+	// requests. It may be nil in tests and during early initialization.
+	HTTPClient *httpclient.Client
 
 	// FedLocks provides access to this state's mutex
 	// map of per URI federation locks, intended for

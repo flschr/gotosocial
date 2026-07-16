@@ -36,6 +36,7 @@ type Converter struct {
 	state          *state.State
 	defaultAvatars []string
 	randAvatars    sync.Map
+	previewCards   sync.Map
 	visFilter      *visibility.Filter
 	intFilter      *interaction.Filter
 	randStats      atomic.Pointer[apimodel.RandomStats]

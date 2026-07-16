@@ -1349,7 +1349,7 @@ func (c *Converter) baseStatusToFrontend(
 		Mentions:           apiMentions,
 		Tags:               apiTags,
 		Emojis:             apiEmojis,
-		Card:               nil, // TODO: implement cards
+		Card:               c.previewCardForStatus(ctx, status, sensitive),
 		Text:               status.Text,
 		ContentType:        ContentTypeToAPIContentType(status.ContentType),
 		InteractionPolicy:  apiInteractionPolicy,

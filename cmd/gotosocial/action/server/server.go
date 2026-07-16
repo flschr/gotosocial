@@ -261,6 +261,7 @@ func Start(ctx context.Context) error {
 		WriteBufferSize:       int(config.GetHTTPClientWriteBufferSize()), // nolint:gosec
 		Timeout:               config.GetHTTPClientTimeout(),
 	})
+	state.HTTPClient = client
 
 	// Compile WASM modules ahead of first use
 	// to prevent unexpected initial slowdowns.
