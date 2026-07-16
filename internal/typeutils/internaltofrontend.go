@@ -139,12 +139,18 @@ func (c *Converter) AccountToAPIAccountSensitive(ctx context.Context, a *gtsmode
 		)
 	}
 
-	// Populate the account's role permissions bitmap and highlightedness from its public role.
-	if len(apiAccount.Roles) > 0 {
-		apiAccount.Role = c.APIAccountDisplayRoleToAPIAccountRoleSensitive(&apiAccount.Roles[0])
-	} else {
-		apiAccount.Role = c.APIAccountDisplayRoleToAPIAccountRoleSensitive(nil)
+	// Populate the authenticated account's sensitive role directly. Public
+	// account representations intentionally omit local role information.
+	user, err := c.state.DB.GetUserByAccountID(ctx, a.ID)
+	if err != nil {
+		return nil, gtserror.Newf(
+			"error getting user for account %s: %w",
+			a.ID, err,
+		)
 	}
+	apiAccount.Role = c.APIAccountDisplayRoleToAPIAccountRoleSensitive(
+		c.UserToAPIAccountDisplayRole(user),
+	)
 
 	statusContentType := string(apimodel.StatusContentTypeDefault)
 	if a.Settings.StatusContentType != "" {
@@ -332,7 +338,6 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 
 	var (
 		acct            string
-		roles           []apimodel.AccountDisplayRole
 		enableRSS       bool
 		theme           string
 		customCSS       string
@@ -349,18 +354,9 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 
 		acct = a.Username + "@" + d
 	} else {
-		// This is a local account, try to
-		// fetch more info. Skip for instance
-		// accounts since they have no user.
+		// Populate local user settings. Skip instance accounts since they have
+		// no settings and should retain their bare username.
 		if !a.IsInstance() {
-			user, err := c.state.DB.GetUserByAccountID(ctx, a.ID)
-			if err != nil {
-				return nil, gtserror.Newf("error getting user from database for account id %s: %w", a.ID, err)
-			}
-			if role := c.UserToAPIAccountDisplayRole(user); role != nil {
-				roles = append(roles, *role)
-			}
-
 			enableRSS = *a.Settings.EnableRSS
 			theme = a.Settings.Theme
 			customCSS = a.Settings.CustomCSS
@@ -417,7 +413,6 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 		CustomCSS:         customCSS,
 		EnableRSS:         enableRSS,
 		HideCollections:   hideCollections,
-		Roles:             roles,
 		Group:             false,
 	}
 
@@ -503,10 +498,7 @@ func (c *Converter) fieldsToAPIFields(f []*gtsmodel.Field) []apimodel.Field {
 // something goes wrong. The returned account will be a bare minimum representation of the account. This function should be used
 // when someone wants to view an account they've blocked.
 func (c *Converter) AccountToAPIAccountBlocked(ctx context.Context, a *gtsmodel.Account) (*apimodel.Account, error) {
-	var (
-		acct  string
-		roles []apimodel.AccountDisplayRole
-	)
+	var acct string
 
 	if a.IsRemote() {
 		// Domain may be in Punycode,
@@ -518,19 +510,6 @@ func (c *Converter) AccountToAPIAccountBlocked(ctx context.Context, a *gtsmodel.
 
 		acct = a.Username + "@" + d
 	} else {
-		// This is a local account, try to
-		// fetch more info. Skip for instance
-		// accounts since they have no user.
-		if !a.IsInstance() {
-			user, err := c.state.DB.GetUserByAccountID(ctx, a.ID)
-			if err != nil {
-				return nil, gtserror.Newf("error getting user from database for account id %s: %w", a.ID, err)
-			}
-			if role := c.UserToAPIAccountDisplayRole(user); role != nil {
-				roles = append(roles, *role)
-			}
-		}
-
 		if a.IsInstance() {
 			acct = a.Username
 		} else {
@@ -551,7 +530,6 @@ func (c *Converter) AccountToAPIAccountBlocked(ctx context.Context, a *gtsmodel.
 		// Empty array (not nillable).
 		Fields:    make([]apimodel.Field, 0),
 		Suspended: !a.SuspendedAt.IsZero(),
-		Roles:     roles,
 	}
 
 	// Don't show the account's actual

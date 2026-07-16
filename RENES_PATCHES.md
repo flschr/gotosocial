@@ -42,6 +42,14 @@ preventing a timeline with several uncached links from blocking serially.
 Sensitive statuses never trigger a preview request. Preview images are
 referenced by their public URL and are not copied into instance storage.
 
+### Keep local account roles private
+
+Public and blocked account representations omit local role information. The
+authenticated account's sensitive representation still receives its role and
+permission bitmap directly from its user record. This preserves the privacy
+behavior of the previously deployed `account-domain-private-role` build while
+keeping it isolated from the split-domain patch.
+
 ## Updating upstream
 
 1. Read the upstream release and migration notes.

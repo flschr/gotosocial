@@ -539,13 +539,6 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontend() {
     "emojis": [],
     "fields": [],
     "enable_rss": true,
-    "roles": [
-      {
-        "id": "admin",
-        "name": "admin",
-        "color": ""
-      }
-    ],
     "group": false
   },
   "media_attachments": [
@@ -689,13 +682,6 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendHTMLContentWarning
     "emojis": [],
     "fields": [],
     "enable_rss": true,
-    "roles": [
-      {
-        "id": "admin",
-        "name": "admin",
-        "color": ""
-      }
-    ],
     "group": false
   },
   "media_attachments": [
@@ -841,13 +827,6 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendApplicationDeleted
     "emojis": [],
     "fields": [],
     "enable_rss": true,
-    "roles": [
-      {
-        "id": "admin",
-        "name": "admin",
-        "color": ""
-      }
-    ],
     "group": false
   },
   "media_attachments": [
@@ -1294,13 +1273,6 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownLanguage() 
     "emojis": [],
     "fields": [],
     "enable_rss": true,
-    "roles": [
-      {
-        "id": "admin",
-        "name": "admin",
-        "color": ""
-      }
-    ],
     "group": false
   },
   "media_attachments": [
@@ -1568,13 +1540,6 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPendingApproval()
     "emojis": [],
     "fields": [],
     "enable_rss": true,
-    "roles": [
-      {
-        "id": "admin",
-        "name": "admin",
-        "color": ""
-      }
-    ],
     "group": false
   },
   "media_attachments": [],
@@ -1784,13 +1749,6 @@ func (suite *InternalToFrontendTestSuite) TestInstanceV1ToFrontend() {
     "emojis": [],
     "fields": [],
     "enable_rss": true,
-    "roles": [
-      {
-        "id": "admin",
-        "name": "admin",
-        "color": ""
-      }
-    ],
     "group": false
   },
   "max_toot_chars": 5000,
@@ -1955,13 +1913,6 @@ func (suite *InternalToFrontendTestSuite) TestInstanceV2ToFrontend() {
       "emojis": [],
       "fields": [],
       "enable_rss": true,
-      "roles": [
-        {
-          "id": "admin",
-          "name": "admin",
-          "color": ""
-        }
-      ],
       "group": false
     }
   },
@@ -2326,13 +2277,6 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend1() {
       "emojis": [],
       "fields": [],
       "enable_rss": true,
-      "roles": [
-        {
-          "id": "admin",
-          "name": "admin",
-          "color": ""
-        }
-      ],
       "group": false
     },
     "created_by_application_id": "01F8MGXQRHYF5QPMTMXP78QC2F"
@@ -2384,13 +2328,6 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend1() {
       "emojis": [],
       "fields": [],
       "enable_rss": true,
-      "roles": [
-        {
-          "id": "admin",
-          "name": "admin",
-          "color": ""
-        }
-      ],
       "group": false
     },
     "created_by_application_id": "01F8MGXQRHYF5QPMTMXP78QC2F"
@@ -2841,13 +2778,6 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontendSuspendedLoca
       "emojis": [],
       "fields": [],
       "enable_rss": true,
-      "roles": [
-        {
-          "id": "admin",
-          "name": "admin",
-          "color": ""
-        }
-      ],
       "group": false
     },
     "created_by_application_id": "01F8MGXQRHYF5QPMTMXP78QC2F"
@@ -2899,13 +2829,6 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontendSuspendedLoca
       "emojis": [],
       "fields": [],
       "enable_rss": true,
-      "roles": [
-        {
-          "id": "admin",
-          "name": "admin",
-          "color": ""
-        }
-      ],
       "group": false
     },
     "created_by_application_id": "01F8MGXQRHYF5QPMTMXP78QC2F"
@@ -3049,13 +2972,6 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
     "emojis": [],
     "fields": [],
     "enable_rss": true,
-    "roles": [
-      {
-        "id": "admin",
-        "name": "admin",
-        "color": ""
-      }
-    ],
     "group": false
   },
   "status": {
@@ -3207,13 +3123,6 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
       "emojis": [],
       "fields": [],
       "enable_rss": true,
-      "roles": [
-        {
-          "id": "admin",
-          "name": "admin",
-          "color": ""
-        }
-      ],
       "group": false
     },
     "media_attachments": [],
