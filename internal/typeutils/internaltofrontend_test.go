@@ -46,7 +46,7 @@ func (suite *InternalToFrontendTestSuite) TestAccountToFrontend() {
 	suite.Equal(`{
   "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
   "username": "the_mighty_zork",
-  "acct": "the_mighty_zork",
+  "acct": "the_mighty_zork@localhost:8080",
   "display_name": "original zork (he/they)",
   "locked": false,
   "discoverable": true,
@@ -101,7 +101,7 @@ func (suite *InternalToFrontendTestSuite) TestAccountToFrontendAliasedAndMoved()
 	suite.Equal(`{
   "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
   "username": "the_mighty_zork",
-  "acct": "the_mighty_zork",
+  "acct": "the_mighty_zork@localhost:8080",
   "display_name": "original zork (he/they)",
   "locked": false,
   "discoverable": true,
@@ -151,7 +151,7 @@ func (suite *InternalToFrontendTestSuite) TestAccountToFrontendAliasedAndMoved()
   "moved": {
     "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
     "username": "1happyturtle",
-    "acct": "1happyturtle",
+    "acct": "1happyturtle@localhost:8080",
     "display_name": "happy little turtle :3",
     "locked": true,
     "discoverable": false,
@@ -207,7 +207,7 @@ func (suite *InternalToFrontendTestSuite) TestAccountToFrontendWithEmojiStruct()
 	suite.Equal(`{
   "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
   "username": "the_mighty_zork",
-  "acct": "the_mighty_zork",
+  "acct": "the_mighty_zork@localhost:8080",
   "display_name": "original zork (he/they)",
   "locked": false,
   "discoverable": true,
@@ -259,7 +259,7 @@ func (suite *InternalToFrontendTestSuite) TestAccountToFrontendWithEmojiIDs() {
 	suite.Equal(`{
   "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
   "username": "the_mighty_zork",
-  "acct": "the_mighty_zork",
+  "acct": "the_mighty_zork@localhost:8080",
   "display_name": "original zork (he/they)",
   "locked": false,
   "discoverable": true,
@@ -307,7 +307,7 @@ func (suite *InternalToFrontendTestSuite) TestAccountToFrontendSensitive() {
 	suite.Equal(`{
   "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
   "username": "the_mighty_zork",
-  "acct": "the_mighty_zork",
+  "acct": "the_mighty_zork@localhost:8080",
   "display_name": "original zork (he/they)",
   "locked": false,
   "discoverable": true,
@@ -517,7 +517,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontend() {
   "account": {
     "id": "01F8MH17FWEB39HZJ76B6VXSKF",
     "username": "admin",
-    "acct": "admin",
+    "acct": "admin@localhost:8080",
     "display_name": "",
     "locked": false,
     "discoverable": true,
@@ -667,7 +667,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendHTMLContentWarning
   "account": {
     "id": "01F8MH17FWEB39HZJ76B6VXSKF",
     "username": "admin",
-    "acct": "admin",
+    "acct": "admin@localhost:8080",
     "display_name": "",
     "locked": false,
     "discoverable": true,
@@ -819,7 +819,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendApplicationDeleted
   "account": {
     "id": "01F8MH17FWEB39HZJ76B6VXSKF",
     "username": "admin",
-    "acct": "admin",
+    "acct": "admin@localhost:8080",
     "display_name": "",
     "locked": false,
     "discoverable": true,
@@ -1021,7 +1021,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownAttachments
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
       "url": "http://localhost:8080/@admin",
-      "acct": "admin"
+      "acct": "admin@localhost:8080"
     }
   ],
   "tags": [],
@@ -1100,7 +1100,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToWebStatus() {
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
       "url": "http://localhost:8080/@admin",
-      "acct": "admin"
+      "acct": "admin@localhost:8080"
     }
   ],
   "tags": [],
@@ -1272,7 +1272,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownLanguage() 
   "account": {
     "id": "01F8MH17FWEB39HZJ76B6VXSKF",
     "username": "admin",
-    "acct": "admin",
+    "acct": "admin@localhost:8080",
     "display_name": "",
     "locked": false,
     "discoverable": true,
@@ -1420,7 +1420,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendPartialInteraction
   "account": {
     "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
     "username": "the_mighty_zork",
-    "acct": "the_mighty_zork",
+    "acct": "the_mighty_zork@localhost:8080",
     "display_name": "original zork (he/they)",
     "locked": false,
     "discoverable": true,
@@ -1546,7 +1546,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPendingApproval()
   "account": {
     "id": "01F8MH17FWEB39HZJ76B6VXSKF",
     "username": "admin",
-    "acct": "admin",
+    "acct": "admin@localhost:8080",
     "display_name": "",
     "locked": false,
     "discoverable": true,
@@ -1583,7 +1583,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPendingApproval()
       "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
       "username": "1happyturtle",
       "url": "http://localhost:8080/@1happyturtle",
-      "acct": "1happyturtle"
+      "acct": "1happyturtle@localhost:8080"
     }
   ],
   "tags": [],
@@ -1762,7 +1762,7 @@ func (suite *InternalToFrontendTestSuite) TestInstanceV1ToFrontend() {
   "contact_account": {
     "id": "01F8MH17FWEB39HZJ76B6VXSKF",
     "username": "admin",
-    "acct": "admin",
+    "acct": "admin@localhost:8080",
     "display_name": "",
     "locked": false,
     "discoverable": true,
@@ -1933,7 +1933,7 @@ func (suite *InternalToFrontendTestSuite) TestInstanceV2ToFrontend() {
     "account": {
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
-      "acct": "admin",
+      "acct": "admin@localhost:8080",
       "display_name": "",
       "locked": false,
       "discoverable": true,
@@ -2113,7 +2113,7 @@ func (suite *InternalToFrontendTestSuite) TestReportToFrontend2() {
   "target_account": {
     "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
     "username": "1happyturtle",
-    "acct": "1happyturtle",
+    "acct": "1happyturtle@localhost:8080",
     "display_name": "happy little turtle :3",
     "locked": true,
     "discoverable": false,
@@ -2242,7 +2242,7 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend1() {
     "account": {
       "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
       "username": "1happyturtle",
-      "acct": "1happyturtle",
+      "acct": "1happyturtle@localhost:8080",
       "display_name": "happy little turtle :3",
       "locked": true,
       "discoverable": false,
@@ -2304,7 +2304,7 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend1() {
     "account": {
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
-      "acct": "admin",
+      "acct": "admin@localhost:8080",
       "display_name": "",
       "locked": false,
       "discoverable": true,
@@ -2362,7 +2362,7 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend1() {
     "account": {
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
-      "acct": "admin",
+      "acct": "admin@localhost:8080",
       "display_name": "",
       "locked": false,
       "discoverable": true,
@@ -2443,7 +2443,7 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend2() {
     "account": {
       "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
       "username": "1happyturtle",
-      "acct": "1happyturtle",
+      "acct": "1happyturtle@localhost:8080",
       "display_name": "happy little turtle :3",
       "locked": true,
       "discoverable": false,
@@ -2768,7 +2768,7 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontendSuspendedLoca
     "account": {
       "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
       "username": "1happyturtle",
-      "acct": "1happyturtle",
+      "acct": "1happyturtle@localhost:8080",
       "display_name": "",
       "locked": true,
       "discoverable": false,
@@ -2819,7 +2819,7 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontendSuspendedLoca
     "account": {
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
-      "acct": "admin",
+      "acct": "admin@localhost:8080",
       "display_name": "",
       "locked": false,
       "discoverable": true,
@@ -2877,7 +2877,7 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontendSuspendedLoca
     "account": {
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
-      "acct": "admin",
+      "acct": "admin@localhost:8080",
       "display_name": "",
       "locked": false,
       "discoverable": true,
@@ -3027,7 +3027,7 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
   "account": {
     "id": "01F8MH17FWEB39HZJ76B6VXSKF",
     "username": "admin",
-    "acct": "admin",
+    "acct": "admin@localhost:8080",
     "display_name": "",
     "locked": false,
     "discoverable": true,
@@ -3087,7 +3087,7 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
     "account": {
       "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
       "username": "1happyturtle",
-      "acct": "1happyturtle",
+      "acct": "1happyturtle@localhost:8080",
       "display_name": "happy little turtle :3",
       "locked": true,
       "discoverable": false,
@@ -3185,7 +3185,7 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
     "account": {
       "id": "01F8MH17FWEB39HZJ76B6VXSKF",
       "username": "admin",
-      "acct": "admin",
+      "acct": "admin@localhost:8080",
       "display_name": "",
       "locked": false,
       "discoverable": true,
@@ -3222,7 +3222,7 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
         "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
         "username": "1happyturtle",
         "url": "http://localhost:8080/@1happyturtle",
-        "acct": "1happyturtle"
+        "acct": "1happyturtle@localhost:8080"
       }
     ],
     "tags": [],
@@ -3299,7 +3299,7 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPISelfConvo() {
     {
       "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
       "username": "the_mighty_zork",
-      "acct": "the_mighty_zork",
+      "acct": "the_mighty_zork@localhost:8080",
       "display_name": "original zork (he/they)",
       "locked": false,
       "discoverable": true,
@@ -3356,7 +3356,7 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPISelfConvo() {
     "account": {
       "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
       "username": "the_mighty_zork",
-      "acct": "the_mighty_zork",
+      "acct": "the_mighty_zork@localhost:8080",
       "display_name": "original zork (he/they)",
       "locked": false,
       "discoverable": true,
@@ -3461,7 +3461,7 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPI() {
     {
       "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
       "username": "1happyturtle",
-      "acct": "1happyturtle",
+      "acct": "1happyturtle@localhost:8080",
       "display_name": "happy little turtle :3",
       "locked": true,
       "discoverable": false,
@@ -3526,7 +3526,7 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPI() {
     "account": {
       "id": "01F8MH1H7YV1Z7D2C8K2730QBF",
       "username": "the_mighty_zork",
-      "acct": "the_mighty_zork",
+      "acct": "the_mighty_zork@localhost:8080",
       "display_name": "original zork (he/they)",
       "locked": false,
       "discoverable": true,
@@ -3615,7 +3615,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIEdits() {
         "account": {
             "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
             "username": "1happyturtle",
-            "acct": "1happyturtle",
+            "acct": "1happyturtle@localhost:8080",
             "display_name": "happy little turtle :3",
             "locked": true,
             "discoverable": false,
@@ -3662,7 +3662,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIEdits() {
         "account": {
             "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
             "username": "1happyturtle",
-            "acct": "1happyturtle",
+            "acct": "1happyturtle@localhost:8080",
             "display_name": "happy little turtle :3",
             "locked": true,
             "discoverable": false,
@@ -3723,7 +3723,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIEdits() {
         "account": {
             "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
             "username": "1happyturtle",
-            "acct": "1happyturtle",
+            "acct": "1happyturtle@localhost:8080",
             "display_name": "happy little turtle :3",
             "locked": true,
             "discoverable": false,
@@ -3770,7 +3770,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIEdits() {
         "account": {
             "id": "01F8MH5NBDF2MV7CTC4Q5128HF",
             "username": "1happyturtle",
-            "acct": "1happyturtle",
+            "acct": "1happyturtle@localhost:8080",
             "display_name": "happy little turtle :3",
             "locked": true,
             "discoverable": false,

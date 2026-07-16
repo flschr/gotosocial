@@ -367,7 +367,13 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 			hideCollections = *a.Settings.HideCollections
 		}
 
-		acct = a.Username // omit domain
+		if a.IsInstance() {
+			acct = a.Username
+		} else {
+			// Include account-domain for local users so split-domain
+			// deployments display the public handle in Mastodon clients.
+			acct = a.Username + "@" + config.GetAccountDomain()
+		}
 	}
 
 	var (
@@ -525,7 +531,11 @@ func (c *Converter) AccountToAPIAccountBlocked(ctx context.Context, a *gtsmodel.
 			}
 		}
 
-		acct = a.Username // omit domain
+		if a.IsInstance() {
+			acct = a.Username
+		} else {
+			acct = a.Username + "@" + config.GetAccountDomain()
+		}
 	}
 
 	account := &apimodel.Account{
@@ -784,7 +794,11 @@ func (c *Converter) MentionToAPIMention(ctx context.Context, mention *gtsmodel.M
 
 	var acct string
 	if mention.TargetAccount.IsLocal() {
-		acct = mention.TargetAccount.Username
+		if mention.TargetAccount.IsInstance() {
+			acct = mention.TargetAccount.Username
+		} else {
+			acct = mention.TargetAccount.Username + "@" + config.GetAccountDomain()
+		}
 	} else {
 		// Domain may be in Punycode, de-punify it just in case.
 		d, err := util.DePunify(mention.TargetAccount.Domain)
