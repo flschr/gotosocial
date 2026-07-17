@@ -190,6 +190,11 @@ func validateInstanceUpdate(form *apimodel.InstanceSettingsUpdateRequest) error 
 		form.ShortDescription == nil &&
 		form.Description == nil &&
 		form.CustomCSS == nil &&
+		form.AccountsUseAccountDomainInAcct == nil &&
+		form.AccountsHideLocalRoles == nil &&
+		form.StatusesPreviewCards == nil &&
+		form.ProfilesAutoLoadOlderPosts == nil &&
+		form.ProfilesShowPlusInfo == nil &&
 		form.Terms == nil &&
 		form.Avatar == nil &&
 		form.AvatarDescription == nil &&
