@@ -1,9 +1,9 @@
-name: René build
+name: GoToSocial Plus build
 
 on:
   push:
     branches:
-      - "rene/**"
+      - "plus/**"
   workflow_dispatch:
 
 permissions:
@@ -27,14 +27,30 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: web/source/yarn.lock
+
+      - name: Build web assets
+        working-directory: web/source
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
+
+      - name: Verify deployable web assets
+        run: test -f web/assets/dist/base.css
+
       - name: Test account API conversion
-        run: go test -tags="netgo osusergo static_build kvformat timetzdata" -timeout=20m ./internal/typeutils
+        run: go test -tags="netgo osusergo static_build kvformat timetzdata" -timeout=20m ./internal/config ./internal/middleware ./internal/typeutils ./internal/web
 
       - name: Build Linux AMD64 binary
         env:
           GOOS: linux
           GOARCH: amd64
-          VERSION: 0.22.0-rene
+          VERSION: 0.22.0-plus
         run: ./scripts/build.sh
 
       - name: Package deployable archive
@@ -42,12 +58,12 @@ jobs:
           mkdir -p dist/gotosocial
           cp gotosocial LICENSE README.md example/config.yaml example/gotosocial.service dist/gotosocial/
           cp -R web/assets web/template dist/gotosocial/
-          tar -C dist -czf dist/gotosocial_0.22.0-rene_linux_amd64.tar.gz gotosocial
+          tar -C dist -czf dist/gotosocial_0.22.0-plus_linux_amd64.tar.gz gotosocial
 
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
-          name: gotosocial-0.22.0-rene-linux-amd64
-          path: dist/gotosocial_0.22.0-rene_linux_amd64.tar.gz
+          name: gotosocial-0.22.0-plus-linux-amd64
+          path: dist/gotosocial_0.22.0-plus_linux_amd64.tar.gz
           if-no-files-found: error
           retention-days: 30

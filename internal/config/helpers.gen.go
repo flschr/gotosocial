@@ -43,6 +43,7 @@ const (
 	LandingPageUserFlag                           = "landing-page-user"
 	HostFlag                                      = "host"
 	AccountDomainFlag                             = "account-domain"
+	AccountsUseAccountDomainInAcctFlag            = "accounts-use-account-domain-in-acct"
 	ProtocolFlag                                  = "protocol"
 	BindAddressFlag                               = "bind-address"
 	PortFlag                                      = "port"
@@ -88,6 +89,7 @@ const (
 	AccountsRegistrationDailyLimitFlag            = "accounts-registration-daily-limit"
 	AccountsRegistrationBacklogLimitFlag          = "accounts-registration-backlog-limit"
 	AccountsAllowCustomCSSFlag                    = "accounts-allow-custom-css"
+	AccountsHideLocalRolesFlag                    = "accounts-hide-local-roles"
 	AccountsCustomCSSLengthFlag                   = "accounts-custom-css-length"
 	AccountsMaxProfileFieldsFlag                  = "accounts-max-profile-fields"
 	StorageBackendFlag                            = "storage-backend"
@@ -106,6 +108,7 @@ const (
 	StatusesPollMaxOptionsFlag                    = "statuses-poll-max-options"
 	StatusesPollOptionMaxCharsFlag                = "statuses-poll-option-max-chars"
 	StatusesMediaMaxFilesFlag                     = "statuses-media-max-files"
+	StatusesPreviewCardsFlag                      = "statuses-preview-cards"
 	StatusesCleanupCronFlag                       = "statuses-cleanup-cron"
 	StatusesCleanupRemoteOlderThanFlag            = "statuses-cleanup-remote-older-than"
 	ScheduledStatusesMaxTotalFlag                 = "scheduled-statuses-max-total"
@@ -290,6 +293,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.String("landing-page-user", cfg.LandingPageUser, "the user that should be shown on the instance's landing page")
 	flags.String("host", cfg.Host, "Hostname to use for the server (eg., example.org, gotosocial.whatever.com). DO NOT change this on a server that's already run!")
 	flags.String("account-domain", cfg.AccountDomain, "Domain to use in account names (eg., example.org, whatever.com). If not set, will default to the setting for host. DO NOT change this on a server that's already run!")
+	flags.Bool("accounts-use-account-domain-in-acct", cfg.AccountsUseAccountDomainInAcct, "Use account-domain in the Mastodon API acct field for local accounts, for compatibility with split-domain deployments.")
 	flags.String("protocol", cfg.Protocol, "Protocol to use for the REST api of the server (only use http if you are debugging; https should be used even if running behind a reverse proxy!)")
 	flags.String("bind-address", cfg.BindAddress, "Bind address to use for the GoToSocial server (eg., 0.0.0.0, 172.138.0.9, [::], localhost). For ipv6, enclose the address in square brackets, eg [2001:db8::fed1]. Default binds to all interfaces.")
 	flags.Int("port", cfg.Port, "Port to use for GoToSocial. Change this to 443 if you're running the binary directly on the host machine.")
@@ -333,6 +337,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.Int("accounts-registration-daily-limit", cfg.AccountsRegistrationDailyLimit, "Limit amount of approved account sign-ups allowed per 24hrs before registration is closed. 0 or less = no limit.")
 	flags.Int("accounts-registration-backlog-limit", cfg.AccountsRegistrationBacklogLimit, "Limit how big the 'accounts pending approval' queue can grow before registration is closed. 0 or less = no limit.")
 	flags.Bool("accounts-allow-custom-css", cfg.AccountsAllowCustomCSS, "Allow accounts to enable custom CSS for their profile pages and statuses.")
+	flags.Bool("accounts-hide-local-roles", cfg.AccountsHideLocalRoles, "Hide local admin and moderator role labels from public Mastodon API account responses.")
 	flags.Int("accounts-custom-css-length", cfg.AccountsCustomCSSLength, "Maximum permitted length (characters) of custom CSS for accounts.")
 	flags.Int("accounts-max-profile-fields", cfg.AccountsMaxProfileFields, "Maximum number of profile fields allowed for each account.")
 	flags.String("storage-backend", cfg.StorageBackend, "Storage backend to use for media attachments")
@@ -351,6 +356,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.Int("statuses-poll-max-options", cfg.StatusesPollMaxOptions, "Max amount of options permitted on a poll")
 	flags.Int("statuses-poll-option-max-chars", cfg.StatusesPollOptionMaxChars, "Max amount of characters for a poll option")
 	flags.Int("statuses-media-max-files", cfg.StatusesMediaMaxFiles, "Maximum number of media files/attachments per status")
+	flags.Bool("statuses-preview-cards", cfg.StatusesPreviewCards, "Fetch linked pages and include preview cards in Mastodon API status responses.")
 	flags.String("statuses-cleanup-cron", cfg.StatusesCleanupCron.String(), "Cron expression defining statuses cleanup task scheduling")
 	flags.String("statuses-cleanup-remote-older-than", cfg.StatusesCleanupRemoteOlderThan.String(), "Duration defining status age beyond which to clean")
 	flags.Int("scheduled-statuses-max-total", cfg.ScheduledStatusesMaxTotal, "Maximum number of scheduled statuses per user")
@@ -512,7 +518,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 }
 
 func (cfg *Configuration) MarshalMap() map[string]any {
-	cfgmap := make(map[string]any, 244)
+	cfgmap := make(map[string]any, 247)
 	cfgmap["log-level"] = cfg.LogLevel
 	cfgmap["log-format"] = cfg.LogFormat
 	cfgmap["log-timestamp-format"] = cfg.LogTimestampFormat
@@ -524,6 +530,7 @@ func (cfg *Configuration) MarshalMap() map[string]any {
 	cfgmap["landing-page-user"] = cfg.LandingPageUser
 	cfgmap["host"] = cfg.Host
 	cfgmap["account-domain"] = cfg.AccountDomain
+	cfgmap["accounts-use-account-domain-in-acct"] = cfg.AccountsUseAccountDomainInAcct
 	cfgmap["protocol"] = cfg.Protocol
 	cfgmap["bind-address"] = cfg.BindAddress
 	cfgmap["port"] = cfg.Port
@@ -567,6 +574,7 @@ func (cfg *Configuration) MarshalMap() map[string]any {
 	cfgmap["accounts-registration-daily-limit"] = cfg.AccountsRegistrationDailyLimit
 	cfgmap["accounts-registration-backlog-limit"] = cfg.AccountsRegistrationBacklogLimit
 	cfgmap["accounts-allow-custom-css"] = cfg.AccountsAllowCustomCSS
+	cfgmap["accounts-hide-local-roles"] = cfg.AccountsHideLocalRoles
 	cfgmap["accounts-custom-css-length"] = cfg.AccountsCustomCSSLength
 	cfgmap["accounts-max-profile-fields"] = cfg.AccountsMaxProfileFields
 	cfgmap["storage-backend"] = cfg.StorageBackend
@@ -585,6 +593,7 @@ func (cfg *Configuration) MarshalMap() map[string]any {
 	cfgmap["statuses-poll-max-options"] = cfg.StatusesPollMaxOptions
 	cfgmap["statuses-poll-option-max-chars"] = cfg.StatusesPollOptionMaxChars
 	cfgmap["statuses-media-max-files"] = cfg.StatusesMediaMaxFiles
+	cfgmap["statuses-preview-cards"] = cfg.StatusesPreviewCards
 	cfgmap["statuses-cleanup-cron"] = cfg.StatusesCleanupCron.String()
 	cfgmap["statuses-cleanup-remote-older-than"] = cfg.StatusesCleanupRemoteOlderThan.String()
 	cfgmap["scheduled-statuses-max-total"] = cfg.ScheduledStatusesMaxTotal
@@ -846,6 +855,14 @@ func (cfg *Configuration) UnmarshalMap(cfgmap map[string]any) error {
 		cfg.AccountDomain, err = cast.ToStringE(ival)
 		if err != nil {
 			return fmt.Errorf("error casting %#v -> string for 'account-domain': %w", ival, err)
+		}
+	}
+
+	if ival, ok := cfgmap["accounts-use-account-domain-in-acct"]; ok {
+		var err error
+		cfg.AccountsUseAccountDomainInAcct, err = cast.ToBoolE(ival)
+		if err != nil {
+			return fmt.Errorf("error casting %#v -> bool for 'accounts-use-account-domain-in-acct': %w", ival, err)
 		}
 	}
 
@@ -1215,6 +1232,14 @@ func (cfg *Configuration) UnmarshalMap(cfgmap map[string]any) error {
 		}
 	}
 
+	if ival, ok := cfgmap["accounts-hide-local-roles"]; ok {
+		var err error
+		cfg.AccountsHideLocalRoles, err = cast.ToBoolE(ival)
+		if err != nil {
+			return fmt.Errorf("error casting %#v -> bool for 'accounts-hide-local-roles': %w", ival, err)
+		}
+	}
+
 	if ival, ok := cfgmap["accounts-custom-css-length"]; ok {
 		var err error
 		cfg.AccountsCustomCSSLength, err = cast.ToIntE(ival)
@@ -1356,6 +1381,14 @@ func (cfg *Configuration) UnmarshalMap(cfgmap map[string]any) error {
 		cfg.StatusesMediaMaxFiles, err = cast.ToIntE(ival)
 		if err != nil {
 			return fmt.Errorf("error casting %#v -> int for 'statuses-media-max-files': %w", ival, err)
+		}
+	}
+
+	if ival, ok := cfgmap["statuses-preview-cards"]; ok {
+		var err error
+		cfg.StatusesPreviewCards, err = cast.ToBoolE(ival)
+		if err != nil {
+			return fmt.Errorf("error casting %#v -> bool for 'statuses-preview-cards': %w", ival, err)
 		}
 	}
 
@@ -2962,6 +2995,23 @@ func GetAccountDomain() string { return global.GetAccountDomain() }
 // SetAccountDomain safely sets the value for global configuration 'AccountDomain' field
 func SetAccountDomain(v string) { global.SetAccountDomain(v) }
 
+// GetAccountsUseAccountDomainInAcct safely fetches the Configuration value for state's 'AccountsUseAccountDomainInAcct' field
+func (st *ConfigState) GetAccountsUseAccountDomainInAcct() (v bool) {
+	return st.config.AccountsUseAccountDomainInAcct
+}
+
+// SetAccountsUseAccountDomainInAcct safely sets the Configuration value for state's 'AccountsUseAccountDomainInAcct' field
+func (st *ConfigState) SetAccountsUseAccountDomainInAcct(v bool) {
+	st.config.AccountsUseAccountDomainInAcct = v
+	st.reloadToViper()
+}
+
+// GetAccountsUseAccountDomainInAcct safely fetches the value for global configuration 'AccountsUseAccountDomainInAcct' field
+func GetAccountsUseAccountDomainInAcct() bool { return global.GetAccountsUseAccountDomainInAcct() }
+
+// SetAccountsUseAccountDomainInAcct safely sets the value for global configuration 'AccountsUseAccountDomainInAcct' field
+func SetAccountsUseAccountDomainInAcct(v bool) { global.SetAccountsUseAccountDomainInAcct(v) }
+
 // GetProtocol safely fetches the Configuration value for state's 'Protocol' field
 func (st *ConfigState) GetProtocol() (v string) {
 	return st.config.Protocol
@@ -3737,6 +3787,23 @@ func GetAccountsAllowCustomCSS() bool { return global.GetAccountsAllowCustomCSS(
 // SetAccountsAllowCustomCSS safely sets the value for global configuration 'AccountsAllowCustomCSS' field
 func SetAccountsAllowCustomCSS(v bool) { global.SetAccountsAllowCustomCSS(v) }
 
+// GetAccountsHideLocalRoles safely fetches the Configuration value for state's 'AccountsHideLocalRoles' field
+func (st *ConfigState) GetAccountsHideLocalRoles() (v bool) {
+	return st.config.AccountsHideLocalRoles
+}
+
+// SetAccountsHideLocalRoles safely sets the Configuration value for state's 'AccountsHideLocalRoles' field
+func (st *ConfigState) SetAccountsHideLocalRoles(v bool) {
+	st.config.AccountsHideLocalRoles = v
+	st.reloadToViper()
+}
+
+// GetAccountsHideLocalRoles safely fetches the value for global configuration 'AccountsHideLocalRoles' field
+func GetAccountsHideLocalRoles() bool { return global.GetAccountsHideLocalRoles() }
+
+// SetAccountsHideLocalRoles safely sets the value for global configuration 'AccountsHideLocalRoles' field
+func SetAccountsHideLocalRoles(v bool) { global.SetAccountsHideLocalRoles(v) }
+
 // GetAccountsCustomCSSLength safely fetches the Configuration value for state's 'AccountsCustomCSSLength' field
 func (st *ConfigState) GetAccountsCustomCSSLength() (v int) {
 	return st.config.AccountsCustomCSSLength
@@ -4042,6 +4109,23 @@ func GetStatusesMediaMaxFiles() int { return global.GetStatusesMediaMaxFiles() }
 
 // SetStatusesMediaMaxFiles safely sets the value for global configuration 'StatusesMediaMaxFiles' field
 func SetStatusesMediaMaxFiles(v int) { global.SetStatusesMediaMaxFiles(v) }
+
+// GetStatusesPreviewCards safely fetches the Configuration value for state's 'StatusesPreviewCards' field
+func (st *ConfigState) GetStatusesPreviewCards() (v bool) {
+	return st.config.StatusesPreviewCards
+}
+
+// SetStatusesPreviewCards safely sets the Configuration value for state's 'StatusesPreviewCards' field
+func (st *ConfigState) SetStatusesPreviewCards(v bool) {
+	st.config.StatusesPreviewCards = v
+	st.reloadToViper()
+}
+
+// GetStatusesPreviewCards safely fetches the value for global configuration 'StatusesPreviewCards' field
+func GetStatusesPreviewCards() bool { return global.GetStatusesPreviewCards() }
+
+// SetStatusesPreviewCards safely sets the value for global configuration 'StatusesPreviewCards' field
+func SetStatusesPreviewCards(v bool) { global.SetStatusesPreviewCards(v) }
 
 // GetStatusesCleanupCron safely fetches the Configuration value for state's 'StatusesCleanupCron' field
 func (st *ConfigState) GetStatusesCleanupCron() (v CronExpression) {

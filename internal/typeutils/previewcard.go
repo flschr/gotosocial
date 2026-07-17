@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/api/model"
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"golang.org/x/net/html"
@@ -34,7 +35,7 @@ type previewCardCacheEntry struct {
 }
 
 func (c *Converter) previewCardForStatus(ctx context.Context, status *gtsmodel.Status, sensitive bool) *model.Card {
-	if c.state.HTTPClient == nil || status.Content == "" || sensitive {
+	if !config.GetStatusesPreviewCards() || c.state.HTTPClient == nil || status.Content == "" || sensitive {
 		return nil
 	}
 

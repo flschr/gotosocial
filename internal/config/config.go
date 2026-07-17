@@ -63,30 +63,31 @@ type Configuration struct {
 	LogClientIP        bool   `name:"log-client-ip" usage:"Include the client IP in logs"`
 	RequestIDHeader    string `name:"request-id-header" usage:"Header to extract the Request ID from. Eg.,'X-Request-Id'."`
 
-	ConfigPath                 string        `name:"config-path" usage:"Path to a file containing gotosocial configuration. Values set in this file will be overwritten by values set as env vars or arguments"`
-	ApplicationName            string        `name:"application-name" usage:"Name of the application, used in various places internally"`
-	LandingPageUser            string        `name:"landing-page-user" usage:"the user that should be shown on the instance's landing page"`
-	Host                       string        `name:"host" usage:"Hostname to use for the server (eg., example.org, gotosocial.whatever.com). DO NOT change this on a server that's already run!"`
-	AccountDomain              string        `name:"account-domain" usage:"Domain to use in account names (eg., example.org, whatever.com). If not set, will default to the setting for host. DO NOT change this on a server that's already run!"`
-	Protocol                   string        `name:"protocol" usage:"Protocol to use for the REST api of the server (only use http if you are debugging; https should be used even if running behind a reverse proxy!)"`
-	BindAddress                string        `name:"bind-address" usage:"Bind address to use for the GoToSocial server (eg., 0.0.0.0, 172.138.0.9, [::], localhost). For ipv6, enclose the address in square brackets, eg [2001:db8::fed1]. Default binds to all interfaces."`
-	Port                       int           `name:"port" usage:"Port to use for GoToSocial. Change this to 443 if you're running the binary directly on the host machine."`
-	TrustedProxies             []string      `name:"trusted-proxies" usage:"Proxies to trust when parsing x-forwarded headers into real IPs."`
-	SoftwareVersion            string        `name:"software-version" usage:""`
-	DbType                     string        `name:"db-type" usage:"Database type: eg., postgres"`
-	DbAddress                  string        `name:"db-address" usage:"Database ipv4 address, hostname, or filename"`
-	DbPort                     int           `name:"db-port" usage:"Database port"`
-	DbUser                     string        `name:"db-user" usage:"Database username"`
-	DbPassword                 string        `name:"db-password" usage:"Database password"`
-	DbDatabase                 string        `name:"db-database" usage:"Database name"`
-	DbTLSMode                  string        `name:"db-tls-mode" usage:"Database tls mode"`
-	DbTLSCACert                string        `name:"db-tls-ca-cert" usage:"Path to CA cert for db tls connection"`
-	DbMaxOpenConnsMultiplier   int           `name:"db-max-open-conns-multiplier" usage:"Multiplier to use per cpu for max open database connections. 0 or less is normalized to 1."`
-	DbSqliteJournalMode        string        `name:"db-sqlite-journal-mode" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_journal_mode"`
-	DbSqliteSynchronous        string        `name:"db-sqlite-synchronous" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_synchronous"`
-	DbSqliteCacheSize          bytesize.Size `name:"db-sqlite-cache-size" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_cache_size"`
-	DbSqliteBusyTimeout        time.Duration `name:"db-sqlite-busy-timeout" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_busy_timeout"`
-	DbPostgresConnectionString string        `name:"db-postgres-connection-string" usage:"Full Database URL for connection to postgres"`
+	ConfigPath                     string        `name:"config-path" usage:"Path to a file containing gotosocial configuration. Values set in this file will be overwritten by values set as env vars or arguments"`
+	ApplicationName                string        `name:"application-name" usage:"Name of the application, used in various places internally"`
+	LandingPageUser                string        `name:"landing-page-user" usage:"the user that should be shown on the instance's landing page"`
+	Host                           string        `name:"host" usage:"Hostname to use for the server (eg., example.org, gotosocial.whatever.com). DO NOT change this on a server that's already run!"`
+	AccountDomain                  string        `name:"account-domain" usage:"Domain to use in account names (eg., example.org, whatever.com). If not set, will default to the setting for host. DO NOT change this on a server that's already run!"`
+	AccountsUseAccountDomainInAcct bool          `name:"accounts-use-account-domain-in-acct" usage:"Use account-domain in the Mastodon API acct field for local accounts, for compatibility with split-domain deployments."`
+	Protocol                       string        `name:"protocol" usage:"Protocol to use for the REST api of the server (only use http if you are debugging; https should be used even if running behind a reverse proxy!)"`
+	BindAddress                    string        `name:"bind-address" usage:"Bind address to use for the GoToSocial server (eg., 0.0.0.0, 172.138.0.9, [::], localhost). For ipv6, enclose the address in square brackets, eg [2001:db8::fed1]. Default binds to all interfaces."`
+	Port                           int           `name:"port" usage:"Port to use for GoToSocial. Change this to 443 if you're running the binary directly on the host machine."`
+	TrustedProxies                 []string      `name:"trusted-proxies" usage:"Proxies to trust when parsing x-forwarded headers into real IPs."`
+	SoftwareVersion                string        `name:"software-version" usage:""`
+	DbType                         string        `name:"db-type" usage:"Database type: eg., postgres"`
+	DbAddress                      string        `name:"db-address" usage:"Database ipv4 address, hostname, or filename"`
+	DbPort                         int           `name:"db-port" usage:"Database port"`
+	DbUser                         string        `name:"db-user" usage:"Database username"`
+	DbPassword                     string        `name:"db-password" usage:"Database password"`
+	DbDatabase                     string        `name:"db-database" usage:"Database name"`
+	DbTLSMode                      string        `name:"db-tls-mode" usage:"Database tls mode"`
+	DbTLSCACert                    string        `name:"db-tls-ca-cert" usage:"Path to CA cert for db tls connection"`
+	DbMaxOpenConnsMultiplier       int           `name:"db-max-open-conns-multiplier" usage:"Multiplier to use per cpu for max open database connections. 0 or less is normalized to 1."`
+	DbSqliteJournalMode            string        `name:"db-sqlite-journal-mode" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_journal_mode"`
+	DbSqliteSynchronous            string        `name:"db-sqlite-synchronous" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_synchronous"`
+	DbSqliteCacheSize              bytesize.Size `name:"db-sqlite-cache-size" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_cache_size"`
+	DbSqliteBusyTimeout            time.Duration `name:"db-sqlite-busy-timeout" usage:"Sqlite only: see https://www.sqlite.org/pragma.html#pragma_busy_timeout"`
+	DbPostgresConnectionString     string        `name:"db-postgres-connection-string" usage:"Full Database URL for connection to postgres"`
 
 	WebTemplateBaseDir string `name:"web-template-base-dir" usage:"Basedir for html templating files for rendering pages and composing emails."`
 	WebAssetBaseDir    string `name:"web-asset-base-dir" usage:"Directory to serve static assets from, accessible at example.org/assets/"`
@@ -116,6 +117,7 @@ type Configuration struct {
 	AccountsRegistrationDailyLimit   int  `name:"accounts-registration-daily-limit" usage:"Limit amount of approved account sign-ups allowed per 24hrs before registration is closed. 0 or less = no limit."`
 	AccountsRegistrationBacklogLimit int  `name:"accounts-registration-backlog-limit" usage:"Limit how big the 'accounts pending approval' queue can grow before registration is closed. 0 or less = no limit."`
 	AccountsAllowCustomCSS           bool `name:"accounts-allow-custom-css" usage:"Allow accounts to enable custom CSS for their profile pages and statuses."`
+	AccountsHideLocalRoles           bool `name:"accounts-hide-local-roles" usage:"Hide local admin and moderator role labels from public Mastodon API account responses."`
 	AccountsCustomCSSLength          int  `name:"accounts-custom-css-length" usage:"Maximum permitted length (characters) of custom CSS for accounts."`
 	AccountsMaxProfileFields         int  `name:"accounts-max-profile-fields" usage:"Maximum number of profile fields allowed for each account."`
 
@@ -136,6 +138,7 @@ type Configuration struct {
 	StatusesPollMaxOptions         int              `name:"statuses-poll-max-options" usage:"Max amount of options permitted on a poll"`
 	StatusesPollOptionMaxChars     int              `name:"statuses-poll-option-max-chars" usage:"Max amount of characters for a poll option"`
 	StatusesMediaMaxFiles          int              `name:"statuses-media-max-files" usage:"Maximum number of media files/attachments per status"`
+	StatusesPreviewCards           bool             `name:"statuses-preview-cards" usage:"Fetch linked pages and include preview cards in Mastodon API status responses."`
 	StatusesCleanupCron            CronExpression   `name:"statuses-cleanup-cron" usage:"Cron expression defining statuses cleanup task scheduling"`
 	StatusesCleanupRemoteOlderThan longdur.Duration `name:"statuses-cleanup-remote-older-than" usage:"Duration defining status age beyond which to clean"`
 

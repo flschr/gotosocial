@@ -58,7 +58,7 @@ func parsePreviewCard(target *url.URL, body []byte) (*model.Card, error) {
 	image := resolveOptionalPreviewURL(target, firstNonEmpty(meta["og:image:secure_url"], meta["og:image"], meta["twitter:image"]))
 	providerURL := &url.URL{Scheme: target.Scheme, Host: target.Host}
 
-	return &model.Card{
+	card := &model.Card{
 		URL:          cardURL,
 		Title:        truncatePreviewText(title),
 		Description:  truncatePreviewText(firstNonEmpty(meta["og:description"], meta["twitter:description"], meta["description"])),
@@ -69,7 +69,63 @@ func parsePreviewCard(target *url.URL, body []byte) (*model.Card, error) {
 		Width:        parsePreviewDimension(meta["og:image:width"]),
 		Height:       parsePreviewDimension(meta["og:image:height"]),
 		Image:        image,
-	}, nil
+	}
+
+	if embedURL := youtubeEmbedURL(target); embedURL != "" {
+		card.Type = "video"
+		card.Width = 480
+		card.Height = 270
+		card.EmbedURL = embedURL
+		card.HTML = fmt.Sprintf(
+			`<iframe src="%s" width="480" height="270" frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`,
+			embedURL,
+		)
+	}
+
+	return card, nil
+}
+
+func youtubeEmbedURL(target *url.URL) string {
+	host := strings.ToLower(target.Hostname())
+	var videoID string
+
+	switch host {
+	case "youtu.be":
+		videoID = strings.TrimPrefix(target.EscapedPath(), "/")
+	case "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com":
+		switch {
+		case target.Path == "/watch":
+			videoID = target.Query().Get("v")
+		case strings.HasPrefix(target.Path, "/shorts/"):
+			videoID = strings.TrimPrefix(target.Path, "/shorts/")
+		case strings.HasPrefix(target.Path, "/embed/"):
+			videoID = strings.TrimPrefix(target.Path, "/embed/")
+		}
+	}
+
+	if slash := strings.IndexByte(videoID, '/'); slash >= 0 {
+		videoID = videoID[:slash]
+	}
+	if !validYouTubeVideoID(videoID) {
+		return ""
+	}
+	return "https://www.youtube-nocookie.com/embed/" + videoID
+}
+
+func validYouTubeVideoID(value string) bool {
+	if len(value) != 11 {
+		return false
+	}
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func resolvePreviewURL(base *url.URL, value string) string {

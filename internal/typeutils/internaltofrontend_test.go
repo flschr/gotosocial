@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
@@ -33,6 +34,18 @@ import (
 
 type InternalToFrontendTestSuite struct {
 	TypeUtilsTestSuite
+}
+
+func (suite *InternalToFrontendTestSuite) TestCompatibilitySettingsDisabled() {
+	config.SetAccountsUseAccountDomainInAcct(false)
+	config.SetAccountsHideLocalRoles(false)
+
+	account := suite.testAccounts["admin_account"]
+	apiAccount, err := suite.typeconverter.AccountToAPIAccountPublic(suite.T().Context(), account)
+	suite.NoError(err)
+	suite.Equal(account.Username, apiAccount.Acct)
+	suite.Require().NotEmpty(apiAccount.Roles)
+	suite.Equal("admin", string(apiAccount.Roles[0].Name))
 }
 
 func (suite *InternalToFrontendTestSuite) TestAccountToFrontend() {

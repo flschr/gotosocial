@@ -20,6 +20,7 @@ package middleware
 import (
 	"strings"
 
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"codeberg.org/gruf/go-debug"
 	"github.com/gin-gonic/gin"
 )
@@ -41,6 +42,7 @@ func BuildContentSecurityPolicy(extraURIs ...string) string {
 		objectSrc  = "object-src"
 		imgSrc     = "img-src"
 		mediaSrc   = "media-src"
+		frameSrc   = "frame-src"
 		frames     = "frame-ancestors"
 
 		self = "'self'"
@@ -116,6 +118,10 @@ func BuildContentSecurityPolicy(extraURIs ...string) string {
 		extraURIs...,
 	)
 
+	if config.GetStatusesPreviewCards() {
+		values[frameSrc] = []string{"https://www.youtube-nocookie.com"}
+	}
+
 	/*
 		frame-ancestors
 		https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/frame-ancestors
@@ -131,14 +137,18 @@ func BuildContentSecurityPolicy(extraURIs ...string) string {
 	// Iterate through an ordered slice rather than
 	// iterating through the map, since we want these
 	// policyDirectives in a determinate order.
-	policyDirectives := make([]string, 5)
-	for i, directive := range []string{
+	directives := []string{
 		defaultSrc,
 		connectSrc,
 		objectSrc,
 		imgSrc,
 		mediaSrc,
-	} {
+	}
+	if config.GetStatusesPreviewCards() {
+		directives = append(directives, frameSrc)
+	}
+	policyDirectives := make([]string, len(directives))
+	for i, directive := range directives {
 		// Each policy directive should look like:
 		// `[directive] [value1] [value2] [etc]`
 

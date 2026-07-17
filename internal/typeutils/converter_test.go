@@ -20,6 +20,7 @@ package typeutils_test
 import (
 	"code.superseriousbusiness.org/activity/streams/vocab"
 	"code.superseriousbusiness.org/gotosocial/internal/admin"
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/processing"
@@ -496,6 +497,9 @@ func (suite *TypeUtilsTestSuite) SetupTest() {
 	suite.state.Caches.Init()
 
 	testrig.InitTestConfig()
+	config.SetAccountsUseAccountDomainInAcct(true)
+	config.SetAccountsHideLocalRoles(true)
+	config.SetStatusesPreviewCards(true)
 	testrig.InitTestLog()
 
 	suite.db = testrig.NewTestDB(&suite.state)

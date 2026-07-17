@@ -18,12 +18,15 @@
 package middleware_test
 
 import (
+	"strings"
 	"testing"
 
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/middleware"
 )
 
 func TestBuildContentSecurityPolicy(t *testing.T) {
+	config.SetStatusesPreviewCards(false)
 	type cspTest struct {
 		extraURLs []string
 		expected  string
@@ -71,5 +74,15 @@ func TestBuildContentSecurityPolicy(t *testing.T) {
 			t.Logf("expected '%s', got '%s'", test.expected, csp)
 			t.Fail()
 		}
+	}
+}
+
+func TestBuildContentSecurityPolicyPreviewCards(t *testing.T) {
+	config.SetStatusesPreviewCards(true)
+	t.Cleanup(func() { config.SetStatusesPreviewCards(false) })
+
+	csp := middleware.BuildContentSecurityPolicy()
+	if !strings.Contains(csp, "frame-src https://www.youtube-nocookie.com") {
+		t.Fatalf("expected YouTube frame source in CSP, got %q", csp)
 	}
 }

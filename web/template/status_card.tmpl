@@ -1,0 +1,29 @@
+{{- /*
+// GoToSocial
+// Copyright (C) GoToSocial Authors admin@gotosocial.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+*/ -}}
+
+{{- with . }}
+<div class="preview-card">
+    {{- if and (eq .Type "video") .EmbedURL }}
+    <div class="preview-card-player">
+        <iframe
+            src="{{- .EmbedURL -}}"
+            title="{{- .Title -}}"
+            loading="lazy"
+            allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen
+        ></iframe>
+    </div>
+    {{- else }}
+    <a href="{{- .URL -}}" rel="nofollow noreferrer noopener" target="_blank">
+        <div class="preview-card-content">
+            <strong>{{- .Title -}}</strong>
+            {{- with .Description }}<p>{{- . -}}</p>{{- end }}
+            {{- with .ProviderName }}<span>{{- . -}}</span>{{- end }}
+        </div>
+    </a>
+    {{- end }}
+</div>
+{{- end }}

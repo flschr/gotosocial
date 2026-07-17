@@ -1,4 +1,4 @@
-# René's GoToSocial build
+# GoToSocial Plus
 
 This repository contains a small compatibility layer on top of upstream
 [GoToSocial](https://codeberg.org/superseriousbusiness/gotosocial).
@@ -7,13 +7,19 @@ This repository contains a small compatibility layer on top of upstream
 
 - `upstream-v0.22.0` is an unmodified source snapshot of upstream tag `v0.22.0`
   (upstream commit `60b693f9c76e5d1a6f2a4bc80a3d5ff02db5f5c5`).
-- `rene/v0.22.0` adds the patches used by `social.fischr.org`.
+- `plus/v0.22.0` adds the optional compatibility features used by `social.fischr.org`.
 
 The snapshot branch deliberately contains no upstream Git history. The official
 Codeberg repository remains configured as the local `upstream` remote and is the
 source of truth for releases and history.
 
 ## Patches
+
+The custom behavior is opt-in and controlled by these configuration keys:
+
+- `accounts-use-account-domain-in-acct`
+- `accounts-hide-local-roles`
+- `statuses-preview-cards`
 
 ### Split-domain handles in Mastodon API responses
 
@@ -42,6 +48,12 @@ preventing a timeline with several uncached links from blocking serially.
 Sensitive statuses never trigger a preview request. Preview images are
 referenced by their public URL and are not copied into instance storage.
 
+The public GoToSocial web views render text preview cards as well. YouTube
+watch, short, embed, and `youtu.be` links additionally receive a video card
+with a privacy-enhanced `youtube-nocookie.com` player. The player URL is built
+only from a validated YouTube video ID; arbitrary third-party embed HTML is
+never rendered.
+
 ### Keep local account roles private
 
 Public and blocked account representations omit local role information. The
@@ -55,7 +67,7 @@ keeping it isolated from the split-domain patch.
 1. Read the upstream release and migration notes.
 2. Fetch the new release tag from the Codeberg `upstream` remote.
 3. Create a new unchanged `upstream-vX.Y.Z` snapshot branch from that tag.
-4. Create `rene/vX.Y.Z` from the snapshot.
+4. Create `plus/vX.Y.Z` from the snapshot.
 5. Cherry-pick each still-required patch commit separately and resolve changes
    against the new upstream implementation; never apply the old combined patch
    file blindly.

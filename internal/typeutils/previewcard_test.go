@@ -45,3 +45,30 @@ func TestParsePreviewCard(t *testing.T) {
 	require.Equal(t, 1200, card.Width)
 	require.Equal(t, 630, card.Height)
 }
+
+func TestParsePreviewCardYouTubePlayer(t *testing.T) {
+	target, err := url.Parse("https://youtu.be/Gg-SCpXba64")
+	require.NoError(t, err)
+
+	body := []byte(`<!doctype html><html><head>
+		<meta property="og:title" content="A useful video">
+		<meta property="og:image" content="https://i.ytimg.com/vi/Gg-SCpXba64/maxresdefault.jpg">
+	</head></html>`)
+
+	card, err := parsePreviewCard(target, body)
+	require.NoError(t, err)
+	require.Equal(t, "video", card.Type)
+	require.Equal(t, 480, card.Width)
+	require.Equal(t, 270, card.Height)
+	require.Contains(t, card.HTML, `src="https://www.youtube-nocookie.com/embed/Gg-SCpXba64"`)
+}
+
+func TestYouTubeEmbedURLRejectsUntrustedAndInvalidURLs(t *testing.T) {
+	untrusted, err := url.Parse("https://example.org/watch?v=Gg-SCpXba64")
+	require.NoError(t, err)
+	require.Empty(t, youtubeEmbedURL(untrusted))
+
+	invalid, err := url.Parse("https://youtu.be/not-valid")
+	require.NoError(t, err)
+	require.Empty(t, youtubeEmbedURL(invalid))
+}

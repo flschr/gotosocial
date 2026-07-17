@@ -89,6 +89,9 @@ media photoswipe-gallery {{ (len .) | oddOrEven }} {{ if eq (len .) 1 }}single{{
         {{- end }}
     </div>
     {{- end }}
+    {{- if .Card }}
+    {{- include "status_card.tmpl" .Card | indent 1 }}
+    {{- end }}
 </div>
 <aside class="status-info">
     {{- include "status_info.tmpl" . | indent 1 }}

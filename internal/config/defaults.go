@@ -28,19 +28,20 @@ import (
 // Defaults contains a populated Configuration with reasonable defaults. Note that
 // if you use this, you will still need to set Host, and, if desired, ConfigPath.
 var Defaults = Configuration{
-	LogLevel:           "info",
-	LogFormat:          "logfmt",
-	LogTimestampFormat: "02/01/2006 15:04:05.000",
-	LogDbQueries:       false,
-	ApplicationName:    "gotosocial",
-	LandingPageUser:    "",
-	ConfigPath:         "",
-	Host:               "",
-	AccountDomain:      "",
-	Protocol:           "https",
-	BindAddress:        "0.0.0.0",
-	Port:               8080,
-	TrustedProxies:     []string{"127.0.0.1/32", "::1"}, // localhost
+	LogLevel:                       "info",
+	LogFormat:                      "logfmt",
+	LogTimestampFormat:             "02/01/2006 15:04:05.000",
+	LogDbQueries:                   false,
+	ApplicationName:                "gotosocial",
+	LandingPageUser:                "",
+	ConfigPath:                     "",
+	Host:                           "",
+	AccountDomain:                  "",
+	AccountsUseAccountDomainInAcct: false,
+	Protocol:                       "https",
+	BindAddress:                    "0.0.0.0",
+	Port:                           8080,
+	TrustedProxies:                 []string{"127.0.0.1/32", "::1"}, // localhost
 
 	DbType:                   "",
 	DbAddress:                "",
@@ -77,6 +78,7 @@ var Defaults = Configuration{
 	AccountsRegistrationDailyLimit:   10,
 	AccountsRegistrationBacklogLimit: 20,
 	AccountsAllowCustomCSS:           false,
+	AccountsHideLocalRoles:           false,
 	AccountsCustomCSSLength:          10000,
 	AccountsMaxProfileFields:         6,
 
@@ -104,6 +106,7 @@ var Defaults = Configuration{
 	StatusesPollMaxOptions:         6,
 	StatusesPollOptionMaxChars:     50,
 	StatusesMediaMaxFiles:          6,
+	StatusesPreviewCards:           false,
 	StatusesCleanupCron:            MustParseCron("0 1 * * 0"), // weekly at 1am
 	StatusesCleanupRemoteOlderThan: 0,
 

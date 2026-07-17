@@ -342,6 +342,7 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 		theme           string
 		customCSS       string
 		hideCollections bool
+		roles           = make([]apimodel.AccountDisplayRole, 0)
 	)
 
 	if a.IsRemote() {
@@ -361,14 +362,25 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 			theme = a.Settings.Theme
 			customCSS = a.Settings.CustomCSS
 			hideCollections = *a.Settings.HideCollections
+			if !config.GetAccountsHideLocalRoles() {
+				user, err := c.state.DB.GetUserByAccountID(ctx, a.ID)
+				if err != nil {
+					return nil, gtserror.Newf("error getting user from database for account id %s: %w", a.ID, err)
+				}
+				if role := c.UserToAPIAccountDisplayRole(user); role != nil {
+					roles = append(roles, *role)
+				}
+			}
 		}
 
 		if a.IsInstance() {
 			acct = a.Username
-		} else {
+		} else if config.GetAccountsUseAccountDomainInAcct() {
 			// Include account-domain for local users so split-domain
 			// deployments display the public handle in Mastodon clients.
 			acct = a.Username + "@" + config.GetAccountDomain()
+		} else {
+			acct = a.Username
 		}
 	}
 
@@ -413,6 +425,7 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 		CustomCSS:         customCSS,
 		EnableRSS:         enableRSS,
 		HideCollections:   hideCollections,
+		Roles:             roles,
 		Group:             false,
 	}
 
@@ -498,7 +511,10 @@ func (c *Converter) fieldsToAPIFields(f []*gtsmodel.Field) []apimodel.Field {
 // something goes wrong. The returned account will be a bare minimum representation of the account. This function should be used
 // when someone wants to view an account they've blocked.
 func (c *Converter) AccountToAPIAccountBlocked(ctx context.Context, a *gtsmodel.Account) (*apimodel.Account, error) {
-	var acct string
+	var (
+		acct  string
+		roles = make([]apimodel.AccountDisplayRole, 0)
+	)
 
 	if a.IsRemote() {
 		// Domain may be in Punycode,
@@ -510,10 +526,22 @@ func (c *Converter) AccountToAPIAccountBlocked(ctx context.Context, a *gtsmodel.
 
 		acct = a.Username + "@" + d
 	} else {
+		if !a.IsInstance() && !config.GetAccountsHideLocalRoles() {
+			user, err := c.state.DB.GetUserByAccountID(ctx, a.ID)
+			if err != nil {
+				return nil, gtserror.Newf("error getting user from database for account id %s: %w", a.ID, err)
+			}
+			if role := c.UserToAPIAccountDisplayRole(user); role != nil {
+				roles = append(roles, *role)
+			}
+		}
+
 		if a.IsInstance() {
 			acct = a.Username
-		} else {
+		} else if config.GetAccountsUseAccountDomainInAcct() {
 			acct = a.Username + "@" + config.GetAccountDomain()
+		} else {
+			acct = a.Username
 		}
 	}
 
@@ -530,6 +558,7 @@ func (c *Converter) AccountToAPIAccountBlocked(ctx context.Context, a *gtsmodel.
 		// Empty array (not nillable).
 		Fields:    make([]apimodel.Field, 0),
 		Suspended: !a.SuspendedAt.IsZero(),
+		Roles:     roles,
 	}
 
 	// Don't show the account's actual
@@ -774,8 +803,10 @@ func (c *Converter) MentionToAPIMention(ctx context.Context, mention *gtsmodel.M
 	if mention.TargetAccount.IsLocal() {
 		if mention.TargetAccount.IsInstance() {
 			acct = mention.TargetAccount.Username
-		} else {
+		} else if config.GetAccountsUseAccountDomainInAcct() {
 			acct = mention.TargetAccount.Username + "@" + config.GetAccountDomain()
+		} else {
+			acct = mention.TargetAccount.Username
 		}
 	} else {
 		// Domain may be in Punycode, de-punify it just in case.
