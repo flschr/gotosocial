@@ -44,6 +44,10 @@ type InstanceSettingsUpdateRequest struct {
 	AccountsHideLocalRoles *bool `form:"accounts_hide_local_roles" json:"accounts_hide_local_roles" xml:"accounts_hide_local_roles"`
 	// Generate and expose status link preview cards (GoToSocial Plus).
 	StatusesPreviewCards *bool `form:"statuses_preview_cards" json:"statuses_preview_cards" xml:"statuses_preview_cards"`
+	// Automatically load older posts on public profiles (GoToSocial Plus).
+	ProfilesAutoLoadOlderPosts *bool `form:"profiles_auto_load_older_posts" json:"profiles_auto_load_older_posts" xml:"profiles_auto_load_older_posts"`
+	// Show GoToSocial Plus information on public profiles (GoToSocial Plus).
+	ProfilesShowPlusInfo *bool `form:"profiles_show_plus_info" json:"profiles_show_plus_info" xml:"profiles_show_plus_info"`
 	// Terms and conditions of the instance, max 5,000 chars. HTML formatting accepted.
 	Terms *string `form:"terms" json:"terms" xml:"terms"`
 	// Image to use as the instance thumbnail.

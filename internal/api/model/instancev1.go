@@ -114,6 +114,10 @@ type InstanceV1 struct {
 	AccountsHideLocalRoles bool `json:"accounts_hide_local_roles,omitempty"`
 	// Whether status link preview cards are enabled (GoToSocial Plus).
 	StatusesPreviewCards bool `json:"statuses_preview_cards,omitempty"`
+	// Whether older posts load automatically on public profiles (GoToSocial Plus).
+	ProfilesAutoLoadOlderPosts bool `json:"profiles_auto_load_older_posts,omitempty"`
+	// Whether GoToSocial Plus information is shown on public profiles (GoToSocial Plus).
+	ProfilesShowPlusInfo bool `json:"profiles_show_plus_info"`
 
 	// Random stats generated for the instance.
 	// Only used if `instance-stats-randomize` is true.

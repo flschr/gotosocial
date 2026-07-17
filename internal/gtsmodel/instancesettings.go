@@ -54,6 +54,12 @@ type InstanceSettings struct {
 	// Generate and expose link preview cards for statuses.
 	StatusesPreviewCards bool `bun:",notnull,default:false"`
 
+	// Automatically load older posts on public profile pages.
+	ProfilesAutoLoadOlderPosts bool `bun:",notnull,default:false"`
+
+	// Show GoToSocial Plus information on public profile pages.
+	ProfilesShowPlusInfo bool `bun:",notnull,default:true"`
+
 	// Terms and conditions of the instance.
 	Terms string `bun:""`
 

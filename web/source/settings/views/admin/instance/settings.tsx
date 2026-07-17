@@ -80,7 +80,9 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 		contactEmail: useTextInput("contact_email", { source: instance, valueSelector: (s) => s.email }),
 		accountsUseAccountDomainInAcct: useBoolInput("accounts_use_account_domain_in_acct", { source: instance }),
 		accountsHideLocalRoles: useBoolInput("accounts_hide_local_roles", { source: instance }),
-		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance })
+		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance }),
+		profilesAutoLoadOlderPosts: useBoolInput("profiles_auto_load_older_posts", { source: instance }),
+		profilesShowPlusInfo: useBoolInput("profiles_show_plus_info", { source: instance })
 	};
 
 	const [submitForm, result] = useFormSubmit(form, useUpdateInstanceMutation());
@@ -222,6 +224,14 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 			<Checkbox
 				field={form.statusesPreviewCards}
 				label="Enable link preview cards, including preview images and supported video embeds."
+			/>
+			<Checkbox
+				field={form.profilesAutoLoadOlderPosts}
+				label="Automatically load older posts on public profiles. The Show older link remains available as a fallback."
+			/>
+			<Checkbox
+				field={form.profilesShowPlusInfo}
+				label="Show GoToSocial Plus version and source information on public profiles."
 			/>
 
 			<MutationButton label="Save" result={result} disabled={false} />

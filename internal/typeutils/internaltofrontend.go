@@ -1677,6 +1677,8 @@ func (c *Converter) InstanceSettingsToAPIV1Instance(
 		AccountsUseAccountDomainInAcct: settings.AccountsUseAccountDomainInAcct,
 		AccountsHideLocalRoles:         settings.AccountsHideLocalRoles,
 		StatusesPreviewCards:           settings.StatusesPreviewCards,
+		ProfilesAutoLoadOlderPosts:     settings.ProfilesAutoLoadOlderPosts,
+		ProfilesShowPlusInfo:           settings.ProfilesShowPlusInfo,
 	}
 
 	if config.GetInstanceInjectMastodonVersion() {

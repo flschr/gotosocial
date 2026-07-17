@@ -52,6 +52,8 @@
             <dd class="followingdd text-cutoff">{{- if .account.HideCollections -}}<i>hidden</i>{{- else -}}{{- .account.FollowingCount -}}{{- end -}}</dd>
         </div>
     </dl>
+    {{- if .instance.ProfilesShowPlusInfo }}
     {{- include "profile_plus_info.tmpl" . | indent 1 }}
+    {{- end }}
 </section>
 {{- end }}

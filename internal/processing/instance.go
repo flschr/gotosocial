@@ -318,6 +318,16 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 		columns = append(columns, "statuses_preview_cards")
 	}
 
+	if form.ProfilesAutoLoadOlderPosts != nil {
+		settings.ProfilesAutoLoadOlderPosts = *form.ProfilesAutoLoadOlderPosts
+		columns = append(columns, "profiles_auto_load_older_posts")
+	}
+
+	if form.ProfilesShowPlusInfo != nil {
+		settings.ProfilesShowPlusInfo = *form.ProfilesShowPlusInfo
+		columns = append(columns, "profiles_show_plus_info")
+	}
+
 	// Validate & update site
 	// terms if set on the form.
 	if form.Terms != nil {

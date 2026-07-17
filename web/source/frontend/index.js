@@ -179,6 +179,66 @@ lightbox.on('uiRegister', function() {
 
 lightbox.init();
 
+const autoLoadSection = document.querySelector('[data-auto-load-older-posts="true"]');
+if (autoLoadSection && "IntersectionObserver" in window) {
+	let nextLink = autoLoadSection.querySelector(".backnextlinks .next");
+	let loading = false;
+
+	const observer = new IntersectionObserver(async (entries) => {
+		if (loading || !nextLink || !entries.some((entry) => entry.isIntersecting)) {
+			return;
+		}
+
+		loading = true;
+		observer.unobserve(nextLink);
+		autoLoadSection.setAttribute("aria-busy", "true");
+
+		const originalText = nextLink.textContent;
+		nextLink.textContent = "Loading older posts…";
+
+		try {
+			const response = await fetch(nextLink.href, {
+				headers: { "Accept": "text/html" },
+				credentials: "same-origin",
+			});
+			if (!response.ok) {
+				throw new Error(`unexpected response ${response.status}`);
+			}
+
+			const page = new DOMParser().parseFromString(await response.text(), "text/html");
+			const loadedSection = page.querySelector(".recent.statuses");
+			const loadedThread = loadedSection?.querySelector(".thread");
+			const loadedNextLink = loadedSection?.querySelector(".backnextlinks .next");
+			const currentThread = autoLoadSection.querySelector(".thread");
+			if (!loadedSection || !loadedThread || !currentThread) {
+				throw new Error("older posts were missing from the response");
+			}
+
+			currentThread.append(...loadedThread.children);
+			if (loadedNextLink) {
+				nextLink.href = new URL(loadedNextLink.getAttribute("href"), response.url).href;
+				nextLink.textContent = originalText;
+				observer.observe(nextLink);
+			} else {
+				nextLink.remove();
+				nextLink = null;
+				observer.disconnect();
+			}
+		} catch {
+			// Keep the regular link usable when automatic loading fails.
+			nextLink.textContent = originalText;
+			observer.disconnect();
+		} finally {
+			loading = false;
+			autoLoadSection.removeAttribute("aria-busy");
+		}
+	}, { rootMargin: "0px 0px 320px 0px" });
+
+	if (nextLink) {
+		observer.observe(nextLink);
+	}
+}
+
 Array.from(document.getElementsByClassName("plyr-video")).forEach((video) => {
 	const loopingAuto = !reduceMotion.matches && video.classList.contains("gifv");
 	let player = new Plyr(video, {
