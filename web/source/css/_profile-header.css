@@ -278,20 +278,6 @@
 		}
 	}
 
-	.plus-info {
-		color: $fg-reduced;
-		font-size: 0.75rem;
-		line-height: 1.45;
-		padding: 0.75rem 0.25rem 0;
-
-		p {
-			margin: 0;
-		}
-
-		a {
-			color: inherit;
-		}
-	}
 }
 
 /*
