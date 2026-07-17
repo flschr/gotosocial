@@ -41,6 +41,26 @@
 	min-width: 0%;
 }
 
+.profile .plus-info {
+	color: $fg-reduced;
+	font-size: 0.75rem;
+	line-height: 1.45;
+	padding: 0.75rem 0.25rem 0;
+
+	p {
+		margin: 0;
+	}
+
+	a {
+		color: inherit;
+	}
+}
+
+/* The second copy moves the disclosure after all posts on narrow layouts. */
+.profile .column-split > .plus-info {
+	display: none;
+}
+
 .profile .statuses {
 	display: flex;
 	flex-direction: column;
@@ -53,5 +73,17 @@
 		.next {
 			margin-left: auto;
 		}
+	}
+}
+
+@media screen and (max-width: 750px) {
+	.profile .about-user .plus-info {
+		display: none;
+	}
+
+	.profile .column-split > .plus-info {
+		display: block;
+		flex: 1 0 100%;
+		order: 3;
 	}
 }
