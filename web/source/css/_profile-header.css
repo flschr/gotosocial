@@ -277,6 +277,18 @@
 			}
 		}
 	}
+
+	.plus-info {
+		background: $profile-bg;
+		border-top: 0.1rem solid $gray2;
+		font-size: 0.9rem;
+		line-height: 1.4;
+		padding: 0.75rem;
+
+		p {
+			margin: 0;
+		}
+	}
 }
 
 /*
