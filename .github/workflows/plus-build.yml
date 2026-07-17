@@ -38,10 +38,13 @@ jobs:
         working-directory: web/source
         run: |
           yarn install --frozen-lockfile
+          yarn ts-patch install
           yarn build
 
       - name: Verify deployable web assets
-        run: test -f web/assets/dist/base.css
+        run: |
+          test -f web/assets/dist/base.css
+          test -f web/assets/dist/settings.js
 
       - name: Test account API conversion
         run: go test -tags="netgo osusergo static_build kvformat timetzdata" -timeout=20m ./internal/config ./internal/middleware ./internal/typeutils ./internal/web

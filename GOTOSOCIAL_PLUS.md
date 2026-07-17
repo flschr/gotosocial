@@ -80,6 +80,11 @@ keeping it isolated from the split-domain patch.
 The binary and the `web/assets` plus `web/template` directories must always be
 deployed from the same build.
 
+The frontend build must run `yarn ts-patch install` after installing packages
+and before `yarn build`. The settings application uses Typia's TypeScript
+transform and otherwise builds successfully but fails at runtime with an empty
+settings page.
+
 ## License
 
 The upstream project and these modifications are distributed under the GNU
