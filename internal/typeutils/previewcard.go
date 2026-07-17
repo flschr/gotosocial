@@ -6,6 +6,7 @@ package typeutils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -137,6 +138,10 @@ func hasSocialLinkRel(node *html.Node) bool {
 }
 
 func (c *Converter) fetchPreviewCard(ctx context.Context, target *url.URL) (*model.Card, error) {
+	if youtubeEmbedURL(target) != "" {
+		return c.fetchYouTubePreviewCard(ctx, target)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
 		return nil, err
@@ -171,6 +176,40 @@ func (c *Converter) fetchPreviewCard(ctx context.Context, target *url.URL) (*mod
 	}
 
 	return parsePreviewCard(target, body)
+}
+
+func (c *Converter) fetchYouTubePreviewCard(ctx context.Context, target *url.URL) (*model.Card, error) {
+	oEmbedURL := &url.URL{
+		Scheme: "https",
+		Host:   "www.youtube.com",
+		Path:   "/oembed",
+	}
+	query := oEmbedURL.Query()
+	query.Set("url", target.String())
+	query.Set("format", "json")
+	oEmbedURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, oEmbedURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	rsp, err := c.state.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode < 200 || rsp.StatusCode >= 300 {
+		return nil, fmt.Errorf("YouTube oEmbed response status %s", rsp.Status)
+	}
+
+	limited := io.LimitReader(rsp.Body, 64*1024)
+	var metadata youtubeOEmbed
+	if err := json.NewDecoder(limited).Decode(&metadata); err != nil {
+		return nil, err
+	}
+	return youtubePreviewCardFromOEmbed(target, &metadata)
 }
 
 func attr(node *html.Node, key string) string {

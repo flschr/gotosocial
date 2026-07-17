@@ -105,6 +105,9 @@ func BuildContentSecurityPolicy(extraURIs ...string) string {
 		[]string{self, blob},
 		extraURIs...,
 	)
+	if config.GetStatusesPreviewCards() {
+		values[imgSrc] = append(values[imgSrc], "https:")
+	}
 
 	/*
 		media-src

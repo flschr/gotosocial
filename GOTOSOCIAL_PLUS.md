@@ -48,7 +48,9 @@ preventing a timeline with several uncached links from blocking serially.
 Sensitive statuses never trigger a preview request. Preview images are
 referenced by their public URL and are not copied into instance storage.
 
-The public GoToSocial web views render text preview cards as well. YouTube
+The public GoToSocial web views render preview cards with lazily loaded images
+and no referrer header. Enabling preview cards therefore allows visitors'
+browsers to request HTTPS preview images from the linked sites. YouTube
 watch, short, embed, and `youtu.be` links additionally receive a video card
 with a privacy-enhanced `youtube-nocookie.com` player. The player URL is built
 only from a validated YouTube video ID; arbitrary third-party embed HTML is

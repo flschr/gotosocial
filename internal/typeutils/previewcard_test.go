@@ -72,3 +72,22 @@ func TestYouTubeEmbedURLRejectsUntrustedAndInvalidURLs(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, youtubeEmbedURL(invalid))
 }
+
+func TestYouTubePreviewCardFromOEmbed(t *testing.T) {
+	target, err := url.Parse("https://youtu.be/Gg-SCpXba64")
+	require.NoError(t, err)
+
+	card, err := youtubePreviewCardFromOEmbed(target, &youtubeOEmbed{
+		Title:           "Danger Dan - Keine Angst",
+		AuthorName:      "Danger Dan",
+		AuthorURL:       "https://www.youtube.com/@DangerDan",
+		ThumbnailURL:    "https://i.ytimg.com/vi/Gg-SCpXba64/hqdefault.jpg",
+		ThumbnailWidth:  480,
+		ThumbnailHeight: 360,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "video", card.Type)
+	require.Equal(t, "Danger Dan - Keine Angst", card.Title)
+	require.Equal(t, "https://www.youtube-nocookie.com/embed/Gg-SCpXba64", card.EmbedURL)
+	require.Equal(t, "https://i.ytimg.com/vi/Gg-SCpXba64/hqdefault.jpg", card.Image)
+}

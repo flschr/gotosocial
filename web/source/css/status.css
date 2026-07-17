@@ -114,14 +114,27 @@
 		background: $gray2;
 
 		> a {
-			display: block;
-			padding: 0.75rem;
+			display: grid;
+			grid-template-columns: 1fr;
+			min-height: 7rem;
+
+			&.with-image {
+				grid-template-columns: minmax(7rem, 28%) 1fr;
+			}
+		}
+
+		.preview-card-image {
+			width: 100%;
+			height: 100%;
+			max-height: 12rem;
+			object-fit: cover;
 		}
 
 		.preview-card-content {
 			display: flex;
 			flex-direction: column;
 			gap: 0.35rem;
+			padding: 0.75rem;
 
 			p {
 				margin: 0;

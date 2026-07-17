@@ -17,7 +17,10 @@
         ></iframe>
     </div>
     {{- else }}
-    <a href="{{- .URL -}}" rel="nofollow noreferrer noopener" target="_blank">
+    <a class="{{- if .Image }}with-image{{ end -}}" href="{{- .URL -}}" rel="nofollow noreferrer noopener" target="_blank">
+        {{- with .Image }}
+        <img class="preview-card-image" src="{{- . -}}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        {{- end }}
         <div class="preview-card-content">
             <strong>{{- .Title -}}</strong>
             {{- with .Description }}<p>{{- . -}}</p>{{- end }}

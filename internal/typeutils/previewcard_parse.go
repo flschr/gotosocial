@@ -14,6 +14,15 @@ import (
 	"golang.org/x/net/html"
 )
 
+type youtubeOEmbed struct {
+	Title           string `json:"title"`
+	AuthorName      string `json:"author_name"`
+	AuthorURL       string `json:"author_url"`
+	ThumbnailURL    string `json:"thumbnail_url"`
+	ThumbnailWidth  int    `json:"thumbnail_width"`
+	ThumbnailHeight int    `json:"thumbnail_height"`
+}
+
 func parsePreviewCard(target *url.URL, body []byte) (*model.Card, error) {
 	doc, err := html.Parse(strings.NewReader(string(body)))
 	if err != nil {
@@ -126,6 +135,34 @@ func validYouTubeVideoID(value string) bool {
 		return false
 	}
 	return true
+}
+
+func youtubePreviewCardFromOEmbed(target *url.URL, metadata *youtubeOEmbed) (*model.Card, error) {
+	if metadata.Title == "" {
+		return nil, fmt.Errorf("YouTube oEmbed response has no title")
+	}
+	embedURL := youtubeEmbedURL(target)
+	if embedURL == "" {
+		return nil, fmt.Errorf("invalid YouTube video URL")
+	}
+
+	return &model.Card{
+		URL:          target.String(),
+		Title:        truncatePreviewText(metadata.Title),
+		Type:         "video",
+		AuthorName:   truncatePreviewText(metadata.AuthorName),
+		AuthorURL:    resolveOptionalPreviewURL(target, metadata.AuthorURL),
+		ProviderName: "YouTube",
+		ProviderURL:  "https://www.youtube.com/",
+		HTML: fmt.Sprintf(
+			`<iframe src="%s" width="480" height="270" frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`,
+			embedURL,
+		),
+		Width:    480,
+		Height:   270,
+		Image:    resolveOptionalPreviewURL(target, metadata.ThumbnailURL),
+		EmbedURL: embedURL,
+	}, nil
 }
 
 func resolvePreviewURL(base *url.URL, value string) string {

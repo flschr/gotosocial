@@ -85,4 +85,7 @@ func TestBuildContentSecurityPolicyPreviewCards(t *testing.T) {
 	if !strings.Contains(csp, "frame-src https://www.youtube-nocookie.com") {
 		t.Fatalf("expected YouTube frame source in CSP, got %q", csp)
 	}
+	if !strings.Contains(csp, "img-src 'self' blob: https:") {
+		t.Fatalf("expected HTTPS preview images in CSP, got %q", csp)
+	}
 }
