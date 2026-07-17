@@ -19,8 +19,8 @@ operation, federation, client use, and general configuration.
 
 The fork collects a small number of changes needed by
 [social.fischr.org](https://social.fischr.org/) in a public, reproducible source
-tree. Each optional feature is disabled by default and can be enabled
-individually under **Instance Settings → GoToSocial Plus**.
+tree. Optional behavior can be managed individually under **Instance Settings
+→ GoToSocial Plus**.
 
 ### Split-domain client compatibility
 
@@ -81,8 +81,24 @@ posts. See
 [GoToSocial issue #4664](https://codeberg.org/superseriousbusiness/gotosocial/issues/4664)
 for the original report.
 
-Unlike the three optional Plus features, the RSS correction restores expected
-feed behavior and is not an instance setting.
+Unlike the optional Plus behavior, the RSS correction restores expected feed
+behavior and is not an instance setting.
+
+### Public profile experience
+
+Two further settings control public profile pages:
+
+- **Automatically load older posts** progressively loads the next page as the
+  visitor approaches the end of the current one. It is disabled by default.
+  The regular **Show older** link remains in the page as a fallback when
+  JavaScript is unavailable or a request fails.
+- **Show GoToSocial Plus version and source information** displays a small
+  footnote after the profile content. It is enabled by default and can be hidden
+  without removing the instance-wide source links required by the AGPL.
+
+Automatic loading does not rewrite browser history. Newly loaded posts are
+inserted before the version footnote, so the footnote remains at the actual end
+of the profile.
 
 ## Configuration
 
@@ -92,6 +108,8 @@ Plus**:
 - **Use account domain in local API handles**
 - **Hide local account roles**
 - **Generate link preview cards**
+- **Automatically load older posts on public profiles** (off by default)
+- **Show GoToSocial Plus information on public profiles** (on by default)
 
 Existing installations can initially seed these settings with the following
 configuration values:

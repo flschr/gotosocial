@@ -532,6 +532,8 @@ func (a *adminDB) CreateInstanceSettings(ctx context.Context) error {
 		AccountsUseAccountDomainInAcct: config.GetAccountsUseAccountDomainInAcct(),
 		AccountsHideLocalRoles:         config.GetAccountsHideLocalRoles(),
 		StatusesPreviewCards:           config.GetStatusesPreviewCards(),
+		ProfilesAutoLoadOlderPosts:     false,
+		ProfilesShowPlusInfo:           true,
 	}
 
 	// Put settings in the db.
