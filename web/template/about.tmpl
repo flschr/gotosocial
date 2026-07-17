@@ -95,6 +95,7 @@ Profiles can have up to
                 <li><a href="#about">About {{ .instance.Title -}}</a></li>
                 <li><a href="#contact">Contact</a></li>
                 <li><a href="#features">Features</a></li>
+                <li><a href="#gotosocial-plus">GoToSocial Plus</a></li>
                 <li><a href="#languages">Languages</a></li>
                 <li><a href="#signup">Register an Account on {{ .instance.Title -}}</a></li>
                 <li><a href="#rules">Rules</a></li>
@@ -145,6 +146,33 @@ Profiles can have up to
                 <li>{{- template "profileLimits" . -}}</li>
                 <li>{{- template "customCSSLimits" . -}}</li>
             </ul>
+        </div>
+    </section>
+    <section class="about-section" role="region" aria-labelledby="gotosocial-plus">
+        <h3 id="gotosocial-plus">GoToSocial Plus</h3>
+        <div class="about-section-contents">
+            <p>
+                This instance runs <strong>GoToSocial Plus {{ .instance.Version }}</strong>,
+                an independently maintained GoToSocial build with targeted compatibility,
+                privacy, and presentation improvements.
+            </p>
+            <ul>
+                {{- if .instance.AccountsUseAccountDomainInAcct }}
+                <li><strong>Split-domain client compatibility:</strong> local Mastodon API handles include the configured public account domain. Correct split-domain configuration is still required and some clients may behave differently.</li>
+                {{- end }}
+                {{- if .instance.AccountsHideLocalRoles }}
+                <li><strong>Local role privacy:</strong> public account responses omit roles assigned to local users.</li>
+                {{- end }}
+                {{- if .instance.StatusesPreviewCards }}
+                <li><strong>Link preview cards:</strong> eligible links can include previews in API responses and public web pages.</li>
+                {{- end }}
+                <li><strong>Reliable RSS feeds:</strong> fixes an upstream issue that could leave enabled feeds empty despite public posts.</li>
+            </ul>
+            <p>
+                <a href="https://github.com/flschr/gotosocial" rel="nofollow noreferrer noopener" target="_blank">View the corresponding source code and changes</a>,
+                read the official <a href="https://docs.gotosocial.org/en/latest/advanced/host-account-domain/" rel="noreferrer noopener" target="_blank">split-domain setup guide</a>,
+                or see <a href="https://codeberg.org/superseriousbusiness/gotosocial/issues/4664" rel="noreferrer noopener" target="_blank">the upstream RSS bug report</a>.
+            </p>
         </div>
     </section>
     <section class="about-section" role="region" aria-labelledby="languages">

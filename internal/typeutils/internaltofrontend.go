@@ -47,7 +47,7 @@ const (
 	instancePollsMinExpiration               = 300     // seconds
 	instancePollsMaxExpiration               = 2629746 // seconds
 	instanceAccountsMaxFeaturedTags          = 10
-	instanceSourceURL                        = "https://codeberg.org/superseriousbusiness/gotosocial"
+	instanceSourceURL                        = "https://github.com/flschr/gotosocial"
 	instanceMastodonVersion                  = "3.5.3"
 )
 
