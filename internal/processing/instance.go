@@ -27,6 +27,7 @@ import (
 	"code.superseriousbusiness.org/gopkg/log"
 	"code.superseriousbusiness.org/gopkg/xslices"
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
@@ -302,6 +303,21 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 		columns = append(columns, []string{"custom_css"}...)
 	}
 
+	if form.AccountsUseAccountDomainInAcct != nil {
+		settings.AccountsUseAccountDomainInAcct = *form.AccountsUseAccountDomainInAcct
+		columns = append(columns, "accounts_use_account_domain_in_acct")
+	}
+
+	if form.AccountsHideLocalRoles != nil {
+		settings.AccountsHideLocalRoles = *form.AccountsHideLocalRoles
+		columns = append(columns, "accounts_hide_local_roles")
+	}
+
+	if form.StatusesPreviewCards != nil {
+		settings.StatusesPreviewCards = *form.StatusesPreviewCards
+		columns = append(columns, "statuses_preview_cards")
+	}
+
 	// Validate & update site
 	// terms if set on the form.
 	if form.Terms != nil {
@@ -370,6 +386,11 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 			err = fmt.Errorf("db error updating instance settings: %w", err)
 			return nil, gtserror.NewErrorInternalError(err, err.Error())
 		}
+
+		// Apply database-backed GoToSocial Plus settings immediately.
+		config.SetAccountsUseAccountDomainInAcct(settings.AccountsUseAccountDomainInAcct)
+		config.SetAccountsHideLocalRoles(settings.AccountsHideLocalRoles)
+		config.SetStatusesPreviewCards(settings.StatusesPreviewCards)
 	}
 
 	return p.InstanceGetV1(ctx)

@@ -108,6 +108,12 @@ type InstanceV1 struct {
 	Terms string `json:"terms,omitempty"`
 	// Raw (unparsed) version of terms.
 	TermsRaw string `json:"terms_text,omitempty"`
+	// Whether local acct values use the account domain (GoToSocial Plus).
+	AccountsUseAccountDomainInAcct bool `json:"accounts_use_account_domain_in_acct,omitempty"`
+	// Whether local administrator and moderator labels are hidden publicly (GoToSocial Plus).
+	AccountsHideLocalRoles bool `json:"accounts_hide_local_roles,omitempty"`
+	// Whether status link preview cards are enabled (GoToSocial Plus).
+	StatusesPreviewCards bool `json:"statuses_preview_cards,omitempty"`
 
 	// Random stats generated for the instance.
 	// Only used if `instance-stats-randomize` is true.

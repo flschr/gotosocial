@@ -19,8 +19,8 @@
 
 import React from "react";
 
-import { useTextInput, useFileInput } from "../../../lib/form";
-import { TextInput, TextArea, FileInput } from "../../../components/form/inputs";
+import { useTextInput, useFileInput, useBoolInput } from "../../../lib/form";
+import { TextInput, TextArea, FileInput, Checkbox } from "../../../components/form/inputs";
 import MutationButton from "../../../components/form/mutation-button";
 import { useInstanceV1Query } from "../../../lib/query/gts-api";
 import { useUpdateInstanceMutation } from "../../../lib/query/admin";
@@ -77,7 +77,10 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 			validator: (val: string) => val.length <= termsLimit ? "" : `Instance terms and conditions is ${val.length} characters; must be ${termsLimit} characters or less`
 		}),
 		contactUser: useTextInput("contact_username", { source: instance, valueSelector: (s) => s.contact_account?.username }),
-		contactEmail: useTextInput("contact_email", { source: instance, valueSelector: (s) => s.email })
+		contactEmail: useTextInput("contact_email", { source: instance, valueSelector: (s) => s.email }),
+		accountsUseAccountDomainInAcct: useBoolInput("accounts_use_account_domain_in_acct", { source: instance }),
+		accountsHideLocalRoles: useBoolInput("accounts_hide_local_roles", { source: instance }),
+		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance })
 	};
 
 	const [submitForm, result] = useFormSubmit(form, useUpdateInstanceMutation());
@@ -202,6 +205,23 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 				rows={8}
 				autoCapitalize="none"
 				spellCheck="false"
+			/>
+
+			<div className="form-section-docs">
+				<h3>GoToSocial Plus</h3>
+			</div>
+
+			<Checkbox
+				field={form.accountsUseAccountDomainInAcct}
+				label="Use the account domain in local handles (split-domain configuration)."
+			/>
+			<Checkbox
+				field={form.accountsHideLocalRoles}
+				label="Hide administrator and moderator labels on public profiles."
+			/>
+			<Checkbox
+				field={form.statusesPreviewCards}
+				label="Enable link preview cards, including preview images and supported video embeds."
 			/>
 
 			<MutationButton label="Save" result={result} disabled={false} />

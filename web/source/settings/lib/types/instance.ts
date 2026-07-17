@@ -45,6 +45,9 @@ export interface InstanceV1 {
     rules:                   any[]; // TODO: define this
     terms?:                  string;
     terms_text?:             string;
+    accounts_use_account_domain_in_acct: boolean;
+    accounts_hide_local_roles: boolean;
+    statuses_preview_cards: boolean;
 }
 
 export interface InstanceV2 {

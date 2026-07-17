@@ -38,6 +38,12 @@ type InstanceSettingsUpdateRequest struct {
 	Description *string `form:"description" json:"description" xml:"description"`
 	// Custom CSS for the instance.
 	CustomCSS *string `form:"custom_css" json:"custom_css,omitempty" xml:"custom_css"`
+	// Use the account domain in local acct values (GoToSocial Plus).
+	AccountsUseAccountDomainInAcct *bool `form:"accounts_use_account_domain_in_acct" json:"accounts_use_account_domain_in_acct" xml:"accounts_use_account_domain_in_acct"`
+	// Hide local administrator and moderator labels publicly (GoToSocial Plus).
+	AccountsHideLocalRoles *bool `form:"accounts_hide_local_roles" json:"accounts_hide_local_roles" xml:"accounts_hide_local_roles"`
+	// Generate and expose status link preview cards (GoToSocial Plus).
+	StatusesPreviewCards *bool `form:"statuses_preview_cards" json:"statuses_preview_cards" xml:"statuses_preview_cards"`
 	// Terms and conditions of the instance, max 5,000 chars. HTML formatting accepted.
 	Terms *string `form:"terms" json:"terms" xml:"terms"`
 	// Image to use as the instance thumbnail.

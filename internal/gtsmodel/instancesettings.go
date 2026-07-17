@@ -45,6 +45,15 @@ type InstanceSettings struct {
 	// Custom CSS for the instance.
 	CustomCSS string `bun:",nullzero"`
 
+	// Use the account domain, rather than the host domain, in local acct values.
+	AccountsUseAccountDomainInAcct bool `bun:",notnull,default:false"`
+
+	// Hide local administrator and moderator role labels from public responses.
+	AccountsHideLocalRoles bool `bun:",notnull,default:false"`
+
+	// Generate and expose link preview cards for statuses.
+	StatusesPreviewCards bool `bun:",notnull,default:false"`
+
 	// Terms and conditions of the instance.
 	Terms string `bun:""`
 

@@ -222,6 +222,13 @@ func Start(ctx context.Context) error {
 	if err := dbService.CreateInstanceSettings(ctx); err != nil {
 		return fmt.Errorf("error creating instance settings: %s", err)
 	}
+	instanceSettings, err := dbService.GetInstanceSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("error retrieving instance settings: %s", err)
+	}
+	config.SetAccountsUseAccountDomainInAcct(instanceSettings.AccountsUseAccountDomainInAcct)
+	config.SetAccountsHideLocalRoles(instanceSettings.AccountsHideLocalRoles)
+	config.SetStatusesPreviewCards(instanceSettings.StatusesPreviewCards)
 	if err := dbService.CreateInstanceApplication(ctx); err != nil {
 		return fmt.Errorf("error creating instance application: %s", err)
 	}

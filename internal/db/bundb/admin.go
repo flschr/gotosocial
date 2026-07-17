@@ -527,8 +527,11 @@ func (a *adminDB) CreateInstanceSettings(ctx context.Context) error {
 
 	// Create minimum settings with just title.
 	settings = &gtsmodel.InstanceSettings{
-		ID:    id.NewULID(),
-		Title: config.GetHost(),
+		ID:                             id.NewULID(),
+		Title:                          config.GetHost(),
+		AccountsUseAccountDomainInAcct: config.GetAccountsUseAccountDomainInAcct(),
+		AccountsHideLocalRoles:         config.GetAccountsHideLocalRoles(),
+		StatusesPreviewCards:           config.GetStatusesPreviewCards(),
 	}
 
 	// Put settings in the db.

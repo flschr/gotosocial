@@ -1656,24 +1656,27 @@ func (c *Converter) InstanceSettingsToAPIV1Instance(
 	}
 
 	instance := &apimodel.InstanceV1{
-		URI:                  host,
-		AccountDomain:        acctDomain,
-		Title:                settings.Title,
-		Description:          settings.Description,
-		DescriptionText:      settings.DescriptionText,
-		CustomCSS:            settings.CustomCSS,
-		ShortDescription:     settings.ShortDescription,
-		ShortDescriptionText: settings.ShortDescriptionText,
-		Email:                settings.ContactEmail,
-		Version:              config.GetSoftwareVersion(),
-		Languages:            config.GetInstanceLanguages().TagStrs(),
-		Registrations:        config.GetAccountsRegistrationOpen(),
-		ApprovalRequired:     true,                               // approval always required
-		InvitesEnabled:       false,                              // todo: not supported yet
-		MaxTootChars:         uint(config.GetStatusesMaxChars()), // #nosec G115 -- Already validated.
-		Rules:                InstanceRulesToAPIRules(settings.Rules),
-		Terms:                settings.Terms,
-		TermsRaw:             settings.TermsText,
+		URI:                            host,
+		AccountDomain:                  acctDomain,
+		Title:                          settings.Title,
+		Description:                    settings.Description,
+		DescriptionText:                settings.DescriptionText,
+		CustomCSS:                      settings.CustomCSS,
+		ShortDescription:               settings.ShortDescription,
+		ShortDescriptionText:           settings.ShortDescriptionText,
+		Email:                          settings.ContactEmail,
+		Version:                        config.GetSoftwareVersion(),
+		Languages:                      config.GetInstanceLanguages().TagStrs(),
+		Registrations:                  config.GetAccountsRegistrationOpen(),
+		ApprovalRequired:               true,                               // approval always required
+		InvitesEnabled:                 false,                              // todo: not supported yet
+		MaxTootChars:                   uint(config.GetStatusesMaxChars()), // #nosec G115 -- Already validated.
+		Rules:                          InstanceRulesToAPIRules(settings.Rules),
+		Terms:                          settings.Terms,
+		TermsRaw:                       settings.TermsText,
+		AccountsUseAccountDomainInAcct: settings.AccountsUseAccountDomainInAcct,
+		AccountsHideLocalRoles:         settings.AccountsHideLocalRoles,
+		StatusesPreviewCards:           settings.StatusesPreviewCards,
 	}
 
 	if config.GetInstanceInjectMastodonVersion() {
