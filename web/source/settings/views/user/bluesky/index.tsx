@@ -51,6 +51,7 @@ export default function BlueskySettings() {
 
 function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) {
 	const [identifier, setIdentifier] = useState("");
+	const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 	const [connect, connectResult] = useConnectBlueskyMutation();
 	const [disconnect, disconnectResult] = useDisconnectBlueskyMutation();
 	const [retry, retryResult] = useRetryBlueskyMutation();
@@ -62,11 +63,6 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 	const startConnection = async () => {
 		const response = await connect({ identifier }).unwrap();
 		window.location.assign(response.authorization_url);
-	};
-	const disconnectConnection = () => {
-		if (window.confirm("Disconnect Bluesky? Crossposting and reply import will stop, and stored Bluesky credentials will be removed.")) {
-			void disconnect();
-		}
 	};
 
 	return (
@@ -96,7 +92,12 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				{(connection.pending_deliveries > 0 || connection.dead_deliveries > 0 || connection.dead_notifications > 0) &&
 					<button type="button" disabled={retryResult.isLoading} onClick={() => void retry()}>Retry Bluesky sync</button>}
 				<MutationButton disabled={false} label="Save settings" result={result} />
-				<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={disconnectConnection}>Disconnect Bluesky account</button>
+				{confirmDisconnect ? <div className="info">
+					<p>Disconnect Bluesky? Crossposting and reply import will stop, and stored Bluesky credentials will be removed.</p>
+					<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={() => void disconnect()}>Yes, disconnect Bluesky</button>
+					<button type="button" disabled={disconnectResult.isLoading} onClick={() => setConfirmDisconnect(false)}>Cancel</button>
+				</div> :
+					<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={() => setConfirmDisconnect(true)}>Disconnect Bluesky account</button>}
 			</> : <>
 				<div className="info">No Bluesky account is connected yet.</div>
 				<label>
