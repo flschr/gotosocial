@@ -6,8 +6,9 @@ package bluesky
 
 import (
 	"code.superseriousbusiness.org/gotosocial/internal/config"
-	"code.superseriousbusiness.org/gotosocial/internal/db"
+	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/identity"
 )
 
 func OAuthURLs() (baseURL, metadataURL, callbackURL string) {
@@ -17,14 +18,28 @@ func OAuthURLs() (baseURL, metadataURL, callbackURL string) {
 	return
 }
 
-func NewOAuthClient(database db.DB, accountID string) (*oauth.ClientApp, *OAuthStore, error) {
+func OAuthClientConfig() oauth.ClientConfig {
+	_, metadataURL, callbackURL := OAuthURLs()
+	clientConfig := oauth.NewPublicConfig(metadataURL, callbackURL, []string{"atproto", "transition:generic"})
+	clientConfig.UserAgent = "GoToSocial Plus"
+	return clientConfig
+}
+
+func NewOAuthClient(state *state.State, accountID string) (*oauth.ClientApp, *OAuthStore, error) {
 	crypter, err := NewCrypter(config.GetBlueskyOAuthEncryptionKey())
 	if err != nil {
 		return nil, nil, err
 	}
-	_, metadataURL, callbackURL := OAuthURLs()
-	clientConfig := oauth.NewPublicConfig(metadataURL, callbackURL, []string{"atproto", "transition:generic"})
-	clientConfig.UserAgent = "GoToSocial Plus"
-	store := NewOAuthStore(database, crypter, accountID)
-	return oauth.NewClientApp(&clientConfig, store), store, nil
+	clientConfig := OAuthClientConfig()
+	store := NewOAuthStore(state.DB, crypter, accountID)
+	app := oauth.NewClientApp(&clientConfig, store)
+	client := protectedHTTPClient(state)
+	app.Client = client
+	app.Resolver.Client = client
+	if cache, ok := app.Dir.(*identity.CacheDirectory); ok {
+		if base, ok := cache.Inner.(*identity.BaseDirectory); ok {
+			base.HTTPClient = *client
+		}
+	}
+	return app, store, nil
 }

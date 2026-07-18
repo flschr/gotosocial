@@ -59,6 +59,24 @@ type uploadBlobResponse struct {
 	Blob any `json:"blob"`
 }
 
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+func newATClient(state *state.State, host string) *atclient.APIClient {
+	client := atclient.NewAPIClient(host)
+	// Route every PDS/AppView request, including redirects, through GTS's
+	// size limits and SSRF-protected network client.
+	client.Client = protectedHTTPClient(state)
+	return client
+}
+
+func protectedHTTPClient(state *state.State) *http.Client {
+	return &http.Client{Transport: roundTripperFunc(state.HTTPClient.Do)}
+}
+
 func QueueStatus(ctx context.Context, state *state.State, status *gtsmodel.Status) (*gtsmodel.BlueskyDelivery, error) {
 	if existing, err := state.DB.GetBlueskyDeliveryByStatusID(ctx, status.ID); err == nil {
 		return existing, nil
@@ -158,7 +176,7 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 		return fmt.Errorf("populate status for Bluesky: %w", err)
 	}
 
-	app, _, err := NewOAuthClient(state.DB, status.AccountID)
+	app, _, err := NewOAuthClient(state, status.AccountID)
 	if err != nil {
 		return err
 	}
@@ -170,7 +188,7 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	if err != nil {
 		return fmt.Errorf("resume Bluesky OAuth session: %w", err)
 	}
-	client := atclient.NewAPIClient(connection.PDSURL)
+	client := newATClient(state, connection.PDSURL)
 	client.Auth = session
 	client.AccountDID = &did
 	client.Headers.Set("User-Agent", "GoToSocial Plus")

@@ -23,15 +23,12 @@ import (
 const blueskyOAuthStateLifetime = 10 * time.Minute
 
 func (p *Processor) blueskyOAuthApp(accountID string) (*oauth.ClientApp, *bluesky.OAuthStore, error) {
-	return bluesky.NewOAuthClient(p.state.DB, accountID)
+	return bluesky.NewOAuthClient(p.state, accountID)
 }
 
 func (p *Processor) BlueskyClientMetadata() (*oauth.ClientMetadata, error) {
-	app, _, err := p.blueskyOAuthApp("")
-	if err != nil {
-		return nil, err
-	}
-	metadata := app.Config.ClientMetadata()
+	clientConfig := bluesky.OAuthClientConfig()
+	metadata := clientConfig.ClientMetadata()
 	clientName := "GoToSocial Plus"
 	baseURL, _, _ := bluesky.OAuthURLs()
 	metadata.ClientName = &clientName

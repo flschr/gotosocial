@@ -130,7 +130,7 @@ func syncConnection(ctx context.Context, state *state.State, connection *gtsmode
 }
 
 func authenticatedClient(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (*atclient.APIClient, error) {
-	app, _, err := NewOAuthClient(state.DB, connection.AccountID)
+	app, _, err := NewOAuthClient(state, connection.AccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func authenticatedClient(ctx context.Context, state *state.State, connection *gt
 	if err != nil {
 		return nil, fmt.Errorf("resume Bluesky OAuth session: %w", err)
 	}
-	client := atclient.NewAPIClient(connection.PDSURL)
+	client := newATClient(state, connection.PDSURL)
 	client.Auth = session
 	client.AccountDID = &did
 	client.Headers.Set("User-Agent", "GoToSocial Plus")
