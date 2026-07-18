@@ -19,6 +19,8 @@ type Bluesky interface {
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	DeleteBlueskyConnection(context.Context, string) error
 	DeleteBlueskyDataByAccountID(context.Context, string) error
+	GetBlueskyHealth(context.Context, string) (*gtsmodel.BlueskyHealth, error)
+	RetryBlueskyFailures(context.Context, string, time.Time) error
 	GetBlueskyOAuthState(context.Context, string) (*gtsmodel.BlueskyOAuthState, error)
 	PutBlueskyOAuthState(context.Context, *gtsmodel.BlueskyOAuthState) error
 	DeleteBlueskyOAuthState(context.Context, string) error
@@ -36,13 +38,16 @@ type Bluesky interface {
 
 	GetBlueskyPostByStatusID(context.Context, string) (*gtsmodel.BlueskyPost, error)
 	GetBlueskyPostByURI(context.Context, string) (*gtsmodel.BlueskyPost, error)
+	GetBlueskyPostsByAccountID(context.Context, string) ([]*gtsmodel.BlueskyPost, error)
 	PutBlueskyPost(context.Context, *gtsmodel.BlueskyPost) error
 	UpdateBlueskyPost(context.Context, *gtsmodel.BlueskyPost, ...string) error
 	DeleteBlueskyPost(context.Context, string) error
 
 	GetBlueskyInteractionByStatusID(context.Context, string) (*gtsmodel.BlueskyInteraction, error)
 	GetBlueskyInteractionByURI(context.Context, string) (*gtsmodel.BlueskyInteraction, error)
+	GetBlueskyInteractionsForReconcile(context.Context, string, int) ([]*gtsmodel.BlueskyInteraction, error)
 	PutBlueskyInteraction(context.Context, *gtsmodel.BlueskyInteraction) error
+	UpdateBlueskyInteraction(context.Context, *gtsmodel.BlueskyInteraction, ...string) error
 	PutBlueskyInteractionStatus(context.Context, *gtsmodel.Status, *gtsmodel.Mention, *gtsmodel.BlueskyInteraction) error
 	DeleteBlueskyInteraction(context.Context, string) error
 }

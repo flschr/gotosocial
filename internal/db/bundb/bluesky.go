@@ -75,6 +75,35 @@ func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID 
 	})
 }
 
+func (b *blueskyDB) GetBlueskyHealth(ctx context.Context, accountID string) (*gtsmodel.BlueskyHealth, error) {
+	health := new(gtsmodel.BlueskyHealth)
+	var err error
+	if health.PendingDeliveries, err = b.db.NewSelect().Model((*gtsmodel.BlueskyDelivery)(nil)).Where("account_id = ? AND dead_letter = ?", accountID, false).Count(ctx); err != nil {
+		return nil, err
+	}
+	if health.DeadDeliveries, err = b.db.NewSelect().Model((*gtsmodel.BlueskyDelivery)(nil)).Where("account_id = ? AND dead_letter = ?", accountID, true).Count(ctx); err != nil {
+		return nil, err
+	}
+	if health.DeadNotifications, err = b.db.NewSelect().Model((*gtsmodel.BlueskyNotification)(nil)).Where("account_id = ? AND dead_letter = ?", accountID, true).Count(ctx); err != nil {
+		return nil, err
+	}
+	latest := new(gtsmodel.BlueskyDelivery)
+	if err := b.db.NewSelect().Model(latest).Where("account_id = ? AND last_error IS NOT NULL", accountID).Order("updated_at DESC").Limit(1).Scan(ctx); err == nil {
+		health.LastError, health.LastErrorAt = latest.LastError, latest.UpdatedAt
+	}
+	return health, nil
+}
+
+func (b *blueskyDB) RetryBlueskyFailures(ctx context.Context, accountID string, now time.Time) error {
+	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.NewUpdate().Model((*gtsmodel.BlueskyDelivery)(nil)).Set("next_attempt_at = ?", now).Set("claimed_until = NULL").Set("dead_letter = ?", false).Where("account_id = ?", accountID).Exec(ctx); err != nil {
+			return err
+		}
+		_, err := tx.NewUpdate().Model((*gtsmodel.BlueskyNotification)(nil)).Set("next_attempt_at = ?", now).Set("dead_letter = ?", false).Where("account_id = ?", accountID).Exec(ctx)
+		return err
+	})
+}
+
 func (b *blueskyDB) PutBlueskyNotification(ctx context.Context, notification *gtsmodel.BlueskyNotification) error {
 	_, err := b.db.NewInsert().Model(notification).On("CONFLICT (account_id, uri) DO NOTHING").Exec(ctx)
 	return err
@@ -124,6 +153,7 @@ func (b *blueskyDB) ClaimDueBlueskyDeliveries(ctx context.Context, before, claim
 	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := tx.NewSelect().Model(&deliveries).
 			Where("? <= ?", bun.Ident("next_attempt_at"), before).
+			Where("dead_letter = ?", false).
 			Where("? IS NULL OR ? < ?", bun.Ident("claimed_until"), bun.Ident("claimed_until"), before).
 			Order("next_attempt_at ASC").Limit(limit).Scan(ctx); err != nil {
 			return err
@@ -176,6 +206,12 @@ func (b *blueskyDB) GetBlueskyPostByURI(ctx context.Context, uri string) (*gtsmo
 	return getBlueskyModel[gtsmodel.BlueskyPost](ctx, b.db, "uri", uri)
 }
 
+func (b *blueskyDB) GetBlueskyPostsByAccountID(ctx context.Context, accountID string) ([]*gtsmodel.BlueskyPost, error) {
+	posts := make([]*gtsmodel.BlueskyPost, 0)
+	err := b.db.NewSelect().Model(&posts).Where("account_id = ?", accountID).Scan(ctx)
+	return posts, err
+}
+
 func (b *blueskyDB) PutBlueskyPost(ctx context.Context, post *gtsmodel.BlueskyPost) error {
 	_, err := b.db.NewInsert().Model(post).Exec(ctx)
 	return err
@@ -199,8 +235,24 @@ func (b *blueskyDB) GetBlueskyInteractionByURI(ctx context.Context, uri string) 
 	return getBlueskyModel[gtsmodel.BlueskyInteraction](ctx, b.db, "uri", uri)
 }
 
+func (b *blueskyDB) GetBlueskyInteractionsForReconcile(ctx context.Context, accountID string, limit int) ([]*gtsmodel.BlueskyInteraction, error) {
+	interactions := make([]*gtsmodel.BlueskyInteraction, 0, limit)
+	query := b.db.NewSelect().Model(&interactions).Where("account_id = ?", accountID).
+		OrderExpr("last_checked_at ASC NULLS FIRST")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	err := query.Scan(ctx)
+	return interactions, err
+}
+
 func (b *blueskyDB) PutBlueskyInteraction(ctx context.Context, interaction *gtsmodel.BlueskyInteraction) error {
 	_, err := b.db.NewInsert().Model(interaction).Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) UpdateBlueskyInteraction(ctx context.Context, interaction *gtsmodel.BlueskyInteraction, columns ...string) error {
+	_, err := b.db.NewUpdate().Model(interaction).Column(columns...).WherePK().Exec(ctx)
 	return err
 }
 

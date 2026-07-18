@@ -110,6 +110,12 @@ func QueueStatus(ctx context.Context, state *state.State, status *gtsmodel.Statu
 func ProcessDelivery(ctx context.Context, state *state.State, converter *typeutils.Converter, delivery *gtsmodel.BlueskyDelivery) error {
 	status, err := state.DB.GetStatusByID(ctx, delivery.StatusID)
 	if errors.Is(err, db.ErrNoEntries) {
+		if _, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, delivery.StatusID); mappingErr == nil {
+			if deleteErr := DeleteStatus(ctx, state, delivery.StatusID); deleteErr != nil {
+				return recordDeliveryFailure(ctx, state, delivery, deleteErr)
+			}
+			return nil
+		}
 		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
 	}
 	if err != nil {
@@ -123,6 +129,19 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
 	} else if err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
+	}
+	if _, interactionErr := state.DB.GetBlueskyInteractionByStatusID(ctx, status.InReplyToID); errors.Is(interactionErr, db.ErrNoEntries) {
+		if mapping, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); mappingErr == nil {
+			connection, _ := state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
+			if !EligibleForCrosspost(status, connection) {
+				if err := DeleteStatus(ctx, state, mapping.StatusID); err != nil {
+					return recordDeliveryFailure(ctx, state, delivery, err)
+				}
+				return nil
+			}
+		}
+	} else if interactionErr != nil {
+		return recordDeliveryFailure(ctx, state, delivery, interactionErr)
 	}
 	apiStatus, err := converter.StatusToAPIStatus(ctx, status, status.Account)
 	if err == nil {
@@ -148,7 +167,8 @@ func recordDeliveryFailure(ctx context.Context, state *state.State, delivery *gt
 	delivery.NextAttemptAt = time.Now().Add(delay)
 	delivery.LastError = truncateUTF8(cause.Error(), 1000, 4000)
 	delivery.ClaimedUntil = time.Time{}
-	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "claimed_until"); err != nil {
+	delivery.DeadLetter = delivery.Attempts >= 10
+	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "claimed_until", "dead_letter"); err != nil {
 		return fmt.Errorf("record Bluesky delivery failure after %v: %w", cause, err)
 	}
 	return cause
@@ -245,7 +265,7 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	client.AccountDID = &did
 	client.Headers.Set("User-Agent", "GoToSocial Plus")
 
-	postText, facets := blueskyText(status)
+	postText, facets := blueskyTextForStatus(status, interaction != nil)
 	record := map[string]any{
 		"$type":     "app.bsky.feed.post",
 		"text":      postText,
@@ -307,6 +327,9 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 		return fmt.Errorf("create Bluesky post: %w", err)
 	}
 	rkey := response.URI[strings.LastIndex(response.URI, "/")+1:]
+	if err := syncThreadgate(ctx, client, connection.DID, status, response.URI, existingPost != nil); err != nil {
+		return err
+	}
 	if existingPost != nil {
 		existingPost.URI = response.URI
 		existingPost.CID = response.CID
@@ -320,13 +343,63 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	})
 }
 
+func syncThreadgate(ctx context.Context, client *atclient.APIClient, repo string, status *gtsmodel.Status, postURI string, updating bool) error {
+	publicReplies := status.InteractionPolicy == nil || policyAllowsPublic(status.InteractionPolicy.CanReply)
+	if publicReplies {
+		if !updating {
+			return nil
+		}
+		endpoint, _ := syntax.ParseNSID("com.atproto.repo.deleteRecord")
+		err := client.Post(ctx, endpoint, map[string]any{
+			"repo": repo, "collection": "app.bsky.feed.threadgate", "rkey": status.ID,
+		}, nil)
+		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "recordnotfound") && !strings.Contains(strings.ToLower(err.Error()), "record not found") {
+			return fmt.Errorf("remove Bluesky reply restriction: %w", err)
+		}
+		return nil
+	}
+	// Mastodon manual approval and follower collections have no equivalent in
+	// Bluesky. An empty allow list is the conservative mapping: it never opens
+	// replies more widely than the source status intended.
+	endpoint, _ := syntax.ParseNSID("com.atproto.repo.putRecord")
+	if err := client.Post(ctx, endpoint, map[string]any{
+		"repo": repo, "collection": "app.bsky.feed.threadgate", "rkey": status.ID,
+		"record": map[string]any{
+			"$type": "app.bsky.feed.threadgate", "post": postURI,
+			"createdAt": status.CreatedAt.UTC().Format(time.RFC3339Nano), "allow": []any{},
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("apply Bluesky reply restriction: %w", err)
+	}
+	return nil
+}
+
+func policyAllowsPublic(rules *gtsmodel.PolicyRules) bool {
+	if rules == nil {
+		return false
+	}
+	for _, value := range rules.AutomaticApproval {
+		if value == gtsmodel.PolicyValuePublic {
+			return true
+		}
+	}
+	return false
+}
+
 func blueskyText(status *gtsmodel.Status) (string, []facet) {
+	return blueskyTextForStatus(status, false)
+}
+
+func blueskyTextForStatus(status *gtsmodel.Status, stripSystemMention bool) (string, []facet) {
 	prefix := ""
 	if warning := strings.TrimSpace(text.ParseHTMLToPlain(status.ContentWarning)); warning != "" {
 		prefix = "CW: " + warning + "\n\n"
 	}
 	body, facets := htmlTextAndFacets(status.Content)
 	body = strings.TrimSpace(body)
+	if stripSystemMention && status.InReplyToAccount != nil {
+		body, facets = stripLeadingAccountMention(body, facets, status.InReplyToAccount.URI, status.InReplyToAccount.URL)
+	}
 	for i := range facets {
 		facets[i].Index.ByteStart += len(prefix)
 		facets[i].Index.ByteEnd += len(prefix)
@@ -342,6 +415,34 @@ func blueskyText(status *gtsmodel.Status) (string, []facet) {
 		Index:    facetIndex{ByteStart: start, ByteEnd: len(trimmed)},
 		Features: []facetFeature{{Type: "app.bsky.richtext.facet#link", URI: status.URL}},
 	}}
+}
+
+func stripLeadingAccountMention(body string, facets []facet, accountURLs ...string) (string, []facet) {
+	if len(facets) == 0 || facets[0].Index.ByteStart != 0 || len(facets[0].Features) == 0 {
+		return body, facets
+	}
+	uri := facets[0].Features[0].URI
+	matched := false
+	for _, accountURL := range accountURLs {
+		if uri != "" && uri == accountURL {
+			matched = true
+			break
+		}
+	}
+	if !matched || facets[0].Index.ByteEnd > len(body) {
+		return body, facets
+	}
+	removed := facets[0].Index.ByteEnd
+	for removed < len(body) && (body[removed] == ' ' || body[removed] == '\n' || body[removed] == '\t') {
+		removed++
+	}
+	body = body[removed:]
+	remaining := facets[1:]
+	for i := range remaining {
+		remaining[i].Index.ByteStart -= removed
+		remaining[i].Index.ByteEnd -= removed
+	}
+	return body, remaining
 }
 
 func htmlTextAndFacets(input string) (string, []facet) {

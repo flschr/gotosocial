@@ -121,7 +121,7 @@ func (p *Processor) GetWeb(ctx context.Context, username string) (*apimodel.WebA
 	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, targetAccount.ID)
 	if err == nil && connection.ShowProfileFollow {
 		webAccount.BlueskyHandle = connection.Handle
-		webAccount.BlueskyURL = "https://bsky.app/profile/" + url.PathEscape(connection.Handle)
+		webAccount.BlueskyURL = "https://bsky.app/profile/" + url.PathEscape(connection.DID)
 	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
 		err := gtserror.Newf("db error getting Bluesky connection: %w", err)
 		return nil, gtserror.NewErrorInternalError(err)

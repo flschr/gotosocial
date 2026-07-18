@@ -104,6 +104,9 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	suite.Require().NoError(err)
 	suite.Require().Len(due, 1)
 	suite.Equal(status.ID, due[0].StatusID)
+	claimedAgain, err := suite.db.ClaimDueBlueskyDeliveries(ctx, now, now.Add(5*time.Minute), 10)
+	suite.Require().NoError(err)
+	suite.Empty(claimedAgain)
 
 	delivery.Attempts = 2
 	delivery.NextAttemptAt = time.Now().Add(time.Hour)

@@ -12,6 +12,7 @@ import (
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
 	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
@@ -108,19 +109,41 @@ func (p *Processor) BlueskyDisconnect(ctx context.Context, accountID string) gts
 func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) (*apimodel.BlueskyConnection, gtserror.WithCode) {
 	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
 	if errors.Is(err, db.ErrNoEntries) {
-		return &apimodel.BlueskyConnection{}, nil
+		return &apimodel.BlueskyConnection{Configured: config.GetBlueskyOAuthEncryptionKey() != ""}, nil
 	}
 	if err != nil {
 		return nil, gtserror.NewErrorInternalError(err)
 	}
 
+	health, err := p.state.DB.GetBlueskyHealth(ctx, accountID)
+	if err != nil {
+		return nil, gtserror.NewErrorInternalError(err)
+	}
+	if health.LastError == "" && connection.LastSyncError != "" {
+		health.LastError = connection.LastSyncError
+		health.LastErrorAt = connection.LastSyncAt
+	}
 	return &apimodel.BlueskyConnection{
 		Connected:         true,
+		Configured:        config.GetBlueskyOAuthEncryptionKey() != "",
 		Handle:            connection.Handle,
-		ProfileURL:        "https://bsky.app/profile/" + url.PathEscape(connection.Handle),
+		ProfileURL:        "https://bsky.app/profile/" + url.PathEscape(connection.DID),
 		CrosspostPublic:   connection.CrosspostPublic,
 		ShowProfileFollow: connection.ShowProfileFollow,
+		PendingDeliveries: health.PendingDeliveries,
+		DeadDeliveries:    health.DeadDeliveries,
+		DeadNotifications: health.DeadNotifications,
+		LastError:         health.LastError,
+		LastErrorAt:       health.LastErrorAt,
+		LastSyncAt:        connection.LastSyncAt,
 	}, nil
+}
+
+func (p *Processor) BlueskyRetry(ctx context.Context, accountID string) gtserror.WithCode {
+	if err := p.state.DB.RetryBlueskyFailures(ctx, accountID, time.Now()); err != nil {
+		return gtserror.NewErrorInternalError(err)
+	}
+	return nil
 }
 
 func (p *Processor) BlueskySettingsUpdate(ctx context.Context, accountID string, form *apimodel.BlueskySettingsUpdateRequest) (*apimodel.BlueskyConnection, gtserror.WithCode) {

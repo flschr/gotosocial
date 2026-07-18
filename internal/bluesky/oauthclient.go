@@ -26,6 +26,7 @@ func OAuthClientConfig() oauth.ClientConfig {
 	clientConfig := oauth.NewPublicConfig(metadataURL, callbackURL, []string{
 		"atproto",
 		"repo:app.bsky.feed.post",
+		"repo:app.bsky.feed.threadgate",
 		"blob:image/*",
 		"rpc:app.bsky.notification.listNotifications?aud=did:web:api.bsky.app#bsky_appview",
 		"rpc:app.bsky.feed.getPosts?aud=did:web:api.bsky.app#bsky_appview",

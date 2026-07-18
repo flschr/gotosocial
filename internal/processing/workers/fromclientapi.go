@@ -786,6 +786,9 @@ func (p *clientAPI) UpdateStatus(ctx context.Context, cMsg *messages.FromClientA
 			}
 		} else if deleteErr := bluesky.DeleteStatus(ctx, p.state, status.ID); deleteErr != nil {
 			log.Errorf(ctx, "error deleting ineligible Bluesky status: %v", deleteErr)
+			if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
+				log.Errorf(ctx, "error queueing Bluesky privacy update retry: %v", queueErr)
+			}
 		}
 	} else if !errors.Is(err, db.ErrNoEntries) {
 		log.Errorf(ctx, "error checking Bluesky status mapping: %v", err)
@@ -996,6 +999,9 @@ func (p *clientAPI) DeleteStatus(ctx context.Context, cMsg *messages.FromClientA
 	// logged prominently; the mapping is retained until remote deletion works.
 	if err := bluesky.DeleteStatus(ctx, p.state, status.ID); err != nil {
 		log.Errorf(ctx, "error deleting status %s from Bluesky: %v", status.URI, err)
+		if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
+			log.Errorf(ctx, "error queueing Bluesky delete retry: %v", queueErr)
+		}
 	}
 
 	// Don't delete attachments, just unattach them:
@@ -1047,7 +1053,7 @@ func (p *clientAPI) DeleteAccountOrUser(ctx context.Context, cMsg *messages.From
 
 	// Revoke the connected Bluesky session and erase encrypted credentials
 	// before the local account is stubbed or removed.
-	if err := bluesky.Disconnect(ctx, p.state, account.ID); err != nil {
+	if err := bluesky.DeleteAccount(ctx, p.state, account.ID); err != nil {
 		log.Errorf(ctx, "error disconnecting Bluesky for account %s: %v", account.ID, err)
 	}
 

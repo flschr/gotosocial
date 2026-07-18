@@ -23,6 +23,13 @@ export interface BlueskyConnection {
 	profile_url?: string;
 	crosspost_public: boolean;
 	show_profile_follow: boolean;
+	configured: boolean;
+	pending_deliveries: number;
+	dead_deliveries: number;
+	dead_notifications: number;
+	last_error?: string;
+	last_error_at?: string;
+	last_sync_at?: string;
 }
 
 export interface BlueskySettingsUpdate {

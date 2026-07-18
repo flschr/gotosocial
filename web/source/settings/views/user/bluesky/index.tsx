@@ -29,6 +29,7 @@ import {
 	useBlueskyConnectionQuery,
 	useConnectBlueskyMutation,
 	useDisconnectBlueskyMutation,
+	useRetryBlueskyMutation,
 	useUpdateBlueskySettingsMutation,
 } from "../../../lib/query/user/bluesky";
 
@@ -52,6 +53,7 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 	const [identifier, setIdentifier] = useState("");
 	const [connect, connectResult] = useConnectBlueskyMutation();
 	const [disconnect, disconnectResult] = useDisconnectBlueskyMutation();
+	const [retry, retryResult] = useRetryBlueskyMutation();
 	const form = {
 		crosspostPublic: useBoolInput("crosspost_public", { source: connection }),
 		showProfileFollow: useBoolInput("show_profile_follow", { source: connection }),
@@ -60,6 +62,11 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 	const startConnection = async () => {
 		const response = await connect({ identifier }).unwrap();
 		window.location.assign(response.authorization_url);
+	};
+	const disconnectConnection = () => {
+		if (window.confirm("Disconnect Bluesky? Crossposting and reply import will stop, and stored Bluesky credentials will be removed.")) {
+			void disconnect();
+		}
 	};
 
 	return (
@@ -70,22 +77,34 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 			</div>
 			{connectResult.isError && <ErrorC error={connectResult.error} />}
 			{disconnectResult.isError && <ErrorC error={disconnectResult.error} />}
+			{retryResult.isError && <ErrorC error={retryResult.error} />}
+			{new URLSearchParams(window.location.search).has("error") && <ErrorC error={new Error("Bluesky could not be connected. Please try again.")} />}
 			{connection.connected ? <>
 				<div className="info">
 					Connected as <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>
 				</div>
 				<Checkbox field={form.crosspostPublic} label="Automatically publish public posts to Bluesky" />
-				<small>Replies, mentions, boosts, polls, imports, and non-public posts stay on GoToSocial.</small>
+				<small>Replies, mentions, boosts, polls, and non-public posts are not crossposted.</small>
 				<Checkbox field={form.showProfileFollow} label="Show a ‘Follow on Bluesky’ button on my public profile" />
+				<div className="info">
+					{connection.pending_deliveries === 0 && connection.dead_deliveries === 0 && connection.dead_notifications === 0
+						? "Bluesky sync is healthy."
+						: `${connection.pending_deliveries} outgoing post(s) pending; ${connection.dead_deliveries + connection.dead_notifications} item(s) need attention.`}
+					{connection.last_sync_at && <small> Last checked {new Date(connection.last_sync_at).toLocaleString()}.</small>}
+					{connection.last_error && <small> Last error: {connection.last_error}</small>}
+				</div>
+				{(connection.pending_deliveries > 0 || connection.dead_deliveries > 0 || connection.dead_notifications > 0) &&
+					<button type="button" disabled={retryResult.isLoading} onClick={() => void retry()}>Retry Bluesky sync</button>}
 				<MutationButton disabled={false} label="Save settings" result={result} />
-				<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={() => void disconnect()}>Disconnect Bluesky account</button>
+				<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={disconnectConnection}>Disconnect Bluesky account</button>
 			</> : <>
 				<div className="info">No Bluesky account is connected yet.</div>
 				<label>
 					Bluesky handle
 					<input value={identifier} placeholder="your-handle.bsky.social" onChange={(event) => setIdentifier(event.target.value)} />
 				</label>
-				<button type="button" disabled={!identifier || connectResult.isLoading} onClick={() => void startConnection()}>Connect Bluesky account</button>
+				<button type="button" disabled={!connection.configured || !identifier || connectResult.isLoading} onClick={() => void startConnection()}>Connect Bluesky account</button>
+				{!connection.configured && <small>Bluesky connections are not configured by this server administrator.</small>}
 				<small>You will be redirected to your Bluesky provider to approve access. Your password is never shared with GoToSocial.</small>
 			</>}
 		</form>

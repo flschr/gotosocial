@@ -23,8 +23,18 @@ type BlueskyConnection struct {
 	OAuthSessionID      string    `bun:"oauth_session_id,nullzero"`
 	OAuthData           []byte    `bun:"oauth_data,nullzero"`
 	NotificationsSeenAt time.Time `bun:"type:timestamptz,nullzero"`
+	LastSyncAt          time.Time `bun:"type:timestamptz,nullzero"`
+	LastSyncError       string    `bun:",nullzero"`
 	CrosspostPublic     bool      `bun:",notnull,default:false"`
 	ShowProfileFollow   bool      `bun:",notnull,default:true"`
+}
+
+type BlueskyHealth struct {
+	PendingDeliveries int
+	DeadDeliveries    int
+	DeadNotifications int
+	LastError         string
+	LastErrorAt       time.Time
 }
 
 // BlueskyDelivery is a durable, retryable outgoing crosspost job.
@@ -39,6 +49,7 @@ type BlueskyDelivery struct {
 	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
 	ClaimedUntil  time.Time `bun:"type:timestamptz,nullzero"`
 	LastError     string    `bun:",nullzero"`
+	DeadLetter    bool      `bun:",notnull,default:false"`
 }
 
 // BlueskyOAuthState stores one short-lived, encrypted authorization request.
@@ -88,6 +99,7 @@ type BlueskyInteraction struct {
 	bun.BaseModel `bun:"table:bluesky_interactions"`
 	ID            string    `bun:"type:CHAR(26),pk,nullzero,notnull,unique"`
 	CreatedAt     time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	LastCheckedAt time.Time `bun:"type:timestamptz,nullzero"`
 	AccountID     string    `bun:"type:CHAR(26),nullzero,notnull"`
 	StatusID      string    `bun:"type:CHAR(26),nullzero,notnull,unique"`
 	URI           string    `bun:",nullzero,notnull,unique"`

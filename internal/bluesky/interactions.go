@@ -11,6 +11,7 @@ import (
 	"fmt"
 	stdhtml "html"
 	"strings"
+	"sync"
 	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
@@ -47,7 +48,26 @@ type blueskyAuthor struct {
 type blueskyPostRecord struct {
 	Text      string    `json:"text"`
 	CreatedAt time.Time `json:"createdAt"`
-	Reply     *struct {
+	Facets    []struct {
+		Index    facetIndex `json:"index"`
+		Features []struct {
+			Type string `json:"$type"`
+			URI  string `json:"uri"`
+			DID  string `json:"did"`
+			Tag  string `json:"tag"`
+		} `json:"features"`
+	} `json:"facets"`
+	Embed *struct {
+		Images []struct {
+			Alt   string `json:"alt"`
+			Image struct {
+				Ref struct {
+					Link string `json:"$link"`
+				} `json:"ref"`
+			} `json:"image"`
+		} `json:"images"`
+	} `json:"embed"`
+	Reply *struct {
 		Root   blueskyStrongRef `json:"root"`
 		Parent blueskyStrongRef `json:"parent"`
 	} `json:"reply"`
@@ -58,23 +78,74 @@ type blueskyStrongRef struct {
 	CID string `json:"cid"`
 }
 
+type blueskyPostsResponse struct {
+	Posts []struct {
+		URI    string          `json:"uri"`
+		CID    string          `json:"cid"`
+		Author blueskyAuthor   `json:"author"`
+		Record json.RawMessage `json:"record"`
+	} `json:"posts"`
+}
+
 // SyncInteractions imports replies and mentions as private, local-only statuses.
 func SyncInteractions(ctx context.Context, state *state.State) error {
 	connections, err := state.DB.GetBlueskyConnections(ctx)
 	if err != nil {
 		return err
 	}
-	var syncErrors []error
+	errChannel := make(chan error, len(connections))
+	semaphore := make(chan struct{}, 4)
+	var wait sync.WaitGroup
 	for _, connection := range connections {
-		if err := syncConnection(ctx, state, connection); err != nil {
-			syncErrors = append(syncErrors, fmt.Errorf("%s: %w", connection.Handle, err))
-		}
+		wait.Add(1)
+		go func(connection *gtsmodel.BlueskyConnection) {
+			defer wait.Done()
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				errChannel <- ctx.Err()
+				return
+			}
+			if err := syncConnection(ctx, state, connection); err != nil {
+				errChannel <- fmt.Errorf("%s: %w", connection.Handle, err)
+			}
+		}(connection)
+	}
+	wait.Wait()
+	close(errChannel)
+	var syncErrors []error
+	for err := range errChannel {
+		syncErrors = append(syncErrors, err)
 	}
 	return errors.Join(syncErrors...)
 }
 
-func syncConnection(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
+func syncConnection(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (syncErr error) {
 	defer lockAccount(connection.AccountID)()
+	defer func() {
+		connection.LastSyncAt = time.Now()
+		if syncErr != nil {
+			connection.LastSyncError = truncateUTF8(syncErr.Error(), 1000, 4000)
+		} else {
+			connection.LastSyncError = ""
+		}
+		if err := state.DB.UpdateBlueskyConnection(ctx, connection, "last_sync_at", "last_sync_error"); err != nil && syncErr == nil {
+			syncErr = err
+		}
+	}()
+	if connection.LastSyncAt.IsZero() || time.Since(connection.LastSyncAt) >= time.Hour {
+		if app, _, err := NewOAuthClient(state, connection.AccountID); err == nil {
+			if did, err := syntax.ParseDID(connection.DID); err == nil {
+				if identity, err := app.Dir.LookupDID(ctx, did); err == nil && identity.Handle.String() != connection.Handle {
+					connection.Handle = identity.Handle.String()
+					if err := state.DB.UpdateBlueskyConnection(ctx, connection, "handle"); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
 	client, err := authenticatedClient(ctx, state, connection)
 	if err != nil {
 		return err
@@ -134,7 +205,104 @@ func syncConnection(ctx context.Context, state *state.State, connection *gtsmode
 			return err
 		}
 	}
-	return processNotificationInbox(ctx, state, connection)
+	return errors.Join(
+		processNotificationInbox(ctx, state, connection),
+		reconcileInteractions(ctx, state, connection, client),
+	)
+}
+
+func reconcileInteractions(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection, client *atclient.APIClient) error {
+	interactions, err := state.DB.GetBlueskyInteractionsForReconcile(ctx, connection.AccountID, 100)
+	if err != nil || len(interactions) == 0 {
+		return err
+	}
+	endpoint, _ := syntax.ParseNSID("app.bsky.feed.getPosts")
+	client = client.WithService("did:web:api.bsky.app#bsky_appview")
+	var reconcileErrors []error
+	for start := 0; start < len(interactions); start += 25 {
+		end := min(start+25, len(interactions))
+		batch := interactions[start:end]
+		uris := make([]string, 0, len(batch))
+		for _, interaction := range batch {
+			uris = append(uris, interaction.URI)
+		}
+		var response blueskyPostsResponse
+		if err := client.Get(ctx, endpoint, map[string]any{"uris": uris}, &response); err != nil {
+			return errors.Join(append(reconcileErrors, fmt.Errorf("reconcile Bluesky interactions: %w", err))...)
+		}
+		posts := make(map[string]struct {
+			CID    string
+			Author blueskyAuthor
+			Record json.RawMessage
+		}, len(response.Posts))
+		for _, post := range response.Posts {
+			posts[post.URI] = struct {
+				CID    string
+				Author blueskyAuthor
+				Record json.RawMessage
+			}{post.CID, post.Author, post.Record}
+		}
+		for _, interaction := range batch {
+			post, exists := posts[interaction.URI]
+			if !exists {
+				status, statusErr := state.DB.GetStatusByID(ctx, interaction.StatusID)
+				if statusErr == nil {
+					statusErr = state.DB.PopulateStatus(ctx, status)
+					if statusErr == nil {
+						target, targetErr := state.DB.GetAccountByID(ctx, connection.AccountID)
+						if targetErr != nil {
+							statusErr = targetErr
+						} else {
+							state.Workers.Client.Queue.Push(&messages.FromClientAPI{
+								APObjectType: ap.ObjectNote, APActivityType: ap.ActivityDelete,
+								GTSModel: status, Origin: status.Account, Target: target,
+							})
+						}
+					}
+				}
+				if statusErr == nil || errors.Is(statusErr, db.ErrNoEntries) {
+					statusErr = state.DB.DeleteBlueskyInteraction(ctx, interaction.ID)
+				}
+				if statusErr != nil {
+					reconcileErrors = append(reconcileErrors, statusErr)
+				}
+				continue
+			}
+			if post.CID != interaction.CID {
+				var record blueskyPostRecord
+				if err := json.Unmarshal(post.Record, &record); err != nil {
+					reconcileErrors = append(reconcileErrors, err)
+					continue
+				}
+				status, err := state.DB.GetStatusByID(ctx, interaction.StatusID)
+				if err != nil {
+					reconcileErrors = append(reconcileErrors, err)
+					continue
+				}
+				status.Text = record.Text
+				status.Content = renderInteractionContent(record, post.Author, interaction.URL)
+				if err := state.DB.UpdateStatus(ctx, status, "text", "content"); err != nil {
+					reconcileErrors = append(reconcileErrors, err)
+					continue
+				}
+				if err := state.DB.PopulateStatus(ctx, status); err == nil {
+					if target, err := state.DB.GetAccountByID(ctx, connection.AccountID); err == nil {
+						state.Workers.Client.Queue.Push(&messages.FromClientAPI{
+							APObjectType: ap.ObjectNote, APActivityType: ap.ActivityUpdate,
+							GTSModel: status, Origin: status.Account, Target: target,
+						})
+					}
+				}
+				interaction.CID = post.CID
+				interaction.AuthorHandle = post.Author.Handle
+			}
+			interaction.LastCheckedAt = time.Now()
+			if err := state.DB.UpdateBlueskyInteraction(ctx, interaction, "cid", "author_handle", "last_checked_at"); err != nil {
+				reconcileErrors = append(reconcileErrors, err)
+			}
+		}
+	}
+	return errors.Join(reconcileErrors...)
 }
 
 func processNotificationInbox(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
@@ -233,9 +401,7 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	statusID := id.NewULIDFromTime(createdAt)
 	originURIs := uris.GenerateURIsForAccount(origin.Username)
 	postURL := blueskyPostURL(notification.Author.Handle, notification.URI)
-	content := fmt.Sprintf(`<p><strong><a href="%s">@%s on Bluesky</a></strong></p><p>%s</p><p><a href="%s">View on Bluesky</a></p>`,
-		stdhtml.EscapeString("https://bsky.app/profile/"+notification.Author.Handle), stdhtml.EscapeString(notification.Author.Handle),
-		strings.ReplaceAll(stdhtml.EscapeString(record.Text), "\n", "<br>"), stdhtml.EscapeString(postURL))
+	content := renderInteractionContent(record, notification.Author, postURL)
 	mentionID := id.NewULID()
 	status := &gtsmodel.Status{
 		ID: statusID, URI: originURIs.StatusesURI + "/" + statusID, URL: originURIs.StatusesURL + "/" + statusID,
@@ -263,6 +429,54 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 		APObjectType: ap.ObjectNote, APActivityType: ap.ActivityCreate, GTSModel: status, Origin: origin, Target: target,
 	})
 	return nil
+}
+
+func renderInteractionContent(record blueskyPostRecord, author blueskyAuthor, postURL string) string {
+	body := renderBlueskyRecord(record, author.DID)
+	return fmt.Sprintf(`<p><strong><a href="%s">@%s on Bluesky</a></strong></p><p>%s</p><p><a href="%s">View on Bluesky</a></p>`,
+		stdhtml.EscapeString("https://bsky.app/profile/"+author.DID), stdhtml.EscapeString(author.Handle), body, stdhtml.EscapeString(postURL))
+}
+
+func renderBlueskyRecord(record blueskyPostRecord, authorDID string) string {
+	textBytes := []byte(record.Text)
+	var out strings.Builder
+	position := 0
+	for _, recordFacet := range record.Facets {
+		start, end := recordFacet.Index.ByteStart, recordFacet.Index.ByteEnd
+		if start < position || end < start || end > len(textBytes) {
+			continue
+		}
+		out.WriteString(strings.ReplaceAll(stdhtml.EscapeString(string(textBytes[position:start])), "\n", "<br>"))
+		label := strings.ReplaceAll(stdhtml.EscapeString(string(textBytes[start:end])), "\n", "<br>")
+		href := ""
+		for _, feature := range recordFacet.Features {
+			switch feature.Type {
+			case "app.bsky.richtext.facet#link":
+				href = feature.URI
+			case "app.bsky.richtext.facet#mention":
+				href = "https://bsky.app/profile/" + feature.DID
+			case "app.bsky.richtext.facet#tag":
+				href = "https://bsky.app/hashtag/" + feature.Tag
+			}
+		}
+		if strings.HasPrefix(href, "https://") || strings.HasPrefix(href, "http://") {
+			out.WriteString(`<a href="` + stdhtml.EscapeString(href) + `">` + label + `</a>`)
+		} else {
+			out.WriteString(label)
+		}
+		position = end
+	}
+	out.WriteString(strings.ReplaceAll(stdhtml.EscapeString(string(textBytes[position:])), "\n", "<br>"))
+	if record.Embed != nil {
+		for _, image := range record.Embed.Images {
+			if image.Image.Ref.Link == "" {
+				continue
+			}
+			imageURL := "https://cdn.bsky.app/img/feed_fullsize/plain/" + authorDID + "/" + image.Image.Ref.Link + "@jpeg"
+			out.WriteString(`<br><a href="` + stdhtml.EscapeString(imageURL) + `">Image: ` + stdhtml.EscapeString(image.Alt) + `</a>`)
+		}
+	}
+	return out.String()
 }
 
 func mappedLocalStatus(ctx context.Context, state *state.State, accountID, parentURI, rootURI string) (*gtsmodel.Status, error) {

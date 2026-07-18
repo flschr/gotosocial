@@ -70,10 +70,23 @@ func (m *Module) BlueskyConnectPOSTHandler(c *gin.Context) {
 func (m *Module) BlueskyCallbackGETHandler(c *gin.Context) {
 	redirectURL, errWithCode := m.processor.BlueskyConnectCallback(c.Request.Context(), c.Request.URL.Query())
 	if errWithCode != nil {
-		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		c.Redirect(http.StatusFound, "/settings/user/bluesky?error=connection_failed")
 		return
 	}
 	c.Redirect(http.StatusFound, redirectURL)
+}
+
+func (m *Module) BlueskyRetryPOSTHandler(c *gin.Context) {
+	authed, errWithCode := apiutil.TokenAuth(c, true, true, true, true, apiutil.ScopeWriteAccounts)
+	if errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+	if errWithCode := m.processor.BlueskyRetry(c.Request.Context(), authed.Account.ID); errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (m *Module) BlueskyMetadataGETHandler(c *gin.Context) {

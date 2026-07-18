@@ -7,6 +7,8 @@ package bluesky
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 
 	"code.superseriousbusiness.org/gotosocial/internal/db"
@@ -29,7 +31,7 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 	defer lockAccount(accountID)()
 	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
 	if errors.Is(err, db.ErrNoEntries) {
-		return state.DB.DeleteBlueskyDataByAccountID(ctx, accountID)
+		return errors.Join(deleteProxyStatuses(ctx, state, accountID), state.DB.DeleteBlueskyDataByAccountID(ctx, accountID))
 	}
 	if err != nil {
 		return err
@@ -39,5 +41,65 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 			_ = app.Logout(ctx, did, connection.OAuthSessionID)
 		}
 	}
-	return state.DB.DeleteBlueskyDataByAccountID(ctx, accountID)
+	proxyErr := deleteProxyStatuses(ctx, state, accountID)
+	return errors.Join(proxyErr, state.DB.DeleteBlueskyDataByAccountID(ctx, accountID))
+}
+
+// DeleteAccount removes crossposts created by GoToSocial before revoking and
+// erasing the connection. Local credential cleanup still happens if a remote
+// record cannot be removed.
+func DeleteAccount(ctx context.Context, state *state.State, accountID string) error {
+	defer lockAccount(accountID)()
+	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
+	if errors.Is(err, db.ErrNoEntries) {
+		return errors.Join(deleteProxyStatuses(ctx, state, accountID), state.DB.DeleteBlueskyDataByAccountID(ctx, accountID))
+	}
+	if err != nil {
+		return err
+	}
+	var remoteErrors []error
+	client, clientErr := authenticatedClient(ctx, state, connection)
+	posts, postsErr := state.DB.GetBlueskyPostsByAccountID(ctx, accountID)
+	if clientErr != nil {
+		remoteErrors = append(remoteErrors, clientErr)
+	} else if postsErr != nil {
+		remoteErrors = append(remoteErrors, postsErr)
+	} else {
+		for _, post := range posts {
+			endpoint, _ := syntax.ParseNSID("com.atproto.repo.deleteRecord")
+			rkey := post.URI[strings.LastIndex(post.URI, "/")+1:]
+			if err := client.Post(ctx, endpoint, map[string]any{"repo": connection.DID, "collection": "app.bsky.feed.post", "rkey": rkey}, nil); err != nil {
+				remoteErrors = append(remoteErrors, fmt.Errorf("delete %s: %w", post.URI, err))
+			}
+		}
+	}
+	if app, _, appErr := NewOAuthClient(state, accountID); appErr == nil && connection.OAuthSessionID != "" {
+		if did, parseErr := syntax.ParseDID(connection.DID); parseErr == nil {
+			_ = app.Logout(ctx, did, connection.OAuthSessionID)
+		}
+	}
+	remoteErrors = append(remoteErrors, deleteProxyStatuses(ctx, state, accountID))
+	remoteErrors = append(remoteErrors, state.DB.DeleteBlueskyDataByAccountID(ctx, accountID))
+	return errors.Join(remoteErrors...)
+}
+
+func deleteProxyStatuses(ctx context.Context, state *state.State, accountID string) error {
+	interactions, err := state.DB.GetBlueskyInteractionsForReconcile(ctx, accountID, 0)
+	if err != nil {
+		return err
+	}
+	var deleteErrors []error
+	for _, interaction := range interactions {
+		status, err := state.DB.GetStatusByID(ctx, interaction.StatusID)
+		if errors.Is(err, db.ErrNoEntries) {
+			continue
+		}
+		if err == nil {
+			err = state.DB.DeleteStatus(ctx, status, false)
+		}
+		if err != nil {
+			deleteErrors = append(deleteErrors, err)
+		}
+	}
+	return errors.Join(deleteErrors...)
 }
