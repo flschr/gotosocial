@@ -23,6 +23,7 @@ import (
 
 	"code.superseriousbusiness.org/gopkg/log"
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
+	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
@@ -281,6 +282,18 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 	// Send the status out to followers / mentioned accounts / relays.
 	if err := p.federate.CreateStatus(ctx, status); err != nil {
 		log.Errorf(ctx, "error federating status: %v", err)
+	}
+
+	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
+	if err == nil && bluesky.EligibleForCrosspost(status, connection) {
+		apiStatus, convertErr := p.utils.converter.StatusToAPIStatus(ctx, status, status.Account)
+		if convertErr != nil {
+			log.Errorf(ctx, "error preparing Bluesky crosspost: %v", convertErr)
+		} else if publishErr := bluesky.PublishStatus(ctx, p.state, status, apiStatus.Card); publishErr != nil {
+			log.Errorf(ctx, "error publishing status to Bluesky: %v", publishErr)
+		}
+	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		log.Errorf(ctx, "error checking Bluesky crosspost settings: %v", err)
 	}
 
 	return nil
