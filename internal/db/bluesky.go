@@ -15,6 +15,7 @@ import (
 type Bluesky interface {
 	GetBlueskyConnectionByAccountID(context.Context, string) (*gtsmodel.BlueskyConnection, error)
 	GetBlueskyConnections(context.Context) ([]*gtsmodel.BlueskyConnection, error)
+	GetBlueskyStatusesChangedBetween(context.Context, string, time.Time, time.Time) ([]*gtsmodel.Status, error)
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	DeleteBlueskyConnection(context.Context, string) error

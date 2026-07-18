@@ -26,13 +26,18 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
+const (
+	maxSourceImageBytes  = 50 << 20
+	maxSourceImagePixels = 40_000_000
+)
+
 func uploadStoredBlob(ctx context.Context, state *state.State, client *atclient.APIClient, path, contentType string) (any, error) {
 	stream, err := state.Storage.GetStream(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 	defer stream.Close()
-	data, err := io.ReadAll(io.LimitReader(stream, 50<<20))
+	data, err := readBlueskyImage(stream)
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +65,7 @@ func uploadRemoteImage(ctx context.Context, state *state.State, client *atclient
 	if !strings.HasPrefix(contentType, "image/") {
 		return nil, fmt.Errorf("preview is not an image")
 	}
-	limited := io.LimitReader(response.Body, 50<<20)
-	data, err := io.ReadAll(limited)
+	data, err := readBlueskyImage(response.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +79,13 @@ func uploadRemoteImage(ctx context.Context, state *state.State, client *atclient
 // prepareBlueskyImage re-encodes an image to remove EXIF and other embedded
 // metadata, then progressively compresses/resizes it to Bluesky's blob limit.
 func prepareBlueskyImage(data []byte) ([]byte, string, error) {
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", fmt.Errorf("inspect image for Bluesky: %w", err)
+	}
+	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > maxSourceImagePixels {
+		return nil, "", fmt.Errorf("image dimensions exceed Bluesky processing limit")
+	}
 	source, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, "", fmt.Errorf("decode image for Bluesky: %w", err)
@@ -103,6 +114,17 @@ func prepareBlueskyImage(data []byte) ([]byte, string, error) {
 			}
 		}
 	}
+}
+
+func readBlueskyImage(reader io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(reader, maxSourceImageBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxSourceImageBytes {
+		return nil, fmt.Errorf("image exceeds Bluesky processing size limit")
+	}
+	return data, nil
 }
 
 func resizeImage(source image.Image, scale float64) image.Image {

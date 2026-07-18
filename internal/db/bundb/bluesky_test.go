@@ -12,6 +12,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
+	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/suite"
@@ -118,6 +119,15 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 		NextAttemptAt: time.Now().Add(-time.Minute),
 	}
 	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, delivery))
+	replacement := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: status.AccountID, StatusID: status.ID,
+		Action: "delete", Attempts: 5, NextAttemptAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, replacement))
+	replaced, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.Equal("delete", replaced.Action)
+	suite.Zero(replaced.Attempts)
 
 	now := time.Now()
 	due, err := suite.db.ClaimDueBlueskyDeliveries(ctx, now, now.Add(5*time.Minute), 10)
@@ -143,6 +153,98 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	suite.Require().NoError(err)
 	suite.Empty(due)
 	suite.Require().NoError(suite.db.DeleteBlueskyDeliveryByStatusID(ctx, status.ID))
+}
+
+func (suite *BlueskyTestSuite) TestOutboxReconciliationRestoresMissingJob() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := suite.testStatuses["local_account_1_status_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:outbox",
+		Handle: "outbox.test", PDSURL: "https://pds.example.test",
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"), CrosspostPublic: true,
+		OutboxCheckedAt: status.CreatedAt.Add(-time.Second),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	suite.Require().NoError(bluesky.ReconcileOutbox(ctx, &suite.state))
+	delivery, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.Equal("upsert", delivery.Action)
+}
+
+func (suite *BlueskyTestSuite) TestOutboxDoesNotBackfillBeforeCrosspostWasEnabled() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := suite.testStatuses["local_account_1_status_1"]
+	enabledAt := time.Now().Add(-time.Second)
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:nooutboxbackfill",
+		Handle: "no-backfill.test", PDSURL: "https://pds.example.test",
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"), CrosspostPublic: true,
+		OutboxCheckedAt: enabledAt, CrosspostEnabledAt: enabledAt,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	suite.Require().NoError(bluesky.ReconcileOutbox(ctx, &suite.state))
+	_, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Error(err)
+}
+
+func (suite *BlueskyTestSuite) TestMappedEditWaitsWhileDisconnected() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := suite.testStatuses["local_account_1_status_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:disconnectededit",
+		Handle: "disconnected.test", PDSURL: "https://pds.example.test", CrosspostPublic: true,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	post := &gtsmodel.BlueskyPost{
+		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: account.ID, StatusID: status.ID,
+		URI: "at://did:plc:disconnectededit/app.bsky.feed.post/root", CID: "root-cid",
+		RootURI: "at://did:plc:disconnectededit/app.bsky.feed.post/root", RootCID: "root-cid",
+		URL: "https://bsky.app/profile/did:plc:disconnectededit/post/root",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyPost(ctx, post))
+	delivery := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: account.ID, StatusID: status.ID,
+		Action: "upsert", NextAttemptAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, delivery))
+	suite.Error(bluesky.ProcessDelivery(ctx, &suite.state, typeutils.NewConverter(&suite.state), delivery))
+	storedDelivery, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.Equal("upsert", storedDelivery.Action)
+	_, err = suite.db.GetBlueskyPostByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+}
+
+func (suite *BlueskyTestSuite) TestOutboxReconciliationRestoresMissingEditJob() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := suite.testStatuses["local_account_1_status_1"]
+	checkedAt := time.Now().Add(-time.Minute)
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:outboxedit",
+		Handle: "outbox-edit.test", PDSURL: "https://pds.example.test",
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"), CrosspostPublic: true,
+		OutboxCheckedAt: checkedAt,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	post := &gtsmodel.BlueskyPost{
+		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: account.ID, StatusID: status.ID,
+		URI: "at://did:plc:outboxedit/app.bsky.feed.post/root", CID: "old-cid",
+		RootURI: "at://did:plc:outboxedit/app.bsky.feed.post/root", RootCID: "old-cid",
+		URL: "https://bsky.app/profile/did:plc:outboxedit/post/root",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyPost(ctx, post))
+	post.UpdatedAt = checkedAt.Add(-time.Second)
+	suite.Require().NoError(suite.db.UpdateBlueskyPost(ctx, post, "updated_at"))
+	status.EditedAt = time.Now().Add(-time.Second)
+	suite.Require().NoError(suite.db.UpdateStatus(ctx, status, "edited_at"))
+	suite.Require().NoError(bluesky.ReconcileOutbox(ctx, &suite.state))
+	delivery, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.Equal("upsert", delivery.Action)
 }
 
 func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndResetsRetries() {

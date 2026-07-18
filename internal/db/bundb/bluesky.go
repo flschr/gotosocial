@@ -102,7 +102,17 @@ func (b *blueskyDB) GetBlueskyDeliveryByStatusID(ctx context.Context, statusID s
 }
 
 func (b *blueskyDB) PutBlueskyDelivery(ctx context.Context, delivery *gtsmodel.BlueskyDelivery) error {
-	_, err := b.db.NewInsert().Model(delivery).Exec(ctx)
+	_, err := b.db.NewInsert().Model(delivery).
+		On("CONFLICT (status_id) DO UPDATE").
+		Set("account_id = EXCLUDED.account_id").
+		Set("action = EXCLUDED.action").
+		Set("attempts = 0").
+		Set("next_attempt_at = EXCLUDED.next_attempt_at").
+		Set("claimed_until = NULL").
+		Set("last_error = NULL").
+		Set("last_error_code = NULL").
+		Set("dead_letter = ?", false).
+		Exec(ctx)
 	return err
 }
 

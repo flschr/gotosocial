@@ -77,15 +77,18 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	if err != nil {
 		return err
 	}
-	if interaction == nil && !EligibleForCrosspost(status, connection) {
-		return nil
-	}
 	if interaction != nil && interaction.AccountID != status.AccountID {
 		return fmt.Errorf("Bluesky interaction belongs to a different account")
 	}
 	existingPost, existingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID)
 	if existingErr != nil && !errors.Is(existingErr, db.ErrNoEntries) {
 		return existingErr
+	}
+	if interaction == nil && existingPost == nil && !EligibleForCrosspost(status, connection) {
+		return nil
+	}
+	if interaction == nil && existingPost != nil && !ShouldUpsertMappedStatus(status, connection, false) {
+		return nil
 	}
 	if err := state.DB.PopulateStatus(ctx, status); err != nil {
 		return fmt.Errorf("populate status for Bluesky: %w", err)
@@ -94,6 +97,16 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	client, err := authenticatedClient(ctx, state, connection)
 	if err != nil {
 		return err
+	}
+	var replyTarget *blueskyReplyTarget
+	if interaction != nil {
+		replyTarget = &blueskyReplyTarget{
+			RootURI: interaction.RootURI, RootCID: interaction.RootCID,
+			ParentURI: interaction.URI, ParentCID: interaction.CID,
+		}
+		if err := refreshReplyReferences(ctx, client, replyTarget); err != nil {
+			return err
+		}
 	}
 
 	postText, facets := blueskyTextForStatus(status, interaction != nil)
@@ -108,10 +121,10 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	if status.Language != "" {
 		record["langs"] = []string{status.Language}
 	}
-	if interaction != nil {
+	if replyTarget != nil {
 		record["reply"] = map[string]any{
-			"root":   map[string]string{"uri": interaction.RootURI, "cid": interaction.RootCID},
-			"parent": map[string]string{"uri": interaction.URI, "cid": interaction.CID},
+			"root":   map[string]string{"uri": replyTarget.RootURI, "cid": replyTarget.RootCID},
+			"parent": map[string]string{"uri": replyTarget.ParentURI, "cid": replyTarget.ParentCID},
 		}
 	}
 
@@ -168,18 +181,18 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 		existingPost.RootCID = response.CID
 		existingPost.ParentURI = ""
 		existingPost.ParentCID = ""
-		if interaction != nil {
-			existingPost.RootURI, existingPost.RootCID = interaction.RootURI, interaction.RootCID
-			existingPost.ParentURI, existingPost.ParentCID = interaction.URI, interaction.CID
+		if replyTarget != nil {
+			existingPost.RootURI, existingPost.RootCID = replyTarget.RootURI, replyTarget.RootCID
+			existingPost.ParentURI, existingPost.ParentCID = replyTarget.ParentURI, replyTarget.ParentCID
 		}
 		existingPost.URL = "https://bsky.app/profile/" + connection.DID + "/post/" + rkey
 		return state.DB.UpdateBlueskyPost(ctx, existingPost, "uri", "cid", "root_uri", "root_cid", "parent_uri", "parent_cid", "url")
 	}
 	rootURI, rootCID := response.URI, response.CID
 	parentURI, parentCID := "", ""
-	if interaction != nil {
-		rootURI, rootCID = interaction.RootURI, interaction.RootCID
-		parentURI, parentCID = interaction.URI, interaction.CID
+	if replyTarget != nil {
+		rootURI, rootCID = replyTarget.RootURI, replyTarget.RootCID
+		parentURI, parentCID = replyTarget.ParentURI, replyTarget.ParentCID
 	}
 	return state.DB.PutBlueskyPost(ctx, &gtsmodel.BlueskyPost{
 		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: status.AccountID,

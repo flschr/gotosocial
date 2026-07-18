@@ -781,8 +781,8 @@ func (p *clientAPI) UpdateStatus(ctx context.Context, cMsg *messages.FromClientA
 	if _, err := p.state.DB.GetBlueskyPostByStatusID(ctx, status.ID); err == nil {
 		connection, connectionErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
 		isReply, replyErr := bluesky.IsReplyTarget(ctx, p.state, status)
-		if (connectionErr == nil && (isReply || bluesky.EligibleForCrosspost(status, connection))) ||
-			(errors.Is(connectionErr, db.ErrNoEntries) && bluesky.EligibleForExistingMapping(status, isReply)) {
+		if (connectionErr == nil && bluesky.ShouldUpsertMappedStatus(status, connection, isReply)) ||
+			(errors.Is(connectionErr, db.ErrNoEntries) && bluesky.ShouldUpsertMappedStatus(status, nil, isReply)) {
 			if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
 				log.Errorf(ctx, "error queueing Bluesky status update: %v", queueErr)
 			}

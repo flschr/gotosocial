@@ -16,23 +16,39 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 )
 
-const schedulerID = "@bluesky"
+const (
+	deliverySchedulerID    = "@bluesky-delivery"
+	interactionSchedulerID = "@bluesky-interactions"
+)
 
-var schedulerRunning atomic.Bool
+var deliverySchedulerRunning atomic.Bool
+var interactionSchedulerRunning atomic.Bool
 
 func ScheduleJobs(state *state.State, converter *typeutils.Converter) error {
-	if !state.Workers.Scheduler.AddRecurring(schedulerID, time.Now().Add(time.Minute), time.Minute, func(ctx context.Context, _ time.Time) {
-		if !schedulerRunning.CompareAndSwap(false, true) {
-			log.Warn(ctx, "skipping overlapping Bluesky background run")
+	if !state.Workers.Scheduler.AddRecurring(deliverySchedulerID, time.Now().Add(time.Minute), time.Minute, func(ctx context.Context, _ time.Time) {
+		if !deliverySchedulerRunning.CompareAndSwap(false, true) {
+			log.Warn(ctx, "skipping overlapping Bluesky delivery run")
 			return
 		}
-		defer schedulerRunning.Store(false)
+		defer deliverySchedulerRunning.Store(false)
+		if err := ReconcileOutbox(ctx, state); err != nil {
+			log.Errorf(ctx, "error reconciling Bluesky outbox: %v", err)
+		}
 		processDueDeliveries(ctx, state, converter)
+	}) {
+		return fmt.Errorf("Bluesky delivery scheduler is already registered")
+	}
+	if !state.Workers.Scheduler.AddRecurring(interactionSchedulerID, time.Now().Add(30*time.Second), time.Minute, func(ctx context.Context, _ time.Time) {
+		if !interactionSchedulerRunning.CompareAndSwap(false, true) {
+			log.Warn(ctx, "skipping overlapping Bluesky interaction run")
+			return
+		}
+		defer interactionSchedulerRunning.Store(false)
 		if err := SyncInteractions(ctx, state); err != nil {
 			log.Errorf(ctx, "error syncing Bluesky interactions: %v", err)
 		}
 	}) {
-		return fmt.Errorf("Bluesky scheduler is already registered")
+		return fmt.Errorf("Bluesky interaction scheduler is already registered")
 	}
 	return nil
 }

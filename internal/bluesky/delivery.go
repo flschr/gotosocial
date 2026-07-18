@@ -22,6 +22,22 @@ const (
 	deliveryDelete = "delete"
 )
 
+// ShouldUpsertMappedStatus decides how an existing remote mapping should
+// follow a local edit. A temporarily disconnected account keeps eligible
+// upserts queued; disconnecting must never turn an edit into a deletion.
+func ShouldUpsertMappedStatus(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection, isReply bool) bool {
+	if isReply {
+		return true
+	}
+	if connection == nil {
+		return EligibleForExistingMapping(status, false)
+	}
+	if connection.Active() {
+		return EligibleForCrosspost(status, connection)
+	}
+	return connection.CrosspostPublic && EligibleForExistingMapping(status, false)
+}
+
 func QueueStatus(ctx context.Context, state *state.State, status *gtsmodel.Status) (*gtsmodel.BlueskyDelivery, error) {
 	return queueDelivery(ctx, state, status.AccountID, status.ID, deliveryUpsert)
 }
@@ -85,7 +101,7 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 	}
 	replyTarget, replyErr := replyTargetForStatus(ctx, state, status)
 	if errors.Is(replyErr, db.ErrNoEntries) {
-		if mapping, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); mappingErr == nil && !EligibleForCrosspost(status, connection) {
+		if mapping, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); mappingErr == nil && !ShouldUpsertMappedStatus(status, connection, false) {
 			if err := DeleteStatus(ctx, state, mapping.StatusID); err != nil {
 				return recordDeliveryFailure(ctx, state, delivery, err)
 			}

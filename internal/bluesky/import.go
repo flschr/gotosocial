@@ -11,6 +11,7 @@ import (
 	"fmt"
 	stdhtml "html"
 	"strings"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
@@ -52,10 +53,9 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	if err != nil {
 		return err
 	}
-	createdAt := record.CreatedAt
-	if createdAt.IsZero() {
-		createdAt = notification.IndexedAt
-	}
+	// AppView's indexedAt is server-observed. Prefer it over the author-supplied
+	// record timestamp so a malformed remote post cannot distort local ordering.
+	createdAt := interactionCreatedAt(notification.IndexedAt, record.CreatedAt)
 	statusID := id.NewULIDFromTime(createdAt)
 	originURIs := uris.GenerateURIsForAccount(origin.Username)
 	postURL := blueskyPostURL(notification.Author.Handle, notification.URI)
@@ -87,6 +87,16 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 		APObjectType: ap.ObjectNote, APActivityType: ap.ActivityCreate, GTSModel: status, Origin: origin, Target: target,
 	})
 	return nil
+}
+
+func interactionCreatedAt(indexedAt, recordCreatedAt time.Time) time.Time {
+	if !indexedAt.IsZero() {
+		return indexedAt
+	}
+	if !recordCreatedAt.IsZero() {
+		return recordCreatedAt
+	}
+	return time.Now()
 }
 
 func renderInteractionContent(record blueskyPostRecord, author blueskyAuthor, postURL string) string {

@@ -35,10 +35,18 @@ posts, and every non-public visibility. Images retain their alt text. A post
 uses either up to four images or its external link preview, matching Bluesky's
 embed model.
 
+The outgoing queue is reconciled against local status changes. If GoToSocial
+stops after saving a post or edit but before creating its Bluesky job, the next
+background pass restores that job. Enabling crossposting does not backfill
+older posts from before the setting was enabled.
+
 Replies and mentions received from Bluesky appear as direct, local-only
 statuses in Mastodon-compatible clients. Replies written from those clients
 are sent to Bluesky under the connected Bluesky identity. The proxy statuses
 and local replies are never federated over ActivityPub.
+
+Before publishing a reply, GoToSocial refreshes the current Bluesky parent and
+root records so edits cannot leave a new reply with stale content references.
 
 The settings page reports whether the connector is healthy, syncing, retrying,
 or needs to be reconnected. OAuth revocation, an unusable refresh token, and a

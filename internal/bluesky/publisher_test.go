@@ -6,8 +6,10 @@ package bluesky
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
@@ -64,6 +66,29 @@ func TestConnectionErrorCode(t *testing.T) {
 	require.Equal(t, ErrorCodeRemote, errorCode(errors.New("timeout")))
 }
 
+func TestInteractionCreatedAtPrefersServerObservedTime(t *testing.T) {
+	indexedAt := time.Now()
+	maliciousFuture := indexedAt.Add(100 * 365 * 24 * time.Hour)
+	require.Equal(t, indexedAt, interactionCreatedAt(indexedAt, maliciousFuture))
+}
+
+func TestRefreshReplyReferencesUsesCurrentCIDs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "/xrpc/app.bsky.feed.getPosts", request.URL.Path)
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"posts":[{"uri":"at://did:plc:test/app.bsky.feed.post/parent","cid":"new-parent"},{"uri":"at://did:plc:test/app.bsky.feed.post/root","cid":"new-root"}]}`))
+	}))
+	defer server.Close()
+	client := atclient.NewAPIClient(server.URL)
+	target := &blueskyReplyTarget{
+		ParentURI: "at://did:plc:test/app.bsky.feed.post/parent", ParentCID: "stale-parent",
+		RootURI: "at://did:plc:test/app.bsky.feed.post/root", RootCID: "stale-root",
+	}
+	require.NoError(t, refreshReplyReferences(t.Context(), client, target))
+	require.Equal(t, "new-parent", target.ParentCID)
+	require.Equal(t, "new-root", target.RootCID)
+}
+
 func TestPrepareBlueskyImageReencodesAndResizes(t *testing.T) {
 	source := image.NewRGBA(image.Rect(0, 0, 2400, 1600))
 	for y := 0; y < source.Bounds().Dy(); y++ {
@@ -81,6 +106,24 @@ func TestPrepareBlueskyImageReencodesAndResizes(t *testing.T) {
 	require.NoError(t, err)
 	require.LessOrEqual(t, decoded.Bounds().Dx(), 2000)
 	require.LessOrEqual(t, decoded.Bounds().Dy(), 2000)
+}
+
+func TestPrepareBlueskyImageRejectsExcessivePixelCount(t *testing.T) {
+	var encoded bytes.Buffer
+	encoded.Write([]byte("\x89PNG\r\n\x1a\n"))
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:4], 10_000)
+	binary.BigEndian.PutUint32(ihdr[4:8], 10_000)
+	ihdr[8], ihdr[9] = 8, 2
+	binary.Write(&encoded, binary.BigEndian, uint32(len(ihdr)))
+	encoded.WriteString("IHDR")
+	encoded.Write(ihdr)
+	checksum := crc32.NewIEEE()
+	_, _ = checksum.Write([]byte("IHDR"))
+	_, _ = checksum.Write(ihdr)
+	binary.Write(&encoded, binary.BigEndian, checksum.Sum32())
+	_, _, err := prepareBlueskyImage(encoded.Bytes())
+	require.ErrorContains(t, err, "dimensions")
 }
 
 func TestHTMLTextAndFacetsPreservesLinkedLabel(t *testing.T) {
@@ -174,4 +217,25 @@ func TestEligibleForExistingMappingWhileDisconnected(t *testing.T) {
 	status.Visibility = gtsmodel.VisibilityFollowersOnly
 	require.False(t, EligibleForExistingMapping(status, false))
 	require.True(t, EligibleForExistingMapping(status, true))
+}
+
+func TestShouldUpsertMappedStatusMatrix(t *testing.T) {
+	public := &gtsmodel.Status{Visibility: gtsmodel.VisibilityPublic}
+	public.Flags.SetFederated(true)
+	active := &gtsmodel.BlueskyConnection{
+		CrosspostPublic: true, OAuthSessionID: "session", OAuthData: []byte("encrypted"),
+	}
+	disconnected := &gtsmodel.BlueskyConnection{CrosspostPublic: true}
+	disabled := &gtsmodel.BlueskyConnection{CrosspostPublic: false}
+
+	require.True(t, ShouldUpsertMappedStatus(public, active, false))
+	require.True(t, ShouldUpsertMappedStatus(public, disconnected, false))
+	require.True(t, ShouldUpsertMappedStatus(public, nil, false))
+	require.False(t, ShouldUpsertMappedStatus(public, disabled, false))
+
+	private := *public
+	private.Visibility = gtsmodel.VisibilityFollowersOnly
+	require.False(t, ShouldUpsertMappedStatus(&private, active, false))
+	require.False(t, ShouldUpsertMappedStatus(&private, disconnected, false))
+	require.True(t, ShouldUpsertMappedStatus(&private, disconnected, true))
 }

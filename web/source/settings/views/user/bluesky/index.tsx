@@ -17,7 +17,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import React, { useState } from "react";
+import React from "react";
 import Loading from "../../../components/loading";
 import { Error as ErrorC } from "../../../components/error";
 import { Checkbox } from "../../../components/form/inputs";
@@ -27,12 +27,9 @@ import useFormSubmit from "../../../lib/form/submit";
 import type { BlueskyConnection } from "../../../lib/types/bluesky";
 import {
 	useBlueskyConnectionQuery,
-	useConnectBlueskyMutation,
-	useDisconnectBlueskyMutation,
-	useForgetBlueskyMutation,
-	useRetryBlueskyMutation,
 	useUpdateBlueskySettingsMutation,
 } from "../../../lib/query/user/bluesky";
+import useBlueskyController from "./use-bluesky-controller";
 
 export default function BlueskySettings() {
 	const query = useBlueskyConnectionQuery();
@@ -51,23 +48,18 @@ export default function BlueskySettings() {
 }
 
 function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) {
-	const [identifier, setIdentifier] = useState("");
-	const [confirmDisconnect, setConfirmDisconnect] = useState(false);
-	const [confirmForget, setConfirmForget] = useState(false);
-	const [connect, connectResult] = useConnectBlueskyMutation();
-	const [disconnect, disconnectResult] = useDisconnectBlueskyMutation();
-	const [forget, forgetResult] = useForgetBlueskyMutation();
-	const [retry, retryResult] = useRetryBlueskyMutation();
+	const controller = useBlueskyController(connection);
+	const {
+		identifier, setIdentifier, confirmDisconnect, setConfirmDisconnect,
+		confirmForget, setConfirmForget, disconnect, disconnectResult,
+		forget, forgetResult, retry, retryResult, connectResult,
+		startConnection, callbackErrorMessage,
+	} = controller;
 	const form = {
 		crosspostPublic: useBoolInput("crosspost_public", { source: connection }),
 		showProfileFollow: useBoolInput("show_profile_follow", { source: connection }),
 	};
 	const [submitForm, result] = useFormSubmit(form, useUpdateBlueskySettingsMutation());
-	const startConnection = async () => {
-		const response = await connect({ identifier: identifier || connection.handle || "" }).unwrap();
-		window.location.assign(response.authorization_url);
-	};
-	const callbackError = new URLSearchParams(window.location.search).get("error");
 
 	return (
 		<form className="bluesky-settings" onSubmit={submitForm}>
@@ -79,9 +71,7 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 			{disconnectResult.isError && <ErrorC error={disconnectResult.error} />}
 			{forgetResult.isError && <ErrorC error={forgetResult.error} />}
 			{retryResult.isError && <ErrorC error={retryResult.error} />}
-			{callbackError && <ErrorC error={new Error(callbackError === "wrong_account"
-				? `This GoToSocial account is linked to @${connection.handle}. Sign in to that same Bluesky account, or forget the saved account first.`
-				: "Bluesky could not be connected. Please try again.")} />}
+			{callbackErrorMessage && <ErrorC error={new Error(callbackErrorMessage)} />}
 			{connection.connected ? <>
 				<div className="info">
 					Connected as <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>

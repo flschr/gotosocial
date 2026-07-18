@@ -36,6 +36,21 @@ func (b *blueskyDB) GetBlueskyConnections(ctx context.Context) ([]*gtsmodel.Blue
 	return connections, err
 }
 
+func (b *blueskyDB) GetBlueskyStatusesChangedBetween(ctx context.Context, accountID string, since, before time.Time) ([]*gtsmodel.Status, error) {
+	statusIDs := make([]string, 0)
+	err := b.db.NewSelect().
+		TableExpr("? AS ?", bun.Ident("statuses"), bun.Ident("status")).
+		Column("status.id").
+		Where("status.account_id = ?", accountID).
+		Where("((status.created_at >= ? AND status.created_at < ?) OR (status.edited_at >= ? AND status.edited_at < ?))", since, before, since, before).
+		Order("status.id ASC").
+		Scan(ctx, &statusIDs)
+	if err != nil || len(statusIDs) == 0 {
+		return nil, err
+	}
+	return b.state.DB.GetStatusesByIDs(ctx, statusIDs)
+}
+
 func (b *blueskyDB) PutBlueskyConnection(ctx context.Context, connection *gtsmodel.BlueskyConnection) error {
 	_, err := b.db.NewInsert().Model(connection).Exec(ctx)
 	return err

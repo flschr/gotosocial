@@ -50,6 +50,22 @@ func init() {
 				}
 			}
 
+			// Reconciliation scans only the owning account's recently created or
+			// edited statuses. Keep that once-per-minute recovery query bounded as
+			// accounts grow.
+			for name, columns := range map[string][]string{
+				"statuses_account_id_created_at_idx": {"account_id", "created_at"},
+				"statuses_account_id_edited_at_idx":  {"account_id", "edited_at"},
+			} {
+				if err := createIndex(ctx, tx,
+					name,
+					"statuses",
+					dbpkg.BunExpr{"?", dbpkg.Idents(columns...)},
+				); err != nil {
+					return err
+				}
+			}
+
 			return nil
 		})
 	}

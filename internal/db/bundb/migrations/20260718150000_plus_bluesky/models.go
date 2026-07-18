@@ -26,6 +26,8 @@ type BlueskyConnection struct {
 	LastSyncError       string    `bun:",nullzero"`
 	LastSyncErrorCode   string    `bun:",nullzero"`
 	SyncClaimedUntil    time.Time `bun:"type:timestamptz,nullzero"`
+	OutboxCheckedAt     time.Time `bun:"type:timestamptz,nullzero"`
+	CrosspostEnabledAt  time.Time `bun:"type:timestamptz,nullzero"`
 	CrosspostPublic     bool      `bun:",notnull,default:false"`
 	ShowProfileFollow   bool      `bun:",notnull,default:true"`
 }
