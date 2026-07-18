@@ -152,10 +152,21 @@ var funcMap = template.FuncMap{
 	"noescapeAttr":        noescapeAttr,
 	"noescape":            noescape,
 	"oddOrEven":           oddOrEven,
+	"publicVersion":       publicVersion,
 	"subtract":            subtract,
 	"timestampPrecise":    timestampPrecise,
 	"timestampVague":      timestampVague,
 	"visibilityIcon":      visibilityIcon,
+}
+
+func publicVersion(version string) string {
+	if plus := strings.Index(version, "-plus"); plus >= 0 {
+		return version[:plus+len("-plus")]
+	}
+	if build := strings.IndexByte(version, '+'); build >= 0 {
+		return version[:build]
+	}
+	return version
 }
 
 func oddOrEven(n int) string {

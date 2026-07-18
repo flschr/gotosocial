@@ -25,6 +25,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -270,6 +271,75 @@ func (suite *StatusCreateTestSuite) TestProcessInvalidVisibility() {
 	suite.Nil(apiStatus)
 	suite.Equal(http.StatusUnprocessableEntity, errWithCode.Code())
 	suite.Equal("Unprocessable Entity: processVisibility: invalid visibility", errWithCode.Safe())
+}
+
+func (suite *StatusCreateTestSuite) TestReplyToBlueskyProxyForcedPrivateAndLocalOnly() {
+	ctx := suite.T().Context()
+	creatingAccount := suite.testAccounts["local_account_1"]
+	proxyAccount := suite.testAccounts["local_account_2"]
+	creatingApplication := suite.testApplications["application_1"]
+
+	proxyStatusID := id.NewULID()
+	mentionID := id.NewULID()
+	proxyStatus := &gtsmodel.Status{
+		ID:                  proxyStatusID,
+		URI:                 "https://status-id.test/" + proxyStatusID,
+		Flags:               gtsmodel.StatusFlags(gtsmodel.StatusFlagLocal),
+		AccountID:           proxyAccount.ID,
+		AccountURI:          proxyAccount.URI,
+		MentionIDs:          []string{mentionID},
+		Visibility:          gtsmodel.VisibilityDirect,
+		ActivityStreamsType: "Note",
+	}
+	mention := &gtsmodel.Mention{
+		ID:               mentionID,
+		StatusID:         proxyStatusID,
+		OriginAccountID:  proxyAccount.ID,
+		OriginAccountURI: proxyAccount.URI,
+		TargetAccountID:  creatingAccount.ID,
+	}
+	suite.Require().NoError(suite.db.PutStatus(ctx, proxyStatus))
+	suite.Require().NoError(suite.db.PutMention(ctx, mention))
+	suite.Require().NoError(suite.db.PutBlueskyInteraction(ctx, &gtsmodel.BlueskyInteraction{
+		ID:           id.NewULID(),
+		AccountID:    creatingAccount.ID,
+		StatusID:     proxyStatusID,
+		URI:          "at://did:plc:author/app.bsky.feed.post/reply",
+		CID:          "reply-cid",
+		RootURI:      "at://did:plc:owner/app.bsky.feed.post/root",
+		RootCID:      "root-cid",
+		ParentURI:    "at://did:plc:owner/app.bsky.feed.post/root",
+		ParentCID:    "root-cid",
+		AuthorDID:    "did:plc:author",
+		AuthorHandle: "author.example",
+		URL:          "https://bsky.app/profile/author.example/post/reply",
+	}))
+
+	statusCreateForm := &apimodel.StatusCreateRequest{
+		Status:      "This must stay private even though the client requested public.",
+		InReplyToID: proxyStatusID,
+		Visibility:  apimodel.VisibilityPublic,
+		LocalOnly:   util.Ptr(false),
+		Language:    "en",
+		ContentType: apimodel.StatusContentTypePlain,
+	}
+
+	apiStatusAny, errWithCode := suite.status.Create(
+		ctx,
+		creatingAccount,
+		creatingApplication,
+		statusCreateForm,
+		nil,
+	)
+	suite.Require().NoError(errWithCode)
+	apiStatus := apiStatusAny.(*apimodel.Status)
+	suite.Equal(apimodel.VisibilityDirect, apiStatus.Visibility)
+	suite.True(apiStatus.LocalOnly)
+
+	dbStatus, err := suite.db.GetStatusByID(ctx, apiStatus.ID)
+	suite.Require().NoError(err)
+	suite.Equal(gtsmodel.VisibilityDirect, dbStatus.Visibility)
+	suite.True(dbStatus.LocalOnly())
 }
 
 func TestStatusCreateTestSuite(t *testing.T) {

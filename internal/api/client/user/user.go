@@ -33,6 +33,11 @@ const (
 	TwoFactorQRCodeURIPath = TwoFactorPath + "/qruri"
 	TwoFactorEnablePath    = TwoFactorPath + "/enable"
 	TwoFactorDisablePath   = TwoFactorPath + "/disable"
+	BlueskyPath            = BasePath + "/bluesky"
+	BlueskyConnectPath     = BlueskyPath + "/connect"
+	BlueskyRetryPath       = BlueskyPath + "/retry"
+	BlueskyCallbackPath    = BlueskyPath + "/callback"
+	BlueskyMetadataPath    = BlueskyPath + "/client-metadata.json"
 )
 
 type Module struct {
@@ -53,4 +58,11 @@ func (m *Module) Route(attachHandler func(method string, path string, f ...gin.H
 	attachHandler(http.MethodGet, TwoFactorQRCodeURIPath, m.TwoFactorQRCodeURIGETHandler)
 	attachHandler(http.MethodPost, TwoFactorEnablePath, m.TwoFactorEnablePOSTHandler)
 	attachHandler(http.MethodPost, TwoFactorDisablePath, m.TwoFactorDisablePOSTHandler)
+	attachHandler(http.MethodGet, BlueskyPath, m.BlueskyGETHandler)
+	attachHandler(http.MethodPatch, BlueskyPath, m.BlueskyPATCHHandler)
+	attachHandler(http.MethodDelete, BlueskyPath, m.BlueskyDELETEHandler)
+	attachHandler(http.MethodPost, BlueskyConnectPath, m.BlueskyConnectPOSTHandler)
+	attachHandler(http.MethodPost, BlueskyRetryPath, m.BlueskyRetryPOSTHandler)
+	attachHandler(http.MethodGet, BlueskyCallbackPath, m.BlueskyCallbackGETHandler)
+	attachHandler(http.MethodGet, BlueskyMetadataPath, m.BlueskyMetadataGETHandler)
 }

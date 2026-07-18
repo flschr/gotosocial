@@ -218,19 +218,49 @@
 			}
 		}
 
-		.remote-follow {
+		.profile-follow-actions {
 			grid-area: follow;
 			align-self: center;
 			justify-self: end;
 			min-width: 10rem;
+			display: flex;
+			gap: 0.5rem;
+			align-items: flex-start;
+
+			.profile-follow-button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				gap: 0.35rem;
+				color: $button-fg;
+				white-space: nowrap;
+				font-weight: bold;
+				line-height: normal;
+
+				.fa,
+				.bluesky-icon {
+					width: 1.15rem;
+					margin: 0;
+				}
+			}
+
+			.bluesky-follow-button {
+				&:link,
+				&:visited {
+					color: $button-fg;
+				}
+
+				.bluesky-icon {
+					height: 1.15rem;
+					fill: currentColor;
+				}
+			}
+		}
+
+		.remote-follow {
 
 			.remote-follow-button {
-				width: 100%;
-				font-weight: bold;
-
-				.fa {
-					margin-right: 0.35rem;
-				}
+				width: auto;
 			}
 
 			.remote-follow-change {
@@ -370,6 +400,10 @@
 		}
 	}
 
+	.col-header + .fields .field:first-child {
+		border-top: 0;
+	}
+
 	.bio {
 		background: $profile-bg;
 		padding: 1rem 0.75rem;
@@ -464,9 +498,16 @@
 				}
 			}
 
-			.remote-follow {
-				justify-self: stretch;
+			.profile-follow-actions {
+				justify-self: start;
+				align-self: start;
+				min-width: 0;
 				margin-top: 0.75rem;
+				flex-wrap: wrap;
+			}
+
+			.remote-follow {
+				justify-self: start;
 			}
 		}
 	}

@@ -32,6 +32,25 @@ type AccountUpdateTestSuite struct {
 	AccountStandardTestSuite
 }
 
+func (suite *AccountUpdateTestSuite) TestAccountUpdateWebBioFirst() {
+	testAccount := &gtsmodel.Account{}
+	*testAccount = *suite.testAccounts["local_account_1"]
+
+	apiAccount, errWithCode := suite.accountProcessor.Update(
+		suite.T().Context(),
+		testAccount,
+		&apimodel.UpdateCredentialsRequest{WebBioFirst: util.Ptr(true)},
+	)
+	if errWithCode != nil {
+		suite.FailNow(errWithCode.Error())
+	}
+
+	suite.True(apiAccount.Source.WebBioFirst)
+	settings, err := suite.db.GetAccountSettings(suite.T().Context(), testAccount.ID)
+	suite.NoError(err)
+	suite.True(settings.WebBioFirst)
+}
+
 func (suite *AccountUpdateTestSuite) TestAccountUpdateSimple() {
 	testAccount := &gtsmodel.Account{}
 	*testAccount = *suite.testAccounts["local_account_1"]

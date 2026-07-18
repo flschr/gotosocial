@@ -201,10 +201,12 @@
             {{- end }}
             {{- end }}
         </dl>
+        {{- if or (and .instance.ProfilesShowRemoteFollow (not .account.Moved)) .account.BlueskyURL }}
+        <div class="profile-follow-actions">
         {{- if and .instance.ProfilesShowRemoteFollow (not .account.Moved) }}
         <div class="remote-follow" data-remote-follow data-profile-uri="{{- .account.URL -}}" data-profile-handle="@{{- .account.Username -}}@{{- .instance.AccountDomain -}}">
-            <button type="button" class="remote-follow-button" data-remote-follow-open>
-                <i class="fa fa-user-plus" aria-hidden="true"></i>
+            <button type="button" class="profile-follow-button remote-follow-button" aria-label="Follow on Mastodon" data-remote-follow-open>
+                <i class="fa fa-mastodon" aria-hidden="true"></i>
                 <span>Follow</span>
             </button>
             <button type="button" class="remote-follow-change" data-remote-follow-change hidden>Use another server</button>
@@ -223,6 +225,14 @@
                     <p class="remote-follow-fallback">Or search for <button type="button" class="remote-follow-copy" data-remote-follow-copy>@{{- .account.Username -}}@{{- .instance.AccountDomain -}}</button> in your Fediverse app.</p>
                 </form>
             </dialog>
+        </div>
+        {{- end }}
+        {{- if .account.BlueskyURL }}
+        <a class="button profile-follow-button bluesky-follow-button" href="{{- .account.BlueskyURL -}}" target="_blank" rel="me noreferrer" aria-label="Follow on Bluesky">
+            {{- template "iconBluesky" . -}}
+            <span>Follow</span>
+        </a>
+        {{- end }}
         </div>
         {{- end }}
         <a class="u-url u-uid hidden" rel="me" href="/@{{- .account.Username -}}"></a>

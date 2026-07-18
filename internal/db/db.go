@@ -29,6 +29,7 @@ type DB interface {
 	AdvancedMigration
 	Application
 	Basic
+	Bluesky
 	Conversation
 	Directory
 	Domain

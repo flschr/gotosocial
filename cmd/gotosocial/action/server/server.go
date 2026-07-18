@@ -35,6 +35,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/admin"
 	"code.superseriousbusiness.org/gotosocial/internal/api"
 	apiutil "code.superseriousbusiness.org/gotosocial/internal/api/util"
+	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/cleaner"
 	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/db/bundb"
@@ -401,6 +402,12 @@ func Start(ctx context.Context) error {
 
 	// Now start workers!
 	state.Workers.Start()
+
+	// Bluesky jobs may touch the client worker and are therefore registered
+	// only after every worker pool is initialized and running.
+	if err := bluesky.ScheduleJobs(state, typeConverter); err != nil {
+		return fmt.Errorf("error scheduling Bluesky jobs: %w", err)
+	}
 
 	// Schedule notif tasks for all existing poll expiries.
 	if err := process.Polls().ScheduleAll(ctx); err != nil {

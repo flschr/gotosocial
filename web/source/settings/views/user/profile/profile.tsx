@@ -114,6 +114,7 @@ function ProfileForm({ data: profile }: ProfileFormProps) {
 		webVisibility: useTextInput("web_visibility", { source: profile, valueSelector: (p: Account) => p.source?.web_visibility }),
 		webLayout: useTextInput("web_layout", { source: profile, valueSelector: (p: Account) => p.source?.web_layout }),
 		webIncludeBoosts: useBoolInput("web_include_boosts", { source: profile, valueSelector: (p: Account) => p.source?.web_include_boosts }),
+		webBioFirst: useBoolInput("web_bio_first", { source: profile, valueSelector: (p: Account) => p.source?.web_bio_first }),
 		fields: useFieldArrayInput("fields_attributes", {
 			defaultValue: profile?.source?.fields,
 			length: instanceConfig.maxPinnedFields
@@ -311,6 +312,10 @@ function ProfileForm({ data: profile }: ProfileFormProps) {
 			<Checkbox
 				field={form.webIncludeBoosts}
 				label="Include boosts on the web view of your profile."
+			/>
+			<Checkbox
+				field={form.webBioFirst}
+				label="Show bio before profile links on the public web profile (GoToSocial Plus)."
 			/>
 			<Checkbox
 				field={form.locked}

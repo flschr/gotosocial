@@ -22,6 +22,19 @@ import (
 	"testing"
 )
 
+func TestPublicVersion(t *testing.T) {
+	for input, expected := range map[string]string{
+		"0.22.0-plus+git-0de01b8":                  "0.22.0-plus",
+		"0.22.0-plus-bluesky-test.2+git-48885a7cc": "0.22.0-plus",
+		"0.22.0+git-0de01b8":                       "0.22.0",
+		"0.22.0":                                   "0.22.0",
+	} {
+		if actual := publicVersion(input); actual != expected {
+			t.Errorf("publicVersion(%q) = %q, want %q", input, actual, expected)
+		}
+	}
+}
+
 func TestOutdentPreformatted(t *testing.T) {
 	const html = template.HTML(`
         <div class="text">

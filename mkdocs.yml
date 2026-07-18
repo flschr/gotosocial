@@ -110,6 +110,7 @@ nav:
       - "configuration/statuses.md"
       - "configuration/tls.md"
       - "configuration/oidc.md"
+      - "configuration/bluesky.md"
       - "configuration/smtp.md"
       - "configuration/syslog.md"
       - "configuration/httpclient.md"

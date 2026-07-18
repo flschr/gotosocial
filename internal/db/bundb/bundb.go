@@ -45,6 +45,7 @@ type DBService struct {
 	db.AdvancedMigration
 	db.Application
 	db.Basic
+	db.Bluesky
 	db.Conversation
 	db.Directory
 	db.Domain
@@ -182,6 +183,9 @@ func NewBunDBService(ctx context.Context, state *state.State) (db.DB, error) {
 		},
 		Basic: &basicDB{
 			db: db,
+		},
+		Bluesky: &blueskyDB{
+			db: db, state: state,
 		},
 		Conversation: &conversationDB{
 			db:    db,

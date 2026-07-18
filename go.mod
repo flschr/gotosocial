@@ -38,6 +38,7 @@ require (
 	github.com/DmitriyVTitov/size v1.5.0
 	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/bluesky-social/indigo v0.0.0-20260318212431-270dd99d9dfb
 	github.com/buckket/go-blurhash v1.1.0
 	github.com/coreos/go-oidc/v3 v3.19.0
 	github.com/gin-contrib/cors v1.7.7
@@ -127,6 +128,7 @@ require (
 	github.com/dsoprea/go-photoshop-info-format v0.0.0-20200609050348-3db9b63b202c // indirect
 	github.com/dsoprea/go-utility/v2 v2.0.0-20221003172846-a3e1774ef349 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
@@ -167,12 +169,14 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/context v1.1.2 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gorilla/handlers v1.5.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/sessions v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -193,6 +197,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v3 v3.1.35302 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
@@ -227,6 +232,8 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
+	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
+	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.69.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.20.0 // indirect
@@ -247,6 +254,7 @@ require (
 	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect

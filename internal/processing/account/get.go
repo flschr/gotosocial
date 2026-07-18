@@ -118,7 +118,20 @@ func (p *Processor) GetWeb(ctx context.Context, username string) (*apimodel.WebA
 		return nil, gtserror.NewErrorInternalError(err)
 	}
 
+	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, targetAccount.ID)
+	if err == nil && showBlueskyProfile(connection) {
+		webAccount.BlueskyHandle = connection.Handle
+		webAccount.BlueskyURL = "https://bsky.app/profile/" + url.PathEscape(connection.DID)
+	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		err := gtserror.Newf("db error getting Bluesky connection: %w", err)
+		return nil, gtserror.NewErrorInternalError(err)
+	}
+
 	return webAccount, nil
+}
+
+func showBlueskyProfile(connection *gtsmodel.BlueskyConnection) bool {
+	return connection != nil && connection.Active() && connection.ShowProfileFollow
 }
 
 // GetCustomCSSForUsername returns custom css for the given local username.

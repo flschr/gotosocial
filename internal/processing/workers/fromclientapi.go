@@ -23,6 +23,7 @@ import (
 
 	"code.superseriousbusiness.org/gopkg/log"
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
+	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
@@ -281,6 +282,19 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 	// Send the status out to followers / mentioned accounts / relays.
 	if err := p.federate.CreateStatus(ctx, status); err != nil {
 		log.Errorf(ctx, "error federating status: %v", err)
+	}
+
+	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
+	isReply, replyErr := bluesky.IsReplyTarget(ctx, p.state, status)
+	if err == nil && (isReply || bluesky.EligibleForCrosspost(status, connection)) {
+		_, queueErr := bluesky.QueueStatus(ctx, p.state, status)
+		if queueErr != nil {
+			log.Errorf(ctx, "error queueing Bluesky crosspost: %v", queueErr)
+		}
+	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		log.Errorf(ctx, "error checking Bluesky crosspost settings: %v", err)
+	} else if replyErr != nil {
+		log.Errorf(ctx, "error checking Bluesky reply mapping: %v", replyErr)
 	}
 
 	return nil
@@ -761,6 +775,26 @@ func (p *clientAPI) UpdateStatus(ctx context.Context, cMsg *messages.FromClientA
 		log.Errorf(ctx, "error streaming status edit: %v", err)
 	}
 
+	// Re-run the durable Bluesky delivery for existing crossposts. If the
+	// status is no longer eligible (for example after a privacy downgrade),
+	// remove its public Bluesky counterpart instead.
+	if _, err := p.state.DB.GetBlueskyPostByStatusID(ctx, status.ID); err == nil {
+		connection, connectionErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
+		isReply, replyErr := bluesky.IsReplyTarget(ctx, p.state, status)
+		if (connectionErr == nil && bluesky.ShouldUpsertMappedStatus(status, connection, isReply)) ||
+			(errors.Is(connectionErr, db.ErrNoEntries) && bluesky.ShouldUpsertMappedStatus(status, nil, isReply)) {
+			if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
+				log.Errorf(ctx, "error queueing Bluesky status update: %v", queueErr)
+			}
+		} else if replyErr != nil {
+			log.Errorf(ctx, "error checking Bluesky reply mapping: %v", replyErr)
+		} else if _, queueErr := bluesky.QueueDelete(ctx, p.state, status.AccountID, status.ID); queueErr != nil {
+			log.Errorf(ctx, "error queueing Bluesky privacy update: %v", queueErr)
+		}
+	} else if !errors.Is(err, db.ErrNoEntries) {
+		log.Errorf(ctx, "error checking Bluesky status mapping: %v", err)
+	}
+
 	return nil
 }
 
@@ -961,6 +995,16 @@ func (p *clientAPI) DeleteStatus(ctx context.Context, cMsg *messages.FromClientA
 		log.Errorf(ctx, "error federating status %s delete: %v", status.URI, err)
 	}
 
+	// Remove the public Bluesky copy before stubbing the local source status.
+	// A failure leaves the local status intact enough for a later retry and is
+	// logged prominently; the mapping is retained until remote deletion works.
+	if err := bluesky.DeleteStatus(ctx, p.state, status.ID); err != nil {
+		log.Errorf(ctx, "error deleting status %s from Bluesky: %v", status.URI, err)
+		if _, queueErr := bluesky.QueueDelete(ctx, p.state, status.AccountID, status.ID); queueErr != nil {
+			log.Errorf(ctx, "error queueing Bluesky delete retry: %v", queueErr)
+		}
+	}
+
 	// Don't delete attachments, just unattach them:
 	// this request comes from the client API and the
 	// poster may want to use attachments again later.
@@ -1007,6 +1051,12 @@ func (p *clientAPI) DeleteAccountOrUser(ctx context.Context, cMsg *messages.From
 
 	// Extract target account.
 	account := cMsg.Target
+
+	// Revoke the connected Bluesky session and erase encrypted credentials
+	// before the local account is stubbed or removed.
+	if err := bluesky.DeleteAccount(ctx, p.state, account.ID); err != nil {
+		log.Errorf(ctx, "error disconnecting Bluesky for account %s: %v", account.ID, err)
+	}
 
 	// Drop any outgoing queued AP requests to / from / targeting
 	// this account, (stops queued likes, boosts, creates etc).

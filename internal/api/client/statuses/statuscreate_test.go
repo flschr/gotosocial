@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +49,14 @@ const (
 func (suite *StatusCreateTestSuite) postStatusCore(
 	formData map[string][]string,
 	jsonData string,
+) *httptest.ResponseRecorder {
+	return suite.postStatusCoreWithIdempotencyKey(formData, jsonData, "")
+}
+
+func (suite *StatusCreateTestSuite) postStatusCoreWithIdempotencyKey(
+	formData map[string][]string,
+	jsonData string,
+	idempotencyKey string,
 ) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	ctx, _ := testrig.CreateGinTestContext(recorder, nil)
@@ -78,11 +87,50 @@ func (suite *StatusCreateTestSuite) postStatusCore(
 	}
 
 	ctx.Request.Header.Set("accept", "application/json")
+	if idempotencyKey != "" {
+		ctx.Request.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 
 	// Trigger handler.
 	suite.statusModule.StatusCreatePOSTHandler(ctx)
 
 	return recorder
+}
+
+func (suite *StatusCreateTestSuite) TestPostStatusIdempotencyKeyReturnsOriginalStatus() {
+	const key = "publisher:stable-article-key"
+	const body = `{"status":"only publish this once","visibility":"public"}`
+
+	firstRecorder := suite.postStatusCoreWithIdempotencyKey(nil, body, key)
+	secondRecorder := suite.postStatusCoreWithIdempotencyKey(nil, body, key)
+
+	suite.Equal(http.StatusOK, firstRecorder.Code)
+	suite.Equal(http.StatusOK, secondRecorder.Code)
+
+	var first apimodel.Status
+	var second apimodel.Status
+	suite.NoError(json.Unmarshal(firstRecorder.Body.Bytes(), &first))
+	suite.NoError(json.Unmarshal(secondRecorder.Body.Bytes(), &second))
+	suite.NotEmpty(first.ID)
+	suite.Equal(first.ID, second.ID)
+
+	stored, err := suite.db.GetStatusByIdempotencyKey(
+		suite.T().Context(),
+		suite.testAccounts["local_account_1"].ID,
+		suite.testApplications["application_1"].ID,
+		key,
+	)
+	suite.NoError(err)
+	suite.Equal(first.ID, stored.ID)
+}
+
+func (suite *StatusCreateTestSuite) TestPostStatusRejectsOversizedIdempotencyKey() {
+	recorder := suite.postStatusCoreWithIdempotencyKey(
+		nil,
+		`{"status":"must not be created"}`,
+		strings.Repeat("x", 256),
+	)
+	suite.Equal(http.StatusBadRequest, recorder.Code)
 }
 
 // Post a status and return the result as deterministic JSON.

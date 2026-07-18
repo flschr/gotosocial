@@ -1110,6 +1110,17 @@ oidc-allowed-groups: []
 # Default: []
 oidc-admin-groups: []
 
+########################
+##### BLUESKY OAUTH #####
+########################
+
+# String. Base64-encoded 32-byte key used to encrypt Bluesky OAuth access
+# tokens, refresh tokens, and DPoP private keys before storing them.
+# Generate once with: openssl rand -base64 32
+# Keep this value stable; changing it disconnects existing Bluesky sessions.
+# Default: ""
+bluesky-oauth-encryption-key: ""
+
 #######################
 ##### SMTP CONFIG #####
 #######################

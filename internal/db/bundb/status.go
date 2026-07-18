@@ -51,6 +51,33 @@ func (s *statusDB) GetStatusByID(ctx context.Context, id string) (*gtsmodel.Stat
 	)
 }
 
+func (s *statusDB) GetStatusByIdempotencyKey(
+	ctx context.Context,
+	accountID string,
+	applicationID string,
+	key string,
+) (*gtsmodel.Status, error) {
+	status := new(gtsmodel.Status)
+	if err := s.db.NewSelect().
+		Model(status).
+		Where("? = ?", bun.Ident("account_id"), accountID).
+		Where("? = ?", bun.Ident("created_with_application_id"), applicationID).
+		Where("? = ?", bun.Ident("idempotency_key"), key).
+		Scan(ctx); err != nil {
+		return nil, err
+	}
+
+	if gtscontext.Barebones(ctx) {
+		return status, nil
+	}
+
+	if err := s.PopulateStatus(ctx, status); err != nil {
+		return nil, err
+	}
+
+	return status, nil
+}
+
 func (s *statusDB) GetStatusesByIDs(ctx context.Context, ids []string) ([]*gtsmodel.Status, error) {
 	// Load all input status IDs via cache loader callback.
 	statuses, err := s.state.Caches.DB.Status.LoadIDs("ID",

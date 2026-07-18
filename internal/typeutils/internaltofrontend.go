@@ -162,6 +162,7 @@ func (c *Converter) AccountToAPIAccountSensitive(ctx context.Context, a *gtsmode
 		WebVisibility:       accountWebVisibility(a),
 		WebLayout:           a.Settings.WebLayout.String(),
 		WebIncludeBoosts:    *a.Settings.WebIncludeBoosts,
+		WebBioFirst:         a.Settings.WebBioFirst,
 		Sensitive:           *a.Settings.Sensitive,
 		Language:            a.Settings.Language,
 		StatusContentType:   statusContentType,
@@ -247,6 +248,7 @@ func (c *Converter) AccountToWebAccount(
 	if account.Settings != nil {
 		webAccount.WebLayout = account.Settings.WebLayout.String()
 		webAccount.WebVisibility = accountWebVisibility(account)
+		webAccount.WebBioFirst = account.Settings.WebBioFirst
 	}
 
 	return webAccount, nil

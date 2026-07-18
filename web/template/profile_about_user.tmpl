@@ -22,17 +22,17 @@
     <div id="profile-col-header" class="col-header">
         <h3 id="about-header">About<span class="sr-only">&nbsp;{{- .account.Username -}}</span></h3>
     </div>
+    {{- if .account.WebBioFirst }}
+    {{- include "profile_bio.tmpl" . | indent 1 }}
     {{- if .account.Fields }}
     {{- include "profile_fields.tmpl" . | indent 1 }}
     {{- end }}
-    <div id="profile-bio" class="bio p-note">
-        <h4 class="sr-only">Bio</h4>
-        {{- if .account.Note }}
-        {{ emojify .account.Emojis (noescape .account.Note) }}
-        {{- else }}
-        <p>This GoToSocial user hasn't written a bio yet!</p>
-        {{- end }}
-    </div>
+    {{- else }}
+    {{- if .account.Fields }}
+    {{- include "profile_fields.tmpl" . | indent 1 }}
+    {{- end }}
+    {{- include "profile_bio.tmpl" . | indent 1 }}
+    {{- end }}
     <dl id="profile-stats" class="accountstats">
         <h4 class="sr-only">Stats</h4>
         <div class="stats-item">

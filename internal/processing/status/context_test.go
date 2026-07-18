@@ -257,6 +257,79 @@ func (suite *webContextGetTestSuite) createStatus(account *gtsmodel.Account, vis
 	return newStatus
 }
 
+// Create a local-only direct reply that mentions targetAccount.
+func (suite *webContextGetTestSuite) createPrivateLocalReply(
+	account *gtsmodel.Account,
+	targetAccount *gtsmodel.Account,
+	inReplyTo *gtsmodel.Status,
+) *gtsmodel.Status {
+	ctx := suite.T().Context()
+	statusID := id.NewULID()
+	mentionID := id.NewULID()
+	mention := &gtsmodel.Mention{
+		ID:               mentionID,
+		StatusID:         statusID,
+		OriginAccountID:  account.ID,
+		OriginAccountURI: account.URI,
+		TargetAccountID:  targetAccount.ID,
+	}
+	newStatus := &gtsmodel.Status{
+		ID:                  statusID,
+		URI:                 "https://status-id.test/" + statusID,
+		Flags:               gtsmodel.StatusFlags(gtsmodel.StatusFlagLocal),
+		AccountID:           account.ID,
+		AccountURI:          account.URI,
+		InReplyToID:         inReplyTo.ID,
+		InReplyToURI:        inReplyTo.URI,
+		InReplyToAccountID:  inReplyTo.AccountID,
+		MentionIDs:          []string{mentionID},
+		Visibility:          gtsmodel.VisibilityDirect,
+		ActivityStreamsType: ap.ObjectNote,
+	}
+	if err := suite.db.PutStatus(ctx, newStatus); err != nil {
+		suite.FailNow(err.Error())
+	}
+	if err := suite.db.PutMention(ctx, mention); err != nil {
+		suite.FailNow(err.Error())
+	}
+	return newStatus
+}
+
+// A private local-only reply can share the public post's thread while staying
+// visible only to the mentioned local account through the standard client API.
+func (suite *webContextGetTestSuite) TestPrivateLocalReplyUnderPublicStatus() {
+	ctx := suite.T().Context()
+
+	op := suite.createStatus(suite.indexableAccount1, gtsmodel.VisibilityPublic, nil)
+	privateReply := suite.createPrivateLocalReply(
+		suite.indexableAccount2,
+		suite.indexableAccount1,
+		op,
+	)
+
+	ownerContext, errWithCode := suite.status.ContextGet(ctx, suite.indexableAccount1, op.ID)
+	if errWithCode != nil {
+		suite.FailNow(errWithCode.Error())
+	}
+	suite.Require().Len(ownerContext.Descendants, 1)
+	suite.Equal(privateReply.ID, ownerContext.Descendants[0].ID)
+	suite.True(ownerContext.Descendants[0].LocalOnly)
+	suite.Equal("direct", string(ownerContext.Descendants[0].Visibility))
+
+	otherContext, errWithCode := suite.status.ContextGet(ctx, suite.nonindexableAccount1, op.ID)
+	if errWithCode != nil {
+		suite.FailNow(errWithCode.Error())
+	}
+	suite.Empty(otherContext.Descendants)
+
+	webContext, errWithCode := suite.status.WebContextGet(ctx, op.ID)
+	if errWithCode != nil {
+		suite.FailNow(errWithCode.Error())
+	}
+	suite.Len(webContext.Statuses, 1)
+	suite.Equal(1, webContext.ThreadRepliesHidden)
+}
+
 // If all visible statuses in a thread are indexable, so is the thread.
 func (suite *webContextGetTestSuite) TestAllVisibleIndexable() {
 	ctx := suite.T().Context()

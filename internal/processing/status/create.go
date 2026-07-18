@@ -46,6 +46,32 @@ func (p *Processor) Create(
 	form *apimodel.StatusCreateRequest,
 	scheduledStatusID *string,
 ) (any, gtserror.WithCode) {
+	if form.IdempotencyKey != "" && scheduledStatusID == nil {
+		applicationID := ""
+		if application != nil {
+			applicationID = application.ID
+		}
+
+		lockKey := "status-idempotency:" + requester.ID + ":" + applicationID + ":" + form.IdempotencyKey
+		unlock := p.state.ProcessingLocks.Lock(lockKey)
+		defer unlock()
+
+		existing, err := p.state.DB.GetStatusByIdempotencyKey(
+			ctx,
+			requester.ID,
+			applicationID,
+			form.IdempotencyKey,
+		)
+		switch {
+		case err == nil:
+			return p.c.GetAPIStatus(ctx, requester, existing)
+		case !errors.Is(err, db.ErrNoEntries):
+			return nil, gtserror.NewErrorInternalError(
+				gtserror.Newf("error checking status idempotency key: %w", err),
+			)
+		}
+	}
+
 	// Validate incoming form status content.
 	if errWithCode := validateStatusContent(
 		form.Status,
@@ -167,6 +193,7 @@ func (p *Processor) Create(
 		AccountURI:               requester.URI,
 		ActivityStreamsType:      ap.ObjectNote,
 		CreatedWithApplicationID: application.ID,
+		IdempotencyKey:           form.IdempotencyKey,
 
 		// Set validated language.
 		Language: content.Language,
@@ -223,6 +250,26 @@ func (p *Processor) Create(
 		backfill,
 	); errWithCode != nil {
 		return nil, errWithCode
+	}
+
+	// Replies to private Bluesky proxy statuses must never escape into
+	// ActivityPub, even if a client submits broader visibility parameters.
+	if status.InReplyToID != "" {
+		interaction, err := p.state.DB.GetBlueskyInteractionByStatusID(ctx, status.InReplyToID)
+		switch {
+		case err == nil:
+			if interaction.AccountID != requester.ID {
+				const errText = "you do not have permission to reply to this status"
+				return nil, gtserror.NewErrorForbidden(gtserror.New(errText), errText)
+			}
+			form.Visibility = apimodel.VisibilityDirect
+			form.LocalOnly = util.Ptr(true)
+
+		case !errors.Is(err, db.ErrNoEntries):
+			return nil, gtserror.NewErrorInternalError(
+				gtserror.Newf("error checking Bluesky reply target: %w", err),
+			)
+		}
 	}
 
 	// Process the incoming created status visibility.

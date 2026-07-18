@@ -141,6 +141,10 @@ type Status struct {
 	CreatedWithApplicationID string       `bun:"type:CHAR(26),nullzero"`
 	CreatedWithApplication   *Application `bun:"rel:belongs-to"`
 
+	// Idempotency key supplied by the client that created this local status.
+	// Scoped to account and application; remote statuses leave this empty.
+	IdempotencyKey string `bun:",nullzero"`
+
 	// What is the activitystreams type of this status?
 	// See: https://www.w3.org/TR/activitystreams-vocabulary/#object-types.
 	//
