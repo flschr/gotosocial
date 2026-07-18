@@ -232,6 +232,7 @@
 				align-items: center;
 				justify-content: center;
 				gap: 0.35rem;
+				color: $button-fg;
 				white-space: nowrap;
 				font-weight: bold;
 				line-height: normal;
@@ -244,6 +245,11 @@
 			}
 
 			.bluesky-follow-button {
+				&:link,
+				&:visited {
+					color: $button-fg;
+				}
+
 				.bluesky-icon {
 					height: 1.15rem;
 					fill: currentColor;
