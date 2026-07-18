@@ -21,13 +21,7 @@
 <aside class="plus-info" aria-label="GoToSocial Plus software information">
     <p>
         This instance runs
-        <strong>GoToSocial Plus {{ .instance.Version }}</strong>, based on
-        GoToSocial with improvements for
-        {{- if .instance.AccountsUseAccountDomainInAcct }} split-domain account display in Mastodon clients;{{- end }}
-        {{- if .instance.AccountsHideLocalRoles }} local role privacy;{{- end }}
-        {{- if .instance.StatusesPreviewCards }} link preview cards;{{- end }}
-        {{- if .instance.ProfilesShowRemoteFollow }} easier remote follows;{{- end }}
-        and reliable RSS feeds.
+        <strong>GoToSocial Plus {{ publicVersion .instance.Version }}</strong>, based on GoToSocial with some improvements.
         <a href="https://github.com/flschr/gotosocial" rel="nofollow noreferrer noopener" target="_blank">View the source code and changes.</a>
     </p>
 </aside>

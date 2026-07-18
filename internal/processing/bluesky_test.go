@@ -12,6 +12,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNormalizeBlueskyIdentifier(t *testing.T) {
+	for input, expected := range map[string]string{
+		"fischr.org":     "fischr.org",
+		"@fischr.org":    "fischr.org",
+		" @fischr.org  ": "fischr.org",
+		"did:plc:abc":    "did:plc:abc",
+	} {
+		actual, err := normalizeBlueskyIdentifier(input)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	}
+
+	_, err := normalizeBlueskyIdentifier("@")
+	require.Error(t, err)
+}
+
 func TestBlueskyConnectionStatusUsesFriendlyMessages(t *testing.T) {
 	connection := &gtsmodel.BlueskyConnection{OAuthSessionID: "session", OAuthData: []byte("encrypted"), LastSyncError: "resume Bluesky OAuth session: invalid_grant"}
 	health := &gtsmodel.BlueskyHealth{LastError: connection.LastSyncError, LastErrorCode: bluesky.ErrorCodeAuth, DeadDeliveries: 1}

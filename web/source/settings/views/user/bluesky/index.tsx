@@ -99,8 +99,9 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 					? <>Bluesky is disconnected. The saved account is <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>.</>
 					: <>No Bluesky account is connected yet.</>}</div>
 				{!connection.handle && <label>
-					Bluesky handle
-					<input value={identifier} placeholder="your-handle.bsky.social" onChange={(event) => setIdentifier(event.target.value)} />
+					Your Bluesky handle
+					<input value={identifier} placeholder="fischr.org" autoCapitalize="none" autoCorrect="off" onChange={(event) => setIdentifier(event.target.value)} />
+					<small>We use your handle once to find the correct Bluesky login provider. You can enter it with or without @.</small>
 				</label>}
 				<button type="button" disabled={!connection.configured || (!identifier && !connection.handle) || connectResult.isLoading} onClick={() => void startConnection()}>{connection.handle ? "Reconnect saved Bluesky account" : "Connect Bluesky account"}</button>
 				{!connection.configured && <small>Bluesky connections are not configured by this server administrator.</small>}

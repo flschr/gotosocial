@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 	"time"
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
@@ -17,6 +18,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 const blueskyOAuthStateLifetime = 10 * time.Minute
@@ -41,15 +43,32 @@ func (p *Processor) BlueskyConnectStart(ctx context.Context, accountID, identifi
 	} else if !errors.Is(err, db.ErrNoEntries) && err != nil {
 		return nil, gtserror.NewErrorInternalError(err)
 	}
+	identifier, err := normalizeBlueskyIdentifier(identifier)
+	if err != nil {
+		return nil, gtserror.NewErrorUnprocessableEntity(err, "Enter a valid Bluesky handle, for example fischr.org")
+	}
 	app, _, err := p.blueskyOAuthApp(accountID)
 	if err != nil {
 		return nil, gtserror.NewErrorInternalError(err, "Bluesky OAuth is not configured on this instance")
 	}
 	authorizationURL, err := app.StartAuthFlow(ctx, identifier)
 	if err != nil {
-		return nil, gtserror.NewErrorUnprocessableEntity(err, "could not start Bluesky authorization")
+		return nil, gtserror.NewErrorUnprocessableEntity(err, "We could not find that Bluesky account or reach its login provider. Check the handle and try again")
 	}
 	return &apimodel.BlueskyConnectResponse{AuthorizationURL: authorizationURL}, nil
+}
+
+func normalizeBlueskyIdentifier(identifier string) (string, error) {
+	identifier = strings.TrimSpace(identifier)
+	identifier = strings.TrimPrefix(identifier, "@")
+	if strings.HasPrefix(identifier, "https://") {
+		return identifier, nil
+	}
+	parsed, err := syntax.ParseAtIdentifier(identifier)
+	if err != nil {
+		return "", err
+	}
+	return parsed.String(), nil
 }
 
 func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Values) (string, gtserror.WithCode) {

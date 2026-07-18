@@ -40,7 +40,8 @@ export default function useBlueskyController(connection: BlueskyConnection) {
 		: callbackError ? "Bluesky could not be connected. Please try again." : undefined;
 
 	const startConnection = async () => {
-		const response = await connect({ identifier: identifier || connection.handle || "" }).unwrap();
+		const normalizedIdentifier = identifier.trim().replace(/^@/, "");
+		const response = await connect({ identifier: normalizedIdentifier || connection.handle || "" }).unwrap();
 		window.location.assign(response.authorization_url);
 	};
 

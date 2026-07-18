@@ -227,15 +227,25 @@
 			gap: 0.5rem;
 			align-items: flex-start;
 
-			.bluesky-follow-button {
+			.profile-follow-button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				gap: 0.35rem;
 				white-space: nowrap;
 				font-weight: bold;
+				line-height: normal;
 
+				.fa,
 				.bluesky-icon {
 					width: 1.15rem;
+					margin: 0;
+				}
+			}
+
+			.bluesky-follow-button {
+				.bluesky-icon {
 					height: 1.15rem;
-					margin-right: 0.35rem;
-					vertical-align: -0.2rem;
 					fill: currentColor;
 				}
 			}
@@ -244,12 +254,7 @@
 		.remote-follow {
 
 			.remote-follow-button {
-				width: 100%;
-				font-weight: bold;
-
-				.fa {
-					margin-right: 0.35rem;
-				}
+				width: auto;
 			}
 
 			.remote-follow-change {

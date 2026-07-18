@@ -205,8 +205,8 @@
         <div class="profile-follow-actions">
         {{- if and .instance.ProfilesShowRemoteFollow (not .account.Moved) }}
         <div class="remote-follow" data-remote-follow data-profile-uri="{{- .account.URL -}}" data-profile-handle="@{{- .account.Username -}}@{{- .instance.AccountDomain -}}">
-            <button type="button" class="remote-follow-button" data-remote-follow-open>
-                <i class="fa fa-user-plus" aria-hidden="true"></i>
+            <button type="button" class="profile-follow-button remote-follow-button" aria-label="Follow on Mastodon" data-remote-follow-open>
+                <i class="fa fa-mastodon" aria-hidden="true"></i>
                 <span>Follow</span>
             </button>
             <button type="button" class="remote-follow-change" data-remote-follow-change hidden>Use another server</button>
@@ -228,12 +228,12 @@
         </div>
         {{- end }}
         {{- if .account.BlueskyURL }}
-        <a class="button bluesky-follow-button" href="{{- .account.BlueskyURL -}}" target="_blank" rel="me noreferrer">
+        <a class="button profile-follow-button bluesky-follow-button" href="{{- .account.BlueskyURL -}}" target="_blank" rel="me noreferrer" aria-label="Follow on Bluesky">
             <svg class="bluesky-icon" viewBox="0 0 24 22" aria-hidden="true" focusable="false">
                 <path d="M11.2 10.8C9.4 7.2 6.2 3.2 2.8 1.8 1.4 1.2.4 2 .5 3.5c.2 3.5 1.1 7.3 4.1 8.8-2.1.5-3.6 1.7-2.8 3.8 1.4 3.6 5.8 2.7 9.4-1.8v-3.5Z"/>
                 <path d="M12.8 10.8c1.8-3.6 5-7.6 8.4-9 1.4-.6 2.4.2 2.3 1.7-.2 3.5-1.1 7.3-4.1 8.8 2.1.5 3.6 1.7 2.8 3.8-1.4 3.6-5.8 2.7-9.4-1.8v-3.5Z"/>
             </svg>
-            <span>Follow on Bluesky</span>
+            <span>Follow</span>
         </a>
         {{- end }}
         </div>
