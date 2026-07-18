@@ -6,6 +6,7 @@ package bundb
 
 import (
 	"context"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"github.com/uptrace/bun"
@@ -25,6 +26,14 @@ func getBlueskyModel[T any](ctx context.Context, db *bun.DB, column string, valu
 
 func (b *blueskyDB) GetBlueskyConnectionByAccountID(ctx context.Context, accountID string) (*gtsmodel.BlueskyConnection, error) {
 	return getBlueskyModel[gtsmodel.BlueskyConnection](ctx, b.db, "account_id", accountID)
+}
+
+func (b *blueskyDB) GetBlueskyConnections(ctx context.Context) ([]*gtsmodel.BlueskyConnection, error) {
+	connections := make([]*gtsmodel.BlueskyConnection, 0)
+	if err := b.db.NewSelect().Model(&connections).Scan(ctx); err != nil {
+		return nil, err
+	}
+	return connections, nil
 }
 
 func (b *blueskyDB) PutBlueskyConnection(ctx context.Context, connection *gtsmodel.BlueskyConnection) error {
@@ -53,6 +62,36 @@ func (b *blueskyDB) PutBlueskyOAuthState(ctx context.Context, state *gtsmodel.Bl
 
 func (b *blueskyDB) DeleteBlueskyOAuthState(ctx context.Context, state string) error {
 	_, err := b.db.NewDelete().Model((*gtsmodel.BlueskyOAuthState)(nil)).Where("? = ?", bun.Ident("state"), state).Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) GetDueBlueskyDeliveries(ctx context.Context, before time.Time, limit int) ([]*gtsmodel.BlueskyDelivery, error) {
+	deliveries := make([]*gtsmodel.BlueskyDelivery, 0, limit)
+	err := b.db.NewSelect().Model(&deliveries).
+		Where("? <= ?", bun.Ident("next_attempt_at"), before).
+		Order("next_attempt_at ASC").Limit(limit).Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return deliveries, nil
+}
+
+func (b *blueskyDB) GetBlueskyDeliveryByStatusID(ctx context.Context, statusID string) (*gtsmodel.BlueskyDelivery, error) {
+	return getBlueskyModel[gtsmodel.BlueskyDelivery](ctx, b.db, "status_id", statusID)
+}
+
+func (b *blueskyDB) PutBlueskyDelivery(ctx context.Context, delivery *gtsmodel.BlueskyDelivery) error {
+	_, err := b.db.NewInsert().Model(delivery).Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) UpdateBlueskyDelivery(ctx context.Context, delivery *gtsmodel.BlueskyDelivery, columns ...string) error {
+	_, err := b.db.NewUpdate().Model(delivery).Column(columns...).WherePK().Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) DeleteBlueskyDeliveryByStatusID(ctx context.Context, statusID string) error {
+	_, err := b.db.NewDelete().Model((*gtsmodel.BlueskyDelivery)(nil)).Where("? = ?", bun.Ident("status_id"), statusID).Exec(ctx)
 	return err
 }
 

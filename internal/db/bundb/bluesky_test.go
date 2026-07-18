@@ -7,6 +7,7 @@ package bundb_test
 import (
 	"encoding/base64"
 	"testing"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
@@ -87,6 +88,29 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	storedInteraction, err := suite.db.GetBlueskyInteractionByURI(ctx, interaction.URI)
 	suite.Require().NoError(err)
 	suite.Equal(interaction.StatusID, storedInteraction.StatusID)
+}
+
+func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
+	ctx := suite.T().Context()
+	status := suite.testStatuses["local_account_1_status_1"]
+	delivery := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: status.AccountID, StatusID: status.ID,
+		NextAttemptAt: time.Now().Add(-time.Minute),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, delivery))
+
+	due, err := suite.db.GetDueBlueskyDeliveries(ctx, time.Now(), 10)
+	suite.Require().NoError(err)
+	suite.Require().Len(due, 1)
+	suite.Equal(status.ID, due[0].StatusID)
+
+	delivery.Attempts = 2
+	delivery.NextAttemptAt = time.Now().Add(time.Hour)
+	suite.Require().NoError(suite.db.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at"))
+	due, err = suite.db.GetDueBlueskyDeliveries(ctx, time.Now(), 10)
+	suite.Require().NoError(err)
+	suite.Empty(due)
+	suite.Require().NoError(suite.db.DeleteBlueskyDeliveryByStatusID(ctx, status.ID))
 }
 
 func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {

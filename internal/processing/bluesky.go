@@ -81,13 +81,14 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 	}
 
 	connection := &gtsmodel.BlueskyConnection{
-		ID:                id.NewULID(),
-		AccountID:         storedState.AccountID,
-		DID:               session.AccountDID.String(),
-		Handle:            identity.Handle.String(),
-		PDSURL:            session.HostURL,
-		CrosspostPublic:   false,
-		ShowProfileFollow: true,
+		ID:                  id.NewULID(),
+		AccountID:           storedState.AccountID,
+		DID:                 session.AccountDID.String(),
+		Handle:              identity.Handle.String(),
+		PDSURL:              session.HostURL,
+		NotificationsSeenAt: time.Now(),
+		CrosspostPublic:     false,
+		ShowProfileFollow:   true,
 	}
 	if err := p.state.DB.PutBlueskyConnection(ctx, connection); err != nil {
 		return "", gtserror.NewErrorInternalError(err)

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,10 +16,12 @@ import (
 	"time"
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
+	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"code.superseriousbusiness.org/gotosocial/internal/text"
+	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/rivo/uniseg"
@@ -56,6 +59,67 @@ type uploadBlobResponse struct {
 	Blob any `json:"blob"`
 }
 
+func QueueStatus(ctx context.Context, state *state.State, status *gtsmodel.Status) (*gtsmodel.BlueskyDelivery, error) {
+	if existing, err := state.DB.GetBlueskyDeliveryByStatusID(ctx, status.ID); err == nil {
+		return existing, nil
+	} else if !errors.Is(err, db.ErrNoEntries) {
+		return nil, err
+	}
+	delivery := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: status.AccountID, StatusID: status.ID,
+		NextAttemptAt: time.Now(),
+	}
+	if err := state.DB.PutBlueskyDelivery(ctx, delivery); err != nil {
+		return nil, err
+	}
+	return delivery, nil
+}
+
+func ProcessDelivery(ctx context.Context, state *state.State, converter *typeutils.Converter, delivery *gtsmodel.BlueskyDelivery) error {
+	status, err := state.DB.GetStatusByID(ctx, delivery.StatusID)
+	if errors.Is(err, db.ErrNoEntries) {
+		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+	}
+	if err != nil {
+		return recordDeliveryFailure(ctx, state, delivery, err)
+	}
+	if err := state.DB.PopulateStatus(ctx, status); err != nil {
+		return recordDeliveryFailure(ctx, state, delivery, err)
+	}
+	if _, err := state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID); errors.Is(err, db.ErrNoEntries) {
+		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+	} else if err != nil {
+		return recordDeliveryFailure(ctx, state, delivery, err)
+	}
+	apiStatus, err := converter.StatusToAPIStatus(ctx, status, status.Account)
+	if err == nil {
+		interaction, interactionErr := state.DB.GetBlueskyInteractionByStatusID(ctx, status.InReplyToID)
+		switch {
+		case interactionErr == nil:
+			err = PublishReply(ctx, state, status, apiStatus.Card, interaction)
+		case errors.Is(interactionErr, db.ErrNoEntries):
+			err = PublishStatus(ctx, state, status, apiStatus.Card)
+		default:
+			err = interactionErr
+		}
+	}
+	if err != nil {
+		return recordDeliveryFailure(ctx, state, delivery, err)
+	}
+	return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+}
+
+func recordDeliveryFailure(ctx context.Context, state *state.State, delivery *gtsmodel.BlueskyDelivery, cause error) error {
+	delivery.Attempts++
+	delay := time.Minute * time.Duration(1<<min(delivery.Attempts-1, 6))
+	delivery.NextAttemptAt = time.Now().Add(delay)
+	delivery.LastError = truncateUTF8(cause.Error(), 1000, 4000)
+	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error"); err != nil {
+		return fmt.Errorf("record Bluesky delivery failure after %v: %w", cause, err)
+	}
+	return cause
+}
+
 func EligibleForCrosspost(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection) bool {
 	return connection != nil &&
 		connection.CrosspostPublic &&
@@ -68,12 +132,24 @@ func EligibleForCrosspost(status *gtsmodel.Status, connection *gtsmodel.BlueskyC
 }
 
 func PublishStatus(ctx context.Context, state *state.State, status *gtsmodel.Status, card *apimodel.Card) error {
+	return publishStatus(ctx, state, status, card, nil)
+}
+
+// PublishReply publishes a local-only reply to an imported Bluesky interaction.
+func PublishReply(ctx context.Context, state *state.State, status *gtsmodel.Status, card *apimodel.Card, interaction *gtsmodel.BlueskyInteraction) error {
+	return publishStatus(ctx, state, status, card, interaction)
+}
+
+func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Status, card *apimodel.Card, interaction *gtsmodel.BlueskyInteraction) error {
 	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
 	if err != nil {
 		return err
 	}
-	if !EligibleForCrosspost(status, connection) {
+	if interaction == nil && !EligibleForCrosspost(status, connection) {
 		return nil
+	}
+	if interaction != nil && interaction.AccountID != status.AccountID {
+		return fmt.Errorf("Bluesky interaction belongs to a different account")
 	}
 	if _, err := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); err == nil {
 		return nil
@@ -111,6 +187,12 @@ func PublishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	if status.Language != "" {
 		record["langs"] = []string{status.Language}
 	}
+	if interaction != nil {
+		record["reply"] = map[string]any{
+			"root":   map[string]string{"uri": interaction.RootURI, "cid": interaction.RootCID},
+			"parent": map[string]string{"uri": interaction.URI, "cid": interaction.CID},
+		}
+	}
 
 	images := make([]map[string]any, 0, maxImages)
 	for _, attachment := range status.Attachments {
@@ -142,11 +224,14 @@ func PublishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 		record["embed"] = map[string]any{"$type": "app.bsky.embed.external", "external": external}
 	}
 
-	endpoint, _ := syntax.ParseNSID("com.atproto.repo.createRecord")
+	// A deterministic record key makes retries idempotent even if a network
+	// failure happens after Bluesky accepted the write but before we saw it.
+	endpoint, _ := syntax.ParseNSID("com.atproto.repo.putRecord")
 	var response createRecordResponse
 	if err := client.Post(ctx, endpoint, map[string]any{
 		"repo":       connection.DID,
 		"collection": "app.bsky.feed.post",
+		"rkey":       status.ID,
 		"record":     record,
 	}, &response); err != nil {
 		return fmt.Errorf("create Bluesky post: %w", err)

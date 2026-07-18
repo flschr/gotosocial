@@ -285,15 +285,18 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 	}
 
 	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
-	if err == nil && bluesky.EligibleForCrosspost(status, connection) {
-		apiStatus, convertErr := p.utils.converter.StatusToAPIStatus(ctx, status, status.Account)
-		if convertErr != nil {
-			log.Errorf(ctx, "error preparing Bluesky crosspost: %v", convertErr)
-		} else if publishErr := bluesky.PublishStatus(ctx, p.state, status, apiStatus.Card); publishErr != nil {
-			log.Errorf(ctx, "error publishing status to Bluesky: %v", publishErr)
+	_, interactionErr := p.state.DB.GetBlueskyInteractionByStatusID(ctx, status.InReplyToID)
+	if err == nil && (interactionErr == nil || bluesky.EligibleForCrosspost(status, connection)) {
+		delivery, queueErr := bluesky.QueueStatus(ctx, p.state, status)
+		if queueErr != nil {
+			log.Errorf(ctx, "error queueing Bluesky crosspost: %v", queueErr)
+		} else if publishErr := bluesky.ProcessDelivery(ctx, p.state, p.utils.converter, delivery); publishErr != nil {
+			log.Errorf(ctx, "error publishing status to Bluesky; queued for retry: %v", publishErr)
 		}
 	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
 		log.Errorf(ctx, "error checking Bluesky crosspost settings: %v", err)
+	} else if interactionErr != nil && !errors.Is(interactionErr, db.ErrNoEntries) {
+		log.Errorf(ctx, "error checking Bluesky reply mapping: %v", interactionErr)
 	}
 
 	return nil

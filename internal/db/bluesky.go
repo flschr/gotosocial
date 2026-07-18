@@ -6,6 +6,7 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 )
@@ -13,12 +14,19 @@ import (
 // Bluesky contains persistence operations for optional Bluesky connections.
 type Bluesky interface {
 	GetBlueskyConnectionByAccountID(context.Context, string) (*gtsmodel.BlueskyConnection, error)
+	GetBlueskyConnections(context.Context) ([]*gtsmodel.BlueskyConnection, error)
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	DeleteBlueskyConnection(context.Context, string) error
 	GetBlueskyOAuthState(context.Context, string) (*gtsmodel.BlueskyOAuthState, error)
 	PutBlueskyOAuthState(context.Context, *gtsmodel.BlueskyOAuthState) error
 	DeleteBlueskyOAuthState(context.Context, string) error
+
+	GetDueBlueskyDeliveries(context.Context, time.Time, int) ([]*gtsmodel.BlueskyDelivery, error)
+	GetBlueskyDeliveryByStatusID(context.Context, string) (*gtsmodel.BlueskyDelivery, error)
+	PutBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery) error
+	UpdateBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery, ...string) error
+	DeleteBlueskyDeliveryByStatusID(context.Context, string) error
 
 	GetBlueskyPostByStatusID(context.Context, string) (*gtsmodel.BlueskyPost, error)
 	GetBlueskyPostByURI(context.Context, string) (*gtsmodel.BlueskyPost, error)

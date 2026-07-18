@@ -35,6 +35,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/admin"
 	"code.superseriousbusiness.org/gotosocial/internal/api"
 	apiutil "code.superseriousbusiness.org/gotosocial/internal/api/util"
+	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/cleaner"
 	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/db/bundb"
@@ -390,6 +391,10 @@ func Start(ctx context.Context) error {
 	// Schedule background subscriptions updating.
 	if err := subscriptions.ScheduleJobs(); err != nil {
 		return fmt.Errorf("error scheduling subscriptions jobs: %w", err)
+	}
+
+	if err := bluesky.ScheduleJobs(state, typeConverter); err != nil {
+		return fmt.Errorf("error scheduling Bluesky jobs: %w", err)
 	}
 
 	// Initialize the specialized workers pools.
