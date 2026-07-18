@@ -163,6 +163,10 @@ type WebAccount struct {
 	//    "unlisted" = show Public *and* Unlisted visibility posts on the web.
 	//    "none" = show no posts on the web, not even Public ones.
 	WebVisibility Visibility `json:"-"`
+
+	// Optional linked Bluesky identity shown on the public profile.
+	BlueskyHandle string `json:"-"`
+	BlueskyURL    string `json:"-"`
 }
 
 // MutedAccount extends Account with a field used only by the muted user list.

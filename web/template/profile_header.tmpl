@@ -201,6 +201,8 @@
             {{- end }}
             {{- end }}
         </dl>
+        {{- if or (and .instance.ProfilesShowRemoteFollow (not .account.Moved)) .account.BlueskyURL }}
+        <div class="profile-follow-actions">
         {{- if and .instance.ProfilesShowRemoteFollow (not .account.Moved) }}
         <div class="remote-follow" data-remote-follow data-profile-uri="{{- .account.URL -}}" data-profile-handle="@{{- .account.Username -}}@{{- .instance.AccountDomain -}}">
             <button type="button" class="remote-follow-button" data-remote-follow-open>
@@ -223,6 +225,14 @@
                     <p class="remote-follow-fallback">Or search for <button type="button" class="remote-follow-copy" data-remote-follow-copy>@{{- .account.Username -}}@{{- .instance.AccountDomain -}}</button> in your Fediverse app.</p>
                 </form>
             </dialog>
+        </div>
+        {{- end }}
+        {{- if .account.BlueskyURL }}
+        <a class="button bluesky-follow-button" href="{{- .account.BlueskyURL -}}" target="_blank" rel="me noreferrer">
+            <i class="fa fa-cloud" aria-hidden="true"></i>
+            <span>Follow on Bluesky</span>
+        </a>
+        {{- end }}
         </div>
         {{- end }}
         <a class="u-url u-uid hidden" rel="me" href="/@{{- .account.Username -}}"></a>

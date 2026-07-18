@@ -218,11 +218,26 @@
 			}
 		}
 
-		.remote-follow {
+		.profile-follow-actions {
 			grid-area: follow;
 			align-self: center;
 			justify-self: end;
 			min-width: 10rem;
+			display: flex;
+			gap: 0.5rem;
+			align-items: flex-start;
+
+			.bluesky-follow-button {
+				white-space: nowrap;
+				font-weight: bold;
+
+				.fa {
+					margin-right: 0.35rem;
+				}
+			}
+		}
+
+		.remote-follow {
 
 			.remote-follow-button {
 				width: 100%;
