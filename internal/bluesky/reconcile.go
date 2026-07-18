@@ -87,19 +87,20 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 				}
 				continue
 			}
-			if post.CID != interaction.CID {
-				var record blueskyPostRecord
-				if err := json.Unmarshal(post.Record, &record); err != nil {
-					reconcileErrors = append(reconcileErrors, err)
-					continue
-				}
-				status, err := state.DB.GetStatusByID(ctx, interaction.StatusID)
-				if err != nil {
-					reconcileErrors = append(reconcileErrors, err)
-					continue
-				}
+			var record blueskyPostRecord
+			if err := json.Unmarshal(post.Record, &record); err != nil {
+				reconcileErrors = append(reconcileErrors, err)
+				continue
+			}
+			content := renderInteractionContent(record, post.Author, interaction.URL)
+			status, err := state.DB.GetStatusByID(ctx, interaction.StatusID)
+			if err != nil {
+				reconcileErrors = append(reconcileErrors, err)
+				continue
+			}
+			if post.CID != interaction.CID || record.Text != status.Text || content != status.Content {
 				status.Text = record.Text
-				status.Content = renderInteractionContent(record, post.Author, interaction.URL)
+				status.Content = content
 				if err := state.DB.UpdateStatus(ctx, status, "text", "content"); err != nil {
 					reconcileErrors = append(reconcileErrors, err)
 					continue

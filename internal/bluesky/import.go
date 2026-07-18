@@ -110,8 +110,16 @@ func interactionCreatedAt(indexedAt, recordCreatedAt time.Time) time.Time {
 
 func renderInteractionContent(record blueskyPostRecord, author blueskyAuthor, postURL string) string {
 	body := renderBlueskyRecord(record, author.DID)
-	return fmt.Sprintf(`<p><strong><a href="%s">@%s on Bluesky</a></strong></p><p>%s</p><p><a href="%s">View on Bluesky</a></p>`,
-		stdhtml.EscapeString("https://bsky.app/profile/"+author.DID), stdhtml.EscapeString(author.Handle), body, stdhtml.EscapeString(postURL))
+	displayName := strings.TrimSpace(author.DisplayName)
+	if displayName == "" {
+		displayName = author.Handle
+	}
+	header := stdhtml.EscapeString(displayName) + " (@" + stdhtml.EscapeString(author.Handle) + ") via Bluesky"
+	if body == "" {
+		return fmt.Sprintf(`<p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`, header, stdhtml.EscapeString(postURL))
+	}
+	return fmt.Sprintf(`<p>%s</p><p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`,
+		header, body, stdhtml.EscapeString(postURL))
 }
 
 func renderBlueskyRecord(record blueskyPostRecord, authorDID string) string {
@@ -144,6 +152,22 @@ func renderBlueskyRecord(record blueskyPostRecord, authorDID string) string {
 		position = end
 	}
 	out.WriteString(strings.ReplaceAll(stdhtml.EscapeString(string(textBytes[position:])), "\n", "<br>"))
+	if record.Embed != nil && record.Embed.External != nil {
+		external := record.Embed.External
+		if strings.HasPrefix(external.URI, "https://") || strings.HasPrefix(external.URI, "http://") {
+			if out.Len() > 0 {
+				out.WriteString("<br>")
+			}
+			label := strings.TrimSpace(external.Title)
+			if label == "" {
+				label = strings.TrimSpace(strings.TrimPrefix(external.Description, "ALT:"))
+			}
+			if label == "" {
+				label = "Open embedded media"
+			}
+			out.WriteString(`<a href="` + stdhtml.EscapeString(external.URI) + `">` + stdhtml.EscapeString(label) + `</a>`)
+		}
+	}
 	if record.Embed != nil {
 		for _, image := range record.Embed.Images {
 			if image.Image.Ref.Link == "" {

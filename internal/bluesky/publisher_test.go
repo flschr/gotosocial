@@ -7,6 +7,7 @@ package bluesky
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/crc32"
@@ -218,6 +219,32 @@ func TestRenderBlueskyRecordFacets(t *testing.T) {
 		Tag  string `json:"tag"`
 	}{Type: "app.bsky.richtext.facet#link", URI: "https://example.org"})
 	require.Equal(t, `Read <a href="https://example.org">this</a>`, renderBlueskyRecord(record, "did:plc:test"))
+}
+
+func TestRenderBlueskyExternalEmbedAsPrimaryReplyLink(t *testing.T) {
+	var record blueskyPostRecord
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"text":"",
+		"embed":{
+			"$type":"app.bsky.embed.external",
+			"external":{
+				"uri":"https://media.example/gladiator.gif",
+				"title":"Gladiator: Hand in Wheat Field",
+				"description":"ALT: Gladiator scene"
+			}
+		}
+	}`), &record))
+
+	content := renderInteractionContent(
+		record,
+		blueskyAuthor{DID: "did:plc:gilly", Handle: "gilly.berlin", DisplayName: "Gilly 🐈🇪🇺"},
+		"https://bsky.app/profile/did:plc:gilly/post/reply",
+	)
+	require.Equal(t,
+		`<p>Gilly 🐈🇪🇺 (@gilly.berlin) via Bluesky</p><p><a href="https://media.example/gladiator.gif">Gladiator: Hand in Wheat Field</a></p><p><a href="https://bsky.app/profile/did:plc:gilly/post/reply">View reply on Bluesky</a></p>`,
+		content,
+	)
+	require.NotContains(t, content, "<strong>")
 }
 
 func TestEligibleForCrosspost(t *testing.T) {

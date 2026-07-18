@@ -42,6 +42,7 @@ type blueskyPostRecord struct {
 		} `json:"features"`
 	} `json:"facets"`
 	Embed *struct {
+		Type   string `json:"$type"`
 		Images []struct {
 			Alt   string `json:"alt"`
 			Image struct {
@@ -50,6 +51,11 @@ type blueskyPostRecord struct {
 				} `json:"ref"`
 			} `json:"image"`
 		} `json:"images"`
+		External *struct {
+			URI         string `json:"uri"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+		} `json:"external"`
 	} `json:"embed"`
 	Reply *struct {
 		Root   blueskyStrongRef `json:"root"`
