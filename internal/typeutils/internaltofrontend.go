@@ -1679,6 +1679,7 @@ func (c *Converter) InstanceSettingsToAPIV1Instance(
 		StatusesPreviewCards:           settings.StatusesPreviewCards,
 		ProfilesAutoLoadOlderPosts:     settings.ProfilesAutoLoadOlderPosts,
 		ProfilesShowPlusInfo:           settings.ProfilesShowPlusInfo,
+		ProfilesShowRemoteFollow:       settings.ProfilesShowRemoteFollow,
 	}
 
 	if config.GetInstanceInjectMastodonVersion() {

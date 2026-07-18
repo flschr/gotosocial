@@ -50,6 +50,7 @@ export interface InstanceV1 {
     statuses_preview_cards: boolean;
     profiles_auto_load_older_posts: boolean;
     profiles_show_plus_info: boolean;
+    profiles_show_remote_follow: boolean;
 }
 
 export interface InstanceV2 {

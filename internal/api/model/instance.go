@@ -48,6 +48,8 @@ type InstanceSettingsUpdateRequest struct {
 	ProfilesAutoLoadOlderPosts *bool `form:"profiles_auto_load_older_posts" json:"profiles_auto_load_older_posts" xml:"profiles_auto_load_older_posts"`
 	// Show GoToSocial Plus information on public profiles (GoToSocial Plus).
 	ProfilesShowPlusInfo *bool `form:"profiles_show_plus_info" json:"profiles_show_plus_info" xml:"profiles_show_plus_info"`
+	// Show a remote-follow action on public profile pages.
+	ProfilesShowRemoteFollow *bool `form:"profiles_show_remote_follow" json:"profiles_show_remote_follow" xml:"profiles_show_remote_follow"`
 	// Terms and conditions of the instance, max 5,000 chars. HTML formatting accepted.
 	Terms *string `form:"terms" json:"terms" xml:"terms"`
 	// Image to use as the instance thumbnail.

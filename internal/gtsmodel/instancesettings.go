@@ -60,6 +60,9 @@ type InstanceSettings struct {
 	// Show GoToSocial Plus information on public profile pages.
 	ProfilesShowPlusInfo bool `bun:",notnull,default:true"`
 
+	// Show a remote-follow action on public profile pages.
+	ProfilesShowRemoteFollow bool `bun:",notnull,default:false"`
+
 	// Terms and conditions of the instance.
 	Terms string `bun:""`
 

@@ -82,7 +82,8 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 		accountsHideLocalRoles: useBoolInput("accounts_hide_local_roles", { source: instance }),
 		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance }),
 		profilesAutoLoadOlderPosts: useBoolInput("profiles_auto_load_older_posts", { source: instance }),
-		profilesShowPlusInfo: useBoolInput("profiles_show_plus_info", { source: instance })
+		profilesShowPlusInfo: useBoolInput("profiles_show_plus_info", { source: instance }),
+		profilesShowRemoteFollow: useBoolInput("profiles_show_remote_follow", { source: instance })
 	};
 
 	const [submitForm, result] = useFormSubmit(form, useUpdateInstanceMutation());
@@ -232,6 +233,10 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 			<Checkbox
 				field={form.profilesShowPlusInfo}
 				label="Show GoToSocial Plus version and source information on public profiles."
+			/>
+			<Checkbox
+				field={form.profilesShowRemoteFollow}
+				label="Show a Follow button on public profiles that sends visitors back to their own Fediverse server."
 			/>
 
 			<MutationButton label="Save" result={result} disabled={false} />
