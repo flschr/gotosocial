@@ -17,7 +17,6 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 const blueskyOAuthStateLifetime = 10 * time.Minute
@@ -100,22 +99,7 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 }
 
 func (p *Processor) BlueskyDisconnect(ctx context.Context, accountID string) gtserror.WithCode {
-	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
-	if errors.Is(err, db.ErrNoEntries) {
-		return nil
-	}
-	if err != nil {
-		return gtserror.NewErrorInternalError(err)
-	}
-	app, _, err := p.blueskyOAuthApp(accountID)
-	if err == nil && connection.OAuthSessionID != "" {
-		// Revocation is best-effort inside the official client. Local removal
-		// still proceeds so disconnect always has a deterministic result.
-		if did, parseErr := syntax.ParseDID(connection.DID); parseErr == nil {
-			_ = app.Logout(ctx, did, connection.OAuthSessionID)
-		}
-	}
-	if err := p.state.DB.DeleteBlueskyConnection(ctx, connection.ID); err != nil {
+	if err := bluesky.Disconnect(ctx, p.state, accountID); err != nil {
 		return gtserror.NewErrorInternalError(err)
 	}
 	return nil

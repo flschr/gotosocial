@@ -101,6 +101,7 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 	if err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
 	}
+	defer lockAccount(status.AccountID)()
 	if err := state.DB.PopulateStatus(ctx, status); err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
 	}
@@ -132,7 +133,8 @@ func recordDeliveryFailure(ctx context.Context, state *state.State, delivery *gt
 	delay := time.Minute * time.Duration(1<<min(delivery.Attempts-1, 6))
 	delivery.NextAttemptAt = time.Now().Add(delay)
 	delivery.LastError = truncateUTF8(cause.Error(), 1000, 4000)
-	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error"); err != nil {
+	delivery.ClaimedUntil = time.Time{}
+	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "claimed_until"); err != nil {
 		return fmt.Errorf("record Bluesky delivery failure after %v: %w", cause, err)
 	}
 	return cause
@@ -158,6 +160,41 @@ func PublishReply(ctx context.Context, state *state.State, status *gtsmodel.Stat
 	return publishStatus(ctx, state, status, card, interaction)
 }
 
+// DeleteStatus removes the Bluesky counterpart of status, if one exists. It is
+// deliberately idempotent so callers can safely invoke it for every local
+// status deletion or privacy downgrade.
+func DeleteStatus(ctx context.Context, state *state.State, statusID string) error {
+	post, err := state.DB.GetBlueskyPostByStatusID(ctx, statusID)
+	if errors.Is(err, db.ErrNoEntries) {
+		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, statusID)
+	}
+	if err != nil {
+		return err
+	}
+	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, post.AccountID)
+	if errors.Is(err, db.ErrNoEntries) {
+		return state.DB.DeleteBlueskyPost(ctx, post.ID)
+	}
+	if err != nil {
+		return err
+	}
+	client, err := authenticatedClient(ctx, state, connection)
+	if err != nil {
+		return err
+	}
+	endpoint, _ := syntax.ParseNSID("com.atproto.repo.deleteRecord")
+	rkey := post.URI[strings.LastIndex(post.URI, "/")+1:]
+	if err := client.Post(ctx, endpoint, map[string]any{
+		"repo": connection.DID, "collection": "app.bsky.feed.post", "rkey": rkey,
+	}, nil); err != nil {
+		return fmt.Errorf("delete Bluesky post: %w", err)
+	}
+	if err := state.DB.DeleteBlueskyPost(ctx, post.ID); err != nil {
+		return err
+	}
+	return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, statusID)
+}
+
 func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Status, card *apimodel.Card, interaction *gtsmodel.BlueskyInteraction) error {
 	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
 	if err != nil {
@@ -169,8 +206,9 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	if interaction != nil && interaction.AccountID != status.AccountID {
 		return fmt.Errorf("Bluesky interaction belongs to a different account")
 	}
-	if _, err := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); err == nil {
-		return nil
+	existingPost, existingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID)
+	if existingErr != nil && !errors.Is(existingErr, db.ErrNoEntries) {
+		return existingErr
 	}
 	if err := state.DB.PopulateStatus(ctx, status); err != nil {
 		return fmt.Errorf("populate status for Bluesky: %w", err)
@@ -255,10 +293,16 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 		return fmt.Errorf("create Bluesky post: %w", err)
 	}
 	rkey := response.URI[strings.LastIndex(response.URI, "/")+1:]
+	if existingPost != nil {
+		existingPost.URI = response.URI
+		existingPost.CID = response.CID
+		existingPost.URL = "https://bsky.app/profile/" + connection.DID + "/post/" + rkey
+		return state.DB.UpdateBlueskyPost(ctx, existingPost, "uri", "cid", "url")
+	}
 	return state.DB.PutBlueskyPost(ctx, &gtsmodel.BlueskyPost{
 		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: status.AccountID,
 		StatusID: status.ID, URI: response.URI, CID: response.CID,
-		URL: "https://bsky.app/profile/" + connection.Handle + "/post/" + rkey,
+		URL: "https://bsky.app/profile/" + connection.DID + "/post/" + rkey,
 	})
 }
 

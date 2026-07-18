@@ -20,7 +20,16 @@ func OAuthURLs() (baseURL, metadataURL, callbackURL string) {
 
 func OAuthClientConfig() oauth.ClientConfig {
 	_, metadataURL, callbackURL := OAuthURLs()
-	clientConfig := oauth.NewPublicConfig(metadataURL, callbackURL, []string{"atproto", "transition:generic"})
+	// Request only the Lexicon permissions used by this integration. Avoid the
+	// legacy transition:generic scope, which grants substantially broader
+	// account access than crossposting and notification import require.
+	clientConfig := oauth.NewPublicConfig(metadataURL, callbackURL, []string{
+		"atproto",
+		"repo:app.bsky.feed.post",
+		"blob:image/*",
+		"rpc:app.bsky.notification.listNotifications?aud=did:web:api.bsky.app#bsky_appview",
+		"rpc:app.bsky.feed.getPosts?aud=did:web:api.bsky.app#bsky_appview",
+	})
 	clientConfig.UserAgent = "GoToSocial Plus"
 	return clientConfig
 }

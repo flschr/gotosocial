@@ -51,6 +51,27 @@ func (b *blueskyDB) DeleteBlueskyConnection(ctx context.Context, id string) erro
 	return err
 }
 
+// DeleteBlueskyDataByAccountID removes all Bluesky-owned data for an account
+// in one transaction. In particular, this guarantees encrypted OAuth material
+// cannot survive account deletion.
+func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID string) error {
+	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		models := []any{
+			(*gtsmodel.BlueskyDelivery)(nil),
+			(*gtsmodel.BlueskyPost)(nil),
+			(*gtsmodel.BlueskyInteraction)(nil),
+			(*gtsmodel.BlueskyOAuthState)(nil),
+			(*gtsmodel.BlueskyConnection)(nil),
+		}
+		for _, model := range models {
+			if _, err := tx.NewDelete().Model(model).Where("? = ?", bun.Ident("account_id"), accountID).Exec(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (b *blueskyDB) GetBlueskyOAuthState(ctx context.Context, state string) (*gtsmodel.BlueskyOAuthState, error) {
 	return getBlueskyModel[gtsmodel.BlueskyOAuthState](ctx, b.db, "state", state)
 }
@@ -65,15 +86,39 @@ func (b *blueskyDB) DeleteBlueskyOAuthState(ctx context.Context, state string) e
 	return err
 }
 
-func (b *blueskyDB) GetDueBlueskyDeliveries(ctx context.Context, before time.Time, limit int) ([]*gtsmodel.BlueskyDelivery, error) {
+func (b *blueskyDB) DeleteExpiredBlueskyOAuthStates(ctx context.Context, before time.Time) error {
+	_, err := b.db.NewDelete().Model((*gtsmodel.BlueskyOAuthState)(nil)).Where("? < ?", bun.Ident("created_at"), before).Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) ClaimDueBlueskyDeliveries(ctx context.Context, before, claimedUntil time.Time, limit int) ([]*gtsmodel.BlueskyDelivery, error) {
 	deliveries := make([]*gtsmodel.BlueskyDelivery, 0, limit)
-	err := b.db.NewSelect().Model(&deliveries).
-		Where("? <= ?", bun.Ident("next_attempt_at"), before).
-		Order("next_attempt_at ASC").Limit(limit).Scan(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return deliveries, nil
+	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := tx.NewSelect().Model(&deliveries).
+			Where("? <= ?", bun.Ident("next_attempt_at"), before).
+			Where("? IS NULL OR ? < ?", bun.Ident("claimed_until"), bun.Ident("claimed_until"), before).
+			Order("next_attempt_at ASC").Limit(limit).Scan(ctx); err != nil {
+			return err
+		}
+		claimed := deliveries[:0]
+		for _, delivery := range deliveries {
+			result, err := tx.NewUpdate().Model((*gtsmodel.BlueskyDelivery)(nil)).
+				Set("claimed_until = ?", claimedUntil).
+				Where("id = ?", delivery.ID).
+				Where("claimed_until IS NULL OR claimed_until < ?", before).
+				Exec(ctx)
+			if err != nil {
+				return err
+			}
+			if affected, _ := result.RowsAffected(); affected == 1 {
+				delivery.ClaimedUntil = claimedUntil
+				claimed = append(claimed, delivery)
+			}
+		}
+		deliveries = claimed
+		return nil
+	})
+	return deliveries, err
 }
 
 func (b *blueskyDB) GetBlueskyDeliveryByStatusID(ctx context.Context, statusID string) (*gtsmodel.BlueskyDelivery, error) {
@@ -105,6 +150,11 @@ func (b *blueskyDB) GetBlueskyPostByURI(ctx context.Context, uri string) (*gtsmo
 
 func (b *blueskyDB) PutBlueskyPost(ctx context.Context, post *gtsmodel.BlueskyPost) error {
 	_, err := b.db.NewInsert().Model(post).Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) UpdateBlueskyPost(ctx context.Context, post *gtsmodel.BlueskyPost, columns ...string) error {
+	_, err := b.db.NewUpdate().Model(post).Column(columns...).WherePK().Exec(ctx)
 	return err
 }
 

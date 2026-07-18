@@ -393,10 +393,6 @@ func Start(ctx context.Context) error {
 		return fmt.Errorf("error scheduling subscriptions jobs: %w", err)
 	}
 
-	if err := bluesky.ScheduleJobs(state, typeConverter); err != nil {
-		return fmt.Errorf("error scheduling Bluesky jobs: %w", err)
-	}
-
 	// Initialize the specialized workers pools.
 	state.Workers.Client.Init(messages.ClientMsgIndices())
 	state.Workers.Federator.Init(messages.FederatorMsgIndices())
@@ -406,6 +402,12 @@ func Start(ctx context.Context) error {
 
 	// Now start workers!
 	state.Workers.Start()
+
+	// Bluesky jobs may touch the client worker and are therefore registered
+	// only after every worker pool is initialized and running.
+	if err := bluesky.ScheduleJobs(state, typeConverter); err != nil {
+		return fmt.Errorf("error scheduling Bluesky jobs: %w", err)
+	}
 
 	// Schedule notif tasks for all existing poll expiries.
 	if err := process.Polls().ScheduleAll(ctx); err != nil {

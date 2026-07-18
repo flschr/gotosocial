@@ -35,6 +35,7 @@ type BlueskyDelivery struct {
 	StatusID      string    `bun:"type:CHAR(26),nullzero,notnull,unique"`
 	Attempts      int       `bun:",notnull,default:0"`
 	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	ClaimedUntil  time.Time `bun:"type:timestamptz,nullzero"`
 	LastError     string    `bun:",nullzero"`
 }
 

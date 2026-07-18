@@ -18,11 +18,13 @@ type Bluesky interface {
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	DeleteBlueskyConnection(context.Context, string) error
+	DeleteBlueskyDataByAccountID(context.Context, string) error
 	GetBlueskyOAuthState(context.Context, string) (*gtsmodel.BlueskyOAuthState, error)
 	PutBlueskyOAuthState(context.Context, *gtsmodel.BlueskyOAuthState) error
 	DeleteBlueskyOAuthState(context.Context, string) error
+	DeleteExpiredBlueskyOAuthStates(context.Context, time.Time) error
 
-	GetDueBlueskyDeliveries(context.Context, time.Time, int) ([]*gtsmodel.BlueskyDelivery, error)
+	ClaimDueBlueskyDeliveries(context.Context, time.Time, time.Time, int) ([]*gtsmodel.BlueskyDelivery, error)
 	GetBlueskyDeliveryByStatusID(context.Context, string) (*gtsmodel.BlueskyDelivery, error)
 	PutBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery) error
 	UpdateBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery, ...string) error
@@ -31,6 +33,7 @@ type Bluesky interface {
 	GetBlueskyPostByStatusID(context.Context, string) (*gtsmodel.BlueskyPost, error)
 	GetBlueskyPostByURI(context.Context, string) (*gtsmodel.BlueskyPost, error)
 	PutBlueskyPost(context.Context, *gtsmodel.BlueskyPost) error
+	UpdateBlueskyPost(context.Context, *gtsmodel.BlueskyPost, ...string) error
 	DeleteBlueskyPost(context.Context, string) error
 
 	GetBlueskyInteractionByStatusID(context.Context, string) (*gtsmodel.BlueskyInteraction, error)

@@ -75,6 +75,7 @@ func SyncInteractions(ctx context.Context, state *state.State) error {
 }
 
 func syncConnection(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
+	defer lockAccount(connection.AccountID)()
 	client, err := authenticatedClient(ctx, state, connection)
 	if err != nil {
 		return err

@@ -287,11 +287,9 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
 	_, interactionErr := p.state.DB.GetBlueskyInteractionByStatusID(ctx, status.InReplyToID)
 	if err == nil && (interactionErr == nil || bluesky.EligibleForCrosspost(status, connection)) {
-		delivery, queueErr := bluesky.QueueStatus(ctx, p.state, status)
+		_, queueErr := bluesky.QueueStatus(ctx, p.state, status)
 		if queueErr != nil {
 			log.Errorf(ctx, "error queueing Bluesky crosspost: %v", queueErr)
-		} else if publishErr := bluesky.ProcessDelivery(ctx, p.state, p.utils.converter, delivery); publishErr != nil {
-			log.Errorf(ctx, "error publishing status to Bluesky; queued for retry: %v", publishErr)
 		}
 	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
 		log.Errorf(ctx, "error checking Bluesky crosspost settings: %v", err)
@@ -777,6 +775,22 @@ func (p *clientAPI) UpdateStatus(ctx context.Context, cMsg *messages.FromClientA
 		log.Errorf(ctx, "error streaming status edit: %v", err)
 	}
 
+	// Re-run the durable Bluesky delivery for existing crossposts. If the
+	// status is no longer eligible (for example after a privacy downgrade),
+	// remove its public Bluesky counterpart instead.
+	if _, err := p.state.DB.GetBlueskyPostByStatusID(ctx, status.ID); err == nil {
+		connection, connectionErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
+		if connectionErr == nil && bluesky.EligibleForCrosspost(status, connection) {
+			if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
+				log.Errorf(ctx, "error queueing Bluesky status update: %v", queueErr)
+			}
+		} else if deleteErr := bluesky.DeleteStatus(ctx, p.state, status.ID); deleteErr != nil {
+			log.Errorf(ctx, "error deleting ineligible Bluesky status: %v", deleteErr)
+		}
+	} else if !errors.Is(err, db.ErrNoEntries) {
+		log.Errorf(ctx, "error checking Bluesky status mapping: %v", err)
+	}
+
 	return nil
 }
 
@@ -977,6 +991,13 @@ func (p *clientAPI) DeleteStatus(ctx context.Context, cMsg *messages.FromClientA
 		log.Errorf(ctx, "error federating status %s delete: %v", status.URI, err)
 	}
 
+	// Remove the public Bluesky copy before stubbing the local source status.
+	// A failure leaves the local status intact enough for a later retry and is
+	// logged prominently; the mapping is retained until remote deletion works.
+	if err := bluesky.DeleteStatus(ctx, p.state, status.ID); err != nil {
+		log.Errorf(ctx, "error deleting status %s from Bluesky: %v", status.URI, err)
+	}
+
 	// Don't delete attachments, just unattach them:
 	// this request comes from the client API and the
 	// poster may want to use attachments again later.
@@ -1023,6 +1044,12 @@ func (p *clientAPI) DeleteAccountOrUser(ctx context.Context, cMsg *messages.From
 
 	// Extract target account.
 	account := cMsg.Target
+
+	// Revoke the connected Bluesky session and erase encrypted credentials
+	// before the local account is stubbed or removed.
+	if err := bluesky.Disconnect(ctx, p.state, account.ID); err != nil {
+		log.Errorf(ctx, "error disconnecting Bluesky for account %s: %v", account.ID, err)
+	}
 
 	// Drop any outgoing queued AP requests to / from / targeting
 	// this account, (stops queued likes, boosts, creates etc).
