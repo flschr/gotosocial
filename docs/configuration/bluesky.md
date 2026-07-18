@@ -35,6 +35,10 @@ posts, and every non-public visibility. Images retain their alt text. A post
 uses either up to four images or its external link preview, matching Bluesky's
 embed model.
 
+Turning automatic publishing off stops new crossposts. Posts that GoToSocial
+already published remain mapped, so later edits and deletions continue to
+update their exact Bluesky records instead of leaving unmanaged copies.
+
 The outgoing queue is reconciled against local status changes. If GoToSocial
 stops after saving a post or edit but before creating its Bluesky job, the next
 background pass restores that job. Enabling crossposting does not backfill

@@ -77,7 +77,7 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 					Connected as <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>
 				</div>
 				<Checkbox field={form.crosspostPublic} label="Automatically publish public posts to Bluesky" />
-				<small>Replies, mentions, boosts, polls, and non-public posts are not crossposted.</small>
+				<small>Replies, mentions, boosts, polls, and non-public posts are not crossposted. Turning this off stops new crossposts; existing crossposts still receive later edits and deletions.</small>
 				<Checkbox field={form.showProfileFollow} label="Show a ‘Follow on Bluesky’ button on my public profile" />
 				<div className="info">
 					<strong>{connection.status === "healthy" ? "Connected" : connection.status === "syncing" ? "Syncing" : "Bluesky needs attention"}</strong>

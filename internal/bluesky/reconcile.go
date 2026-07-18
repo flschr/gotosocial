@@ -64,7 +64,7 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 			post, exists := posts[interaction.URI]
 			if !exists {
 				status, statusErr := state.DB.GetStatusByID(ctx, interaction.StatusID)
-				if interactionCanBeForgotten(statusErr) {
+				if interactionCanBeForgotten(status, statusErr) {
 					statusErr = state.DB.DeleteBlueskyInteraction(ctx, interaction.ID)
 				} else if statusErr == nil {
 					statusErr = state.DB.PopulateStatus(ctx, status)
@@ -124,6 +124,6 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 	return errors.Join(reconcileErrors...)
 }
 
-func interactionCanBeForgotten(statusErr error) bool {
-	return errors.Is(statusErr, db.ErrNoEntries)
+func interactionCanBeForgotten(status *gtsmodel.Status, statusErr error) bool {
+	return errors.Is(statusErr, db.ErrNoEntries) || (statusErr == nil && status != nil && status.Flags.Deleted())
 }

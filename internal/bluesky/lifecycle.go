@@ -11,9 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"code.superseriousbusiness.org/gotosocial/internal/ap"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
-	"code.superseriousbusiness.org/gotosocial/internal/messages"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -27,46 +25,22 @@ func lockAccount(accountID string) func() {
 	return mutex.Unlock
 }
 
-func queueProxyStatusDeletes(ctx context.Context, state *state.State, accountID string) error {
-	interactions, err := state.DB.GetBlueskyInteractionsForReconcile(ctx, accountID, 0)
-	if err != nil {
-		return err
-	}
-	target, err := state.DB.GetAccountByID(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	var queueErrors []error
-	for _, interaction := range interactions {
-		status, err := state.DB.GetStatusByID(ctx, interaction.StatusID)
-		if errors.Is(err, db.ErrNoEntries) {
-			continue
-		}
-		if err == nil {
-			err = state.DB.PopulateStatus(ctx, status)
-		}
-		if err != nil {
-			queueErrors = append(queueErrors, err)
-			continue
-		}
-		state.Workers.Client.Queue.Push(&messages.FromClientAPI{
-			APObjectType: ap.ObjectNote, APActivityType: ap.ActivityDelete,
-			GTSModel: status, Origin: status.Account, Target: target,
-		})
-	}
-	return errors.Join(queueErrors...)
-}
-
-// Disconnect revokes the active OAuth session when possible and always
-// removes locally stored credentials and transient connector data. Post
-// mappings remain so a later reconnect can resume exact edits and deletions.
+// Disconnect first removes private proxy statuses, then revokes the active
+// OAuth session when possible and removes local credentials. Post mappings
+// remain so a later reconnect can resume exact edits and deletions.
 func Disconnect(ctx context.Context, state *state.State, accountID string) error {
 	defer lockAccount(accountID)()
 	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
 	if errors.Is(err, db.ErrNoEntries) {
-		return errors.Join(queueProxyStatusDeletes(ctx, state, accountID), state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID))
+		if err := stubProxyStatuses(ctx, state, accountID); err != nil {
+			return err
+		}
+		return state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID)
 	}
 	if err != nil {
+		return err
+	}
+	if err := stubProxyStatuses(ctx, state, accountID); err != nil {
 		return err
 	}
 	if app, _, appErr := NewOAuthClient(state, accountID); appErr == nil && connection.OAuthSessionID != "" {
@@ -74,18 +48,17 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 			_ = app.Logout(ctx, did, connection.OAuthSessionID)
 		}
 	}
-	proxyErr := queueProxyStatusDeletes(ctx, state, accountID)
-	return errors.Join(proxyErr, state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID))
+	return state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID)
 }
 
 // Forget removes a disconnected account binding and all retained mappings.
 // It intentionally leaves previously published records on Bluesky untouched.
 func Forget(ctx context.Context, state *state.State, accountID string) error {
 	defer lockAccount(accountID)()
-	return errors.Join(
-		queueProxyStatusDeletes(ctx, state, accountID),
-		state.DB.DeleteBlueskyDataByAccountID(ctx, accountID),
-	)
+	if err := stubProxyStatuses(ctx, state, accountID); err != nil {
+		return err
+	}
+	return state.DB.DeleteBlueskyDataByAccountID(ctx, accountID)
 }
 
 // DeleteAccount removes crossposts created by GoToSocial before revoking and
@@ -129,6 +102,14 @@ func DeleteAccount(ctx context.Context, state *state.State, accountID string) er
 }
 
 func deleteProxyStatuses(ctx context.Context, state *state.State, accountID string) error {
+	return removeProxyStatuses(ctx, state, accountID, false)
+}
+
+func stubProxyStatuses(ctx context.Context, state *state.State, accountID string) error {
+	return removeProxyStatuses(ctx, state, accountID, true)
+}
+
+func removeProxyStatuses(ctx context.Context, state *state.State, accountID string, stub bool) error {
 	interactions, err := state.DB.GetBlueskyInteractionsForReconcile(ctx, accountID, 0)
 	if err != nil {
 		return err
@@ -139,7 +120,9 @@ func deleteProxyStatuses(ctx context.Context, state *state.State, accountID stri
 		if errors.Is(err, db.ErrNoEntries) {
 			continue
 		}
-		if err == nil {
+		if err == nil && stub {
+			err = state.DB.StubStatus(ctx, status, false)
+		} else if err == nil {
 			err = state.DB.DeleteStatus(ctx, status, false)
 		}
 		if err != nil {

@@ -20,9 +20,21 @@ import (
 var ErrIdentityMismatch = errors.New("Bluesky identity does not match saved account")
 
 type OAuthStore struct {
-	db        db.DB
-	crypter   *Crypter
-	accountID string
+	db                      db.DB
+	crypter                 *Crypter
+	accountID               string
+	deferSessionPersistence bool
+}
+
+// DeferSessionPersistence keeps ProcessCallback from activating a reconnect
+// before the caller has completed identity and PDS validation.
+func (s *OAuthStore) DeferSessionPersistence() {
+	s.deferSessionPersistence = true
+}
+
+func (s *OAuthStore) PersistSession(ctx context.Context, session oauth.ClientSessionData) error {
+	s.deferSessionPersistence = false
+	return s.SaveSession(ctx, session)
 }
 
 func NewOAuthStore(database db.DB, crypter *Crypter, accountID string) *OAuthStore {
@@ -64,6 +76,9 @@ func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessio
 	}
 	if connection.DID != session.AccountDID.String() {
 		return ErrIdentityMismatch
+	}
+	if s.deferSessionPersistence {
+		return nil
 	}
 	encoded, err := json.Marshal(session)
 	if err != nil {

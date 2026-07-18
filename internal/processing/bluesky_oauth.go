@@ -67,6 +67,11 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 	if err != nil {
 		return "", gtserror.NewErrorInternalError(err)
 	}
+	existing, existingErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, storedState.AccountID)
+	if existingErr != nil && !errors.Is(existingErr, db.ErrNoEntries) {
+		return "", gtserror.NewErrorInternalError(existingErr)
+	}
+	store.DeferSessionPersistence()
 	session, err := app.ProcessCallback(ctx, params)
 	if err != nil {
 		if errors.Is(err, bluesky.ErrIdentityMismatch) {
@@ -79,16 +84,11 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 		return "", gtserror.NewErrorUnprocessableEntity(err, "could not resolve the connected Bluesky identity")
 	}
 
-	existing, existingErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, storedState.AccountID)
 	if existingErr == nil && !sameBlueskyIdentity(existing, session.AccountDID.String()) {
 		_ = app.Logout(ctx, session.AccountDID, session.SessionID)
 		_ = store.DeleteSession(ctx, session.AccountDID, session.SessionID)
 		return "", gtserror.NewErrorConflict(errors.New("different Bluesky identity"), "Reconnect the previously linked Bluesky account before switching identities")
 	}
-	if existingErr != nil && !errors.Is(existingErr, db.ErrNoEntries) {
-		return "", gtserror.NewErrorInternalError(existingErr)
-	}
-
 	now := time.Now()
 	connection := &gtsmodel.BlueskyConnection{
 		ID: id.NewULID(), AccountID: storedState.AccountID, DID: session.AccountDID.String(),
@@ -106,7 +106,7 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 	} else if err := p.state.DB.PutBlueskyConnection(ctx, connection); err != nil {
 		return "", gtserror.NewErrorInternalError(err)
 	}
-	if err := store.SaveSession(ctx, *session); err != nil {
+	if err := store.PersistSession(ctx, *session); err != nil {
 		if existingErr != nil {
 			_ = p.state.DB.DeleteBlueskyConnection(ctx, connection.ID)
 		}

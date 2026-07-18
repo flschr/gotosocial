@@ -788,11 +788,8 @@ func (p *clientAPI) UpdateStatus(ctx context.Context, cMsg *messages.FromClientA
 			}
 		} else if replyErr != nil {
 			log.Errorf(ctx, "error checking Bluesky reply mapping: %v", replyErr)
-		} else if deleteErr := bluesky.DeleteStatus(ctx, p.state, status.ID); deleteErr != nil {
-			log.Errorf(ctx, "error deleting ineligible Bluesky status: %v", deleteErr)
-			if _, queueErr := bluesky.QueueDelete(ctx, p.state, status.AccountID, status.ID); queueErr != nil {
-				log.Errorf(ctx, "error queueing Bluesky privacy update retry: %v", queueErr)
-			}
+		} else if _, queueErr := bluesky.QueueDelete(ctx, p.state, status.AccountID, status.ID); queueErr != nil {
+			log.Errorf(ctx, "error queueing Bluesky privacy update: %v", queueErr)
 		}
 	} else if !errors.Is(err, db.ErrNoEntries) {
 		log.Errorf(ctx, "error checking Bluesky status mapping: %v", err)

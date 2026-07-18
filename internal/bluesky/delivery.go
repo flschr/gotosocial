@@ -32,10 +32,7 @@ func ShouldUpsertMappedStatus(status *gtsmodel.Status, connection *gtsmodel.Blue
 	if connection == nil {
 		return EligibleForExistingMapping(status, false)
 	}
-	if connection.Active() {
-		return EligibleForCrosspost(status, connection)
-	}
-	return connection.CrosspostPublic && EligibleForExistingMapping(status, false)
+	return EligibleForExistingMapping(status, false)
 }
 
 func QueueStatus(ctx context.Context, state *state.State, status *gtsmodel.Status) (*gtsmodel.BlueskyDelivery, error) {

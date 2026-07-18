@@ -88,9 +88,12 @@ func TestClassifyParentLookupOnlyAllowsUnmappedMentions(t *testing.T) {
 }
 
 func TestMissingInteractionIsRetainedUntilLocalStatusIsGone(t *testing.T) {
-	require.False(t, interactionCanBeForgotten(nil))
-	require.False(t, interactionCanBeForgotten(errors.New("database unavailable")))
-	require.True(t, interactionCanBeForgotten(fmt.Errorf("gone: %w", db.ErrNoEntries)))
+	require.False(t, interactionCanBeForgotten(new(gtsmodel.Status), nil))
+	require.False(t, interactionCanBeForgotten(nil, errors.New("database unavailable")))
+	require.True(t, interactionCanBeForgotten(nil, fmt.Errorf("gone: %w", db.ErrNoEntries)))
+	stub := new(gtsmodel.Status)
+	stub.Flags.SetDeleted(true)
+	require.True(t, interactionCanBeForgotten(stub, nil))
 }
 
 func TestRefreshReplyReferencesUsesCurrentCIDs(t *testing.T) {
@@ -252,7 +255,7 @@ func TestShouldUpsertMappedStatusMatrix(t *testing.T) {
 	require.True(t, ShouldUpsertMappedStatus(public, active, false))
 	require.True(t, ShouldUpsertMappedStatus(public, disconnected, false))
 	require.True(t, ShouldUpsertMappedStatus(public, nil, false))
-	require.False(t, ShouldUpsertMappedStatus(public, disabled, false))
+	require.True(t, ShouldUpsertMappedStatus(public, disabled, false))
 
 	private := *public
 	private.Visibility = gtsmodel.VisibilityFollowersOnly

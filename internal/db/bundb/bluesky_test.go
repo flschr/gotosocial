@@ -371,6 +371,32 @@ func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndRese
 	suite.Error(err)
 }
 
+func (suite *BlueskyTestSuite) TestDisconnectDeletesProxyBeforeItsMapping() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	proxyStatus := suite.testStatuses["local_account_1_status_2"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:proxycleanup",
+		Handle: "proxy-cleanup.test", PDSURL: "https://pds.example.test",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	interaction := &gtsmodel.BlueskyInteraction{
+		ID: id.NewULID(), AccountID: account.ID, StatusID: proxyStatus.ID,
+		URI: "at://did:plc:proxycleanup/app.bsky.feed.post/reply", CID: "reply-cid",
+		RootURI: "at://did:plc:proxycleanup/app.bsky.feed.post/root", RootCID: "root-cid",
+		ParentURI: "at://did:plc:proxycleanup/app.bsky.feed.post/root", ParentCID: "root-cid",
+		AuthorDID: "did:plc:other", AuthorHandle: "other.test",
+		URL: "https://bsky.app/profile/did:plc:other/post/reply",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyInteraction(ctx, interaction))
+	suite.Require().NoError(bluesky.Disconnect(ctx, &suite.state, account.ID))
+	deletedProxy, err := suite.db.GetStatusByID(ctx, proxyStatus.ID)
+	suite.Require().NoError(err)
+	suite.True(deletedProxy.Flags.Deleted())
+	_, err = suite.db.GetBlueskyInteractionByURI(ctx, interaction.URI)
+	suite.Error(err)
+}
+
 func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	ctx := suite.T().Context()
 	account := suite.testAccounts["local_account_1"]
@@ -399,13 +425,24 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	storedSession, err := store.GetSession(ctx, did, session.SessionID)
 	suite.Require().NoError(err)
 	suite.Equal(session.RefreshToken, storedSession.RefreshToken)
+	suite.Require().NoError(store.DeleteSession(ctx, did, session.SessionID))
+	deferredSession := session
+	deferredSession.SessionID = "deferred-session"
+	store.DeferSessionPersistence()
+	suite.Require().NoError(store.SaveSession(ctx, deferredSession))
+	_, err = store.GetSession(ctx, did, deferredSession.SessionID)
+	suite.Error(err)
+	suite.Require().NoError(store.PersistSession(ctx, deferredSession))
+	storedSession, err = store.GetSession(ctx, did, deferredSession.SessionID)
+	suite.Require().NoError(err)
+	suite.Equal(deferredSession.RefreshToken, storedSession.RefreshToken)
 	otherDID, err := syntax.ParseDID("did:plc:differentoauthidentity")
 	suite.Require().NoError(err)
 	wrongSession := session
 	wrongSession.AccountDID = otherDID
 	wrongSession.SessionID = "wrong-session"
 	suite.ErrorIs(store.SaveSession(ctx, wrongSession), bluesky.ErrIdentityMismatch)
-	storedSession, err = store.GetSession(ctx, did, session.SessionID)
+	storedSession, err = store.GetSession(ctx, did, deferredSession.SessionID)
 	suite.Require().NoError(err)
 	suite.Equal(session.RefreshToken, storedSession.RefreshToken)
 
