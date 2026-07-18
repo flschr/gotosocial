@@ -26,31 +26,6 @@ const (
 	maxBlobBytes     = 1_000_000
 )
 
-type facet struct {
-	Index    facetIndex     `json:"index"`
-	Features []facetFeature `json:"features"`
-}
-
-type facetIndex struct {
-	ByteStart int `json:"byteStart"`
-	ByteEnd   int `json:"byteEnd"`
-}
-
-type facetFeature struct {
-	Type string `json:"$type"`
-	URI  string `json:"uri,omitempty"`
-	Tag  string `json:"tag,omitempty"`
-}
-
-type createRecordResponse struct {
-	URI string `json:"uri"`
-	CID string `json:"cid"`
-}
-
-type uploadBlobResponse struct {
-	Blob any `json:"blob"`
-}
-
 func EligibleForCrosspost(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection) bool {
 	return connection != nil &&
 		connection.Active() &&
@@ -175,6 +150,7 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 		return err
 	}
 	if existingPost != nil {
+		existingPost.UpdatedAt = time.Now()
 		existingPost.URI = response.URI
 		existingPost.CID = response.CID
 		existingPost.RootURI = response.URI
@@ -186,7 +162,7 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 			existingPost.ParentURI, existingPost.ParentCID = replyTarget.ParentURI, replyTarget.ParentCID
 		}
 		existingPost.URL = "https://bsky.app/profile/" + connection.DID + "/post/" + rkey
-		return state.DB.UpdateBlueskyPost(ctx, existingPost, "uri", "cid", "root_uri", "root_cid", "parent_uri", "parent_cid", "url")
+		return state.DB.UpdateBlueskyPost(ctx, existingPost, "updated_at", "uri", "cid", "root_uri", "root_cid", "parent_uri", "parent_cid", "url")
 	}
 	rootURI, rootCID := response.URI, response.CID
 	parentURI, parentCID := "", ""

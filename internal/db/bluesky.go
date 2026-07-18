@@ -36,10 +36,12 @@ type Bluesky interface {
 	DeleteBlueskyNotification(context.Context, string) error
 
 	ClaimDueBlueskyDeliveries(context.Context, time.Time, time.Time, int) ([]*gtsmodel.BlueskyDelivery, error)
-	RenewBlueskyDeliveryClaim(context.Context, string, time.Time, time.Time) (bool, error)
+	RenewBlueskyDeliveryClaim(context.Context, string, string, time.Time) (bool, error)
 	GetBlueskyDeliveryByStatusID(context.Context, string) (*gtsmodel.BlueskyDelivery, error)
 	PutBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery) error
 	UpdateBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery, ...string) error
+	UpdateClaimedBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery, ...string) (bool, error)
+	CompleteBlueskyDelivery(context.Context, string, int64, string) (bool, error)
 	DeleteBlueskyDeliveryByStatusID(context.Context, string) error
 
 	GetBlueskyPostByStatusID(context.Context, string) (*gtsmodel.BlueskyPost, error)

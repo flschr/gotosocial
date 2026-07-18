@@ -47,40 +47,34 @@ func QueueDelete(ctx context.Context, state *state.State, accountID, statusID st
 }
 
 func queueDelivery(ctx context.Context, state *state.State, accountID, statusID, action string) (*gtsmodel.BlueskyDelivery, error) {
-	if existing, err := state.DB.GetBlueskyDeliveryByStatusID(ctx, statusID); err == nil {
-		existing.Action, existing.Attempts, existing.NextAttemptAt = action, 0, time.Now()
-		existing.ClaimedUntil, existing.LastError, existing.LastErrorCode, existing.DeadLetter, existing.UpdatedAt = time.Time{}, "", "", false, time.Now()
-		if err := state.DB.UpdateBlueskyDelivery(ctx, existing, "action", "attempts", "next_attempt_at", "claimed_until", "last_error", "last_error_code", "dead_letter", "updated_at"); err != nil {
-			return nil, err
-		}
-		return existing, nil
-	} else if !errors.Is(err, db.ErrNoEntries) {
-		return nil, err
+	now := time.Now()
+	delivery := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: accountID, StatusID: statusID,
+		Action: action, Generation: 1, UpdatedAt: now, NextAttemptAt: now,
 	}
-	delivery := &gtsmodel.BlueskyDelivery{ID: id.NewULID(), AccountID: accountID, StatusID: statusID, Action: action, NextAttemptAt: time.Now()}
 	if err := state.DB.PutBlueskyDelivery(ctx, delivery); err != nil {
 		return nil, err
 	}
-	return delivery, nil
+	return state.DB.GetBlueskyDeliveryByStatusID(ctx, statusID)
 }
 
 func ProcessDelivery(ctx context.Context, state *state.State, converter *typeutils.Converter, delivery *gtsmodel.BlueskyDelivery) error {
 	if delivery.Action == deliveryDelete {
 		defer lockAccount(delivery.AccountID)()
-		if err := DeleteStatus(ctx, state, delivery.StatusID); err != nil {
+		if err := deleteStatus(ctx, state, delivery.StatusID, false, false); err != nil {
 			return recordDeliveryFailure(ctx, state, delivery, err)
 		}
-		return nil
+		return completeDelivery(ctx, state, delivery)
 	}
 	status, err := state.DB.GetStatusByID(ctx, delivery.StatusID)
 	if errors.Is(err, db.ErrNoEntries) {
 		if _, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, delivery.StatusID); mappingErr == nil {
-			if err := DeleteStatus(ctx, state, delivery.StatusID); err != nil {
+			if err := deleteStatus(ctx, state, delivery.StatusID, false, true); err != nil {
 				return recordDeliveryFailure(ctx, state, delivery, err)
 			}
-			return nil
+			return completeDelivery(ctx, state, delivery)
 		}
-		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+		return completeDelivery(ctx, state, delivery)
 	}
 	if err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
@@ -94,7 +88,7 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 		if _, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); mappingErr == nil {
 			return recordDeliveryFailure(ctx, state, delivery, &ConnectionError{Code: ErrorCodeData, Err: fmt.Errorf("saved Bluesky identity is unavailable: %w", err)})
 		}
-		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+		return completeDelivery(ctx, state, delivery)
 	}
 	if err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
@@ -102,10 +96,10 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 	replyTarget, replyErr := replyTargetForStatus(ctx, state, status)
 	if errors.Is(replyErr, db.ErrNoEntries) {
 		if mapping, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); mappingErr == nil && !ShouldUpsertMappedStatus(status, connection, false) {
-			if err := DeleteStatus(ctx, state, mapping.StatusID); err != nil {
+			if err := deleteStatus(ctx, state, mapping.StatusID, false, false); err != nil {
 				return recordDeliveryFailure(ctx, state, delivery, err)
 			}
-			return nil
+			return completeDelivery(ctx, state, delivery)
 		}
 	} else if replyErr != nil {
 		return recordDeliveryFailure(ctx, state, delivery, replyErr)
@@ -121,7 +115,12 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 	if err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
 	}
-	return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+	return completeDelivery(ctx, state, delivery)
+}
+
+func completeDelivery(ctx context.Context, state *state.State, delivery *gtsmodel.BlueskyDelivery) error {
+	_, err := state.DB.CompleteBlueskyDelivery(ctx, delivery.ID, delivery.Generation, delivery.ClaimID)
+	return err
 }
 
 func replyTargetForStatus(ctx context.Context, state *state.State, status *gtsmodel.Status) (*gtsmodel.BlueskyInteraction, error) {
@@ -176,7 +175,7 @@ func recordDeliveryFailure(ctx context.Context, state *state.State, delivery *gt
 	delivery.LastError, delivery.UpdatedAt, delivery.ClaimedUntil = truncateUTF8(cause.Error(), 1000, 4000), time.Now(), time.Time{}
 	delivery.LastErrorCode = errorCode(cause)
 	delivery.DeadLetter = delivery.Attempts >= 10
-	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "last_error_code", "updated_at", "claimed_until", "dead_letter"); err != nil {
+	if _, err := state.DB.UpdateClaimedBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "last_error_code", "updated_at", "claimed_until", "dead_letter"); err != nil {
 		return fmt.Errorf("record Bluesky delivery failure after %v: %w", cause, err)
 	}
 	return cause

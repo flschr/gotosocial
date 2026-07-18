@@ -19,12 +19,22 @@ import (
 )
 
 func DeleteStatus(ctx context.Context, state *state.State, statusID string) error {
+	return deleteStatus(ctx, state, statusID, true, true)
+}
+
+func deleteStatus(ctx context.Context, state *state.State, statusID string, cleanupDelivery, acquireAccountLock bool) error {
 	post, err := state.DB.GetBlueskyPostByStatusID(ctx, statusID)
 	if errors.Is(err, db.ErrNoEntries) {
-		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, statusID)
+		if cleanupDelivery {
+			return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, statusID)
+		}
+		return nil
 	}
 	if err != nil {
 		return err
+	}
+	if acquireAccountLock {
+		defer lockAccount(post.AccountID)()
 	}
 	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, post.AccountID)
 	if errors.Is(err, db.ErrNoEntries) {
@@ -47,7 +57,10 @@ func DeleteStatus(ctx context.Context, state *state.State, statusID string) erro
 	if err := state.DB.DeleteBlueskyPost(ctx, post.ID); err != nil {
 		return err
 	}
-	return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, statusID)
+	if cleanupDelivery {
+		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, statusID)
+	}
+	return nil
 }
 
 func syncThreadgate(ctx context.Context, client *atclient.APIClient, repo string, status *gtsmodel.Status, postURI string, updating bool) error {

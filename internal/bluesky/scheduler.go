@@ -83,7 +83,6 @@ func processDeliveryWithLease(ctx context.Context, state *state.State, converter
 	defer func() { <-done }()
 	go func() {
 		defer close(done)
-		expected := delivery.ClaimedUntil
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -92,12 +91,11 @@ func processDeliveryWithLease(ctx context.Context, state *state.State, converter
 				return
 			case <-ticker.C:
 				next := time.Now().Add(2 * time.Minute)
-				renewed, err := state.DB.RenewBlueskyDeliveryClaim(ctx, delivery.ID, expected, next)
+				renewed, err := state.DB.RenewBlueskyDeliveryClaim(ctx, delivery.ID, delivery.ClaimID, next)
 				if err != nil || !renewed {
 					cancel()
 					return
 				}
-				expected = next
 			}
 		}
 	}()

@@ -38,11 +38,10 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 		root, parent = record.Reply.Root, record.Reply.Parent
 	}
 	parentStatus, err := mappedLocalStatus(ctx, state, connection.AccountID, parent.URI, root.URI)
-	if notification.Reason == "reply" && err != nil {
-		if errors.Is(err, db.ErrNoEntries) {
-			return nil // Unrelated reply in the account's notification stream.
-		}
+	if skip, err := classifyParentLookup(notification.Reason, err); err != nil {
 		return err
+	} else if skip {
+		return nil // Unrelated reply in the account's notification stream.
 	}
 
 	target, err := state.DB.GetAccountByID(ctx, connection.AccountID)
@@ -87,6 +86,16 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 		APObjectType: ap.ObjectNote, APActivityType: ap.ActivityCreate, GTSModel: status, Origin: origin, Target: target,
 	})
 	return nil
+}
+
+func classifyParentLookup(reason string, err error) (bool, error) {
+	if err == nil {
+		return false, nil
+	}
+	if errors.Is(err, db.ErrNoEntries) {
+		return reason == "reply", nil
+	}
+	return false, err
 }
 
 func interactionCreatedAt(indexedAt, recordCreatedAt time.Time) time.Time {

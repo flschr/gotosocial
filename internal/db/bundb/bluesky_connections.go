@@ -156,7 +156,7 @@ func (b *blueskyDB) GetBlueskyHealth(ctx context.Context, accountID string) (*gt
 
 func (b *blueskyDB) RetryBlueskyFailures(ctx context.Context, accountID string, now time.Time) error {
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.NewUpdate().Model((*gtsmodel.BlueskyDelivery)(nil)).Set("attempts = 0, next_attempt_at = ?, claimed_until = NULL, last_error = NULL, last_error_code = NULL, dead_letter = ?", now, false).Where("account_id = ?", accountID).Exec(ctx); err != nil {
+		if _, err := tx.NewUpdate().Model((*gtsmodel.BlueskyDelivery)(nil)).Set("attempts = 0, next_attempt_at = ?, claim_id = NULL, claimed_until = NULL, last_error = NULL, last_error_code = NULL, dead_letter = ?", now, false).Where("account_id = ?", accountID).Exec(ctx); err != nil {
 			return err
 		}
 		_, err := tx.NewUpdate().Model((*gtsmodel.BlueskyNotification)(nil)).Set("attempts = 0, next_attempt_at = ?, last_error = NULL, last_error_code = NULL, dead_letter = ?", now, false).Where("account_id = ?", accountID).Exec(ctx)

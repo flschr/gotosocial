@@ -55,8 +55,10 @@ type BlueskyDelivery struct {
 	AccountID     string    `bun:"type:CHAR(26),nullzero,notnull"`
 	StatusID      string    `bun:"type:CHAR(26),nullzero,notnull,unique"`
 	Action        string    `bun:",nullzero,notnull,default:'upsert'"`
+	Generation    int64     `bun:",notnull,default:1"`
 	Attempts      int       `bun:",notnull,default:0"`
 	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	ClaimID       string    `bun:"claim_id,nullzero"`
 	ClaimedUntil  time.Time `bun:"type:timestamptz,nullzero"`
 	LastError     string    `bun:",nullzero"`
 	LastErrorCode string    `bun:",nullzero"`

@@ -127,6 +127,7 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	replaced, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
 	suite.Require().NoError(err)
 	suite.Equal("delete", replaced.Action)
+	suite.EqualValues(2, replaced.Generation)
 	suite.Zero(replaced.Attempts)
 
 	now := time.Now()
@@ -135,15 +136,35 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	suite.Require().Len(due, 1)
 	suite.Equal(status.ID, due[0].StatusID)
 	renewedUntil := now.Add(10 * time.Minute)
-	renewed, err := suite.db.RenewBlueskyDeliveryClaim(ctx, due[0].ID, due[0].ClaimedUntil, renewedUntil)
+	renewed, err := suite.db.RenewBlueskyDeliveryClaim(ctx, due[0].ID, due[0].ClaimID, renewedUntil)
 	suite.Require().NoError(err)
 	suite.True(renewed)
-	renewed, err = suite.db.RenewBlueskyDeliveryClaim(ctx, due[0].ID, due[0].ClaimedUntil, renewedUntil.Add(time.Minute))
+	renewed, err = suite.db.RenewBlueskyDeliveryClaim(ctx, due[0].ID, "wrong-claim", renewedUntil.Add(time.Minute))
 	suite.Require().NoError(err)
 	suite.False(renewed)
 	claimedAgain, err := suite.db.ClaimDueBlueskyDeliveries(ctx, now, now.Add(5*time.Minute), 10)
 	suite.Require().NoError(err)
 	suite.Empty(claimedAgain)
+
+	// A new edit arriving while this generation is claimed must survive the
+	// older worker's eventual completion or failure update.
+	newer := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: status.AccountID, StatusID: status.ID,
+		Action: "upsert", Generation: 1, NextAttemptAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, newer))
+	completed, err := suite.db.CompleteBlueskyDelivery(ctx, due[0].ID, due[0].Generation, due[0].ClaimID)
+	suite.Require().NoError(err)
+	suite.False(completed)
+	due[0].Attempts = 9
+	updated, err := suite.db.UpdateClaimedBlueskyDelivery(ctx, due[0], "attempts")
+	suite.Require().NoError(err)
+	suite.False(updated)
+	current, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.EqualValues(3, current.Generation)
+	suite.Equal("upsert", current.Action)
+	suite.Zero(current.Attempts)
 
 	delivery.Attempts = 2
 	delivery.NextAttemptAt = time.Now().Add(time.Hour)
@@ -245,6 +266,33 @@ func (suite *BlueskyTestSuite) TestOutboxReconciliationRestoresMissingEditJob() 
 	delivery, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
 	suite.Require().NoError(err)
 	suite.Equal("upsert", delivery.Action)
+}
+
+func (suite *BlueskyTestSuite) TestOutboxDoesNotRepeatDeliveredEdit() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := suite.testStatuses["local_account_1_status_1"]
+	checkedAt := time.Now().Add(-time.Minute)
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:outboxdelivered",
+		Handle: "outbox-delivered.test", PDSURL: "https://pds.example.test",
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"), CrosspostPublic: true,
+		OutboxCheckedAt: checkedAt,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	status.EditedAt = time.Now().Add(-2 * time.Second)
+	suite.Require().NoError(suite.db.UpdateStatus(ctx, status, "edited_at"))
+	post := &gtsmodel.BlueskyPost{
+		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: account.ID, StatusID: status.ID,
+		URI: "at://did:plc:outboxdelivered/app.bsky.feed.post/root", CID: "new-cid",
+		RootURI: "at://did:plc:outboxdelivered/app.bsky.feed.post/root", RootCID: "new-cid",
+		URL:       "https://bsky.app/profile/did:plc:outboxdelivered/post/root",
+		UpdatedAt: time.Now().Add(-time.Second),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyPost(ctx, post))
+	suite.Require().NoError(bluesky.ReconcileOutbox(ctx, &suite.state))
+	_, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Error(err)
 }
 
 func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndResetsRetries() {

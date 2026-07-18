@@ -64,7 +64,9 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 			post, exists := posts[interaction.URI]
 			if !exists {
 				status, statusErr := state.DB.GetStatusByID(ctx, interaction.StatusID)
-				if statusErr == nil {
+				if interactionCanBeForgotten(statusErr) {
+					statusErr = state.DB.DeleteBlueskyInteraction(ctx, interaction.ID)
+				} else if statusErr == nil {
 					statusErr = state.DB.PopulateStatus(ctx, status)
 					if statusErr == nil {
 						target, targetErr := state.DB.GetAccountByID(ctx, connection.AccountID)
@@ -75,11 +77,10 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 								APObjectType: ap.ObjectNote, APActivityType: ap.ActivityDelete,
 								GTSModel: status, Origin: status.Account, Target: target,
 							})
+							interaction.LastCheckedAt = time.Now()
+							statusErr = state.DB.UpdateBlueskyInteraction(ctx, interaction, "last_checked_at")
 						}
 					}
-				}
-				if statusErr == nil || errors.Is(statusErr, db.ErrNoEntries) {
-					statusErr = state.DB.DeleteBlueskyInteraction(ctx, interaction.ID)
 				}
 				if statusErr != nil {
 					reconcileErrors = append(reconcileErrors, statusErr)
@@ -121,4 +122,8 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 		}
 	}
 	return errors.Join(reconcileErrors...)
+}
+
+func interactionCanBeForgotten(statusErr error) bool {
+	return errors.Is(statusErr, db.ErrNoEntries)
 }

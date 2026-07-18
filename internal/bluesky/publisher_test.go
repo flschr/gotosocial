@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/rivo/uniseg"
@@ -70,6 +71,26 @@ func TestInteractionCreatedAtPrefersServerObservedTime(t *testing.T) {
 	indexedAt := time.Now()
 	maliciousFuture := indexedAt.Add(100 * 365 * 24 * time.Hour)
 	require.Equal(t, indexedAt, interactionCreatedAt(indexedAt, maliciousFuture))
+}
+
+func TestClassifyParentLookupOnlyAllowsUnmappedMentions(t *testing.T) {
+	skip, err := classifyParentLookup("reply", errors.New("database unavailable"))
+	require.Error(t, err)
+	require.False(t, skip)
+
+	skip, err = classifyParentLookup("reply", fmt.Errorf("missing: %w", db.ErrNoEntries))
+	require.NoError(t, err)
+	require.True(t, skip)
+
+	skip, err = classifyParentLookup("mention", db.ErrNoEntries)
+	require.NoError(t, err)
+	require.False(t, skip)
+}
+
+func TestMissingInteractionIsRetainedUntilLocalStatusIsGone(t *testing.T) {
+	require.False(t, interactionCanBeForgotten(nil))
+	require.False(t, interactionCanBeForgotten(errors.New("database unavailable")))
+	require.True(t, interactionCanBeForgotten(fmt.Errorf("gone: %w", db.ErrNoEntries)))
 }
 
 func TestRefreshReplyReferencesUsesCurrentCIDs(t *testing.T) {
