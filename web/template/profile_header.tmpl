@@ -213,7 +213,7 @@
                 <form method="dialog" class="remote-follow-form" data-remote-follow-form>
                     <div class="remote-follow-heading">
                         <h3 id="remote-follow-title">Follow {{- if .account.DisplayName }} {{ .account.DisplayName }}{{ else }} @{{ .account.Username }}{{ end }}</h3>
-                        <button type="submit" value="cancel" class="remote-follow-close" aria-label="Close">&times;</button>
+                        <button type="submit" value="cancel" class="remote-follow-close" aria-label="Close" formnovalidate>&times;</button>
                     </div>
                     <p>Enter the address of your Fediverse server. We’ll send you there to confirm.</p>
                     <label for="remote-follow-server">Your server</label>
