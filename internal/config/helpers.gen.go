@@ -129,6 +129,7 @@ const (
 	OIDCLinkExistingFlag                          = "oidc-link-existing"
 	OIDCAllowedGroupsFlag                         = "oidc-allowed-groups"
 	OIDCAdminGroupsFlag                           = "oidc-admin-groups"
+	BlueskyOAuthEncryptionKeyFlag                 = "bluesky-oauth-encryption-key"
 	TracingEnabledFlag                            = "tracing-enabled"
 	MetricsEnabledFlag                            = "metrics-enabled"
 	SMTPHostFlag                                  = "smtp-host"
@@ -377,6 +378,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.Bool("oidc-link-existing", cfg.OIDCLinkExisting, "link existing user accounts to OIDC logins based on the stored email value")
 	flags.StringSlice("oidc-allowed-groups", cfg.OIDCAllowedGroups, "Membership of one of the listed groups allows access to GtS. If this is empty, all groups are allowed.")
 	flags.StringSlice("oidc-admin-groups", cfg.OIDCAdminGroups, "Membership of one of the listed groups makes someone a GtS admin")
+	flags.String("bluesky-oauth-encryption-key", cfg.BlueskyOAuthEncryptionKey, "Base64-encoded 32-byte key used to encrypt Bluesky OAuth tokens and DPoP keys at rest.")
 	flags.Bool("tracing-enabled", cfg.TracingEnabled, "Enable OTLP Tracing")
 	flags.Bool("metrics-enabled", cfg.MetricsEnabled, "Enable OpenTelemetry based metrics support.")
 	flags.String("smtp-host", cfg.SMTPHost, "Host of the smtp server. Eg., 'smtp.eu.mailgun.org'")
@@ -518,7 +520,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 }
 
 func (cfg *Configuration) MarshalMap() map[string]any {
-	cfgmap := make(map[string]any, 247)
+	cfgmap := make(map[string]any, 248)
 	cfgmap["log-level"] = cfg.LogLevel
 	cfgmap["log-format"] = cfg.LogFormat
 	cfgmap["log-timestamp-format"] = cfg.LogTimestampFormat
@@ -614,6 +616,7 @@ func (cfg *Configuration) MarshalMap() map[string]any {
 	cfgmap["oidc-link-existing"] = cfg.OIDCLinkExisting
 	cfgmap["oidc-allowed-groups"] = cfg.OIDCAllowedGroups
 	cfgmap["oidc-admin-groups"] = cfg.OIDCAdminGroups
+	cfgmap["bluesky-oauth-encryption-key"] = cfg.BlueskyOAuthEncryptionKey
 	cfgmap["tracing-enabled"] = cfg.TracingEnabled
 	cfgmap["metrics-enabled"] = cfg.MetricsEnabled
 	cfgmap["smtp-host"] = cfg.SMTPHost
@@ -1555,6 +1558,14 @@ func (cfg *Configuration) UnmarshalMap(cfgmap map[string]any) error {
 		cfg.OIDCAdminGroups, err = toStringSlice(ival)
 		if err != nil {
 			return fmt.Errorf("error casting %#v -> []string for 'oidc-admin-groups': %w", ival, err)
+		}
+	}
+
+	if ival, ok := cfgmap["bluesky-oauth-encryption-key"]; ok {
+		var err error
+		cfg.BlueskyOAuthEncryptionKey, err = cast.ToStringE(ival)
+		if err != nil {
+			return fmt.Errorf("error casting %#v -> string for 'bluesky-oauth-encryption-key': %w", ival, err)
 		}
 	}
 
@@ -4470,6 +4481,23 @@ func GetOIDCAdminGroups() []string { return global.GetOIDCAdminGroups() }
 
 // SetOIDCAdminGroups safely sets the value for global configuration 'OIDCAdminGroups' field
 func SetOIDCAdminGroups(v []string) { global.SetOIDCAdminGroups(v) }
+
+// GetBlueskyOAuthEncryptionKey safely fetches the Configuration value for state's 'BlueskyOAuthEncryptionKey' field
+func (st *ConfigState) GetBlueskyOAuthEncryptionKey() (v string) {
+	return st.config.BlueskyOAuthEncryptionKey
+}
+
+// SetBlueskyOAuthEncryptionKey safely sets the Configuration value for state's 'BlueskyOAuthEncryptionKey' field
+func (st *ConfigState) SetBlueskyOAuthEncryptionKey(v string) {
+	st.config.BlueskyOAuthEncryptionKey = v
+	st.reloadToViper()
+}
+
+// GetBlueskyOAuthEncryptionKey safely fetches the value for global configuration 'BlueskyOAuthEncryptionKey' field
+func GetBlueskyOAuthEncryptionKey() string { return global.GetBlueskyOAuthEncryptionKey() }
+
+// SetBlueskyOAuthEncryptionKey safely sets the value for global configuration 'BlueskyOAuthEncryptionKey' field
+func SetBlueskyOAuthEncryptionKey(v string) { global.SetBlueskyOAuthEncryptionKey(v) }
 
 // GetTracingEnabled safely fetches the Configuration value for state's 'TracingEnabled' field
 func (st *ConfigState) GetTracingEnabled() (v bool) {

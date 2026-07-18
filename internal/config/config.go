@@ -163,8 +163,10 @@ type Configuration struct {
 	OIDCLinkExisting     bool     `name:"oidc-link-existing" usage:"link existing user accounts to OIDC logins based on the stored email value"`
 	OIDCAllowedGroups    []string `name:"oidc-allowed-groups" usage:"Membership of one of the listed groups allows access to GtS. If this is empty, all groups are allowed."`
 	OIDCAdminGroups      []string `name:"oidc-admin-groups" usage:"Membership of one of the listed groups makes someone a GtS admin"`
-	TracingEnabled       bool     `name:"tracing-enabled" usage:"Enable OTLP Tracing"`
-	MetricsEnabled       bool     `name:"metrics-enabled" usage:"Enable OpenTelemetry based metrics support."`
+
+	BlueskyOAuthEncryptionKey string `name:"bluesky-oauth-encryption-key" usage:"Base64-encoded 32-byte key used to encrypt Bluesky OAuth tokens and DPoP keys at rest."`
+	TracingEnabled            bool   `name:"tracing-enabled" usage:"Enable OTLP Tracing"`
+	MetricsEnabled            bool   `name:"metrics-enabled" usage:"Enable OpenTelemetry based metrics support."`
 
 	SMTPHost               string `name:"smtp-host" usage:"Host of the smtp server. Eg., 'smtp.eu.mailgun.org'"`
 	SMTPPort               int    `name:"smtp-port" usage:"Port of the smtp server. Eg., 587"`
