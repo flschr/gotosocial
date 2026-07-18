@@ -37,6 +37,8 @@ type Source struct {
 	WebLayout string `json:"web_layout"`
 	// Include boosts created by the account on the web view of the account.
 	WebIncludeBoosts bool `json:"web_include_boosts"`
+	// Show the bio before profile fields on the public web profile.
+	WebBioFirst bool `json:"web_bio_first,omitempty"`
 	// Whether new statuses should be marked sensitive by default.
 	Sensitive bool `json:"sensitive"`
 	// The default posting language for new statuses.

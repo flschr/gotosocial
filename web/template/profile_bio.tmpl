@@ -1,0 +1,16 @@
+{{- /*
+// GoToSocial
+// Copyright (C) GoToSocial Authors admin@gotosocial.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+*/ -}}
+
+{{- with . }}
+<div id="profile-bio" class="bio p-note">
+    <h4 class="sr-only">Bio</h4>
+    {{- if .account.Note }}
+    {{ emojify .account.Emojis (noescape .account.Note) }}
+    {{- else }}
+    <p>This GoToSocial user hasn't written a bio yet!</p>
+    {{- end }}
+</div>
+{{- end }}

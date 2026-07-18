@@ -340,6 +340,11 @@ func (p *Processor) Update(ctx context.Context, account *gtsmodel.Account, form 
 		settingsColumns = append(settingsColumns, "web_include_boosts")
 	}
 
+	if form.WebBioFirst != nil {
+		account.Settings.WebBioFirst = *form.WebBioFirst
+		settingsColumns = append(settingsColumns, "web_bio_first")
+	}
+
 	// We've parsed + set everything, do
 	// necessary database updates now.
 

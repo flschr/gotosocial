@@ -158,6 +158,9 @@ type WebAccount struct {
 	// Layout for this account (microblog, gallery).
 	WebLayout string `json:"-"`
 
+	// Whether to show the bio before profile fields.
+	WebBioFirst bool `json:"-"`
+
 	// Visibility level(s) of posts to show for this account via the web.
 	//    "public" = default, show only Public visibility posts on the web.
 	//    "unlisted" = show Public *and* Unlisted visibility posts on the web.
@@ -265,6 +268,8 @@ type UpdateCredentialsRequest struct {
 	WebLayout *string `form:"web_layout" json:"web_layout"`
 	// Include boosts created by the account on the web view of the account.
 	WebIncludeBoosts *bool `form:"web_include_boosts" json:"web_include_boosts"`
+	// Show the bio before profile fields on the public web profile.
+	WebBioFirst *bool `form:"web_bio_first" json:"web_bio_first"`
 }
 
 // UpdateSource is to be used specifically in an UpdateCredentialsRequest.

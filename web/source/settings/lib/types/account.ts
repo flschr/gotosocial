@@ -82,6 +82,7 @@ export interface AccountSource {
 	web_visibility: string;
 	web_layout: string;
 	web_include_boosts: boolean;
+	web_bio_first: boolean;
 }
 
 export interface SearchAccountParams {

@@ -37,6 +37,7 @@ type AccountSettings struct {
 	HideCollections                *bool              `bun:",nullzero,notnull,default:false"`                             // Hide this account's followers/following collections.
 	WebLayout                      WebLayout          `bun:",nullzero,notnull,default:1"`                                 // Layout to use when showing this profile via the web.
 	WebIncludeBoosts               *bool              `bun:",nullzero,notnull,default:false"`                             // Include boosts when showing this profile via the web.
+	WebBioFirst                    bool               `bun:",notnull,default:false"`                                      // Show the profile bio before profile fields on the public web profile.
 	InteractionPolicyDirect        *InteractionPolicy `bun:""`                                                            // Interaction policy to use for new direct visibility statuses by this account. If null, assume default policy.
 	InteractionPolicyMutualsOnly   *InteractionPolicy `bun:""`                                                            // Interaction policy to use for new mutuals only visibility statuses. If null, assume default policy.
 	InteractionPolicyFollowersOnly *InteractionPolicy `bun:""`                                                            // Interaction policy to use for new followers only visibility statuses. If null, assume default policy.

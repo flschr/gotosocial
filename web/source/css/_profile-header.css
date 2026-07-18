@@ -400,6 +400,10 @@
 		}
 	}
 
+	.col-header + .fields .field:first-child {
+		border-top: 0;
+	}
+
 	.bio {
 		background: $profile-bg;
 		padding: 1rem 0.75rem;
