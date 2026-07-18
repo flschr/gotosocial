@@ -88,6 +88,27 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	storedInteraction, err := suite.db.GetBlueskyInteractionByURI(ctx, interaction.URI)
 	suite.Require().NoError(err)
 	suite.Equal(interaction.StatusID, storedInteraction.StatusID)
+
+	queued := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: account.ID, StatusID: suite.testStatuses["local_account_1_status_3"].ID,
+		NextAttemptAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, queued))
+	inbox := &gtsmodel.BlueskyNotification{
+		ID: id.NewULID(), AccountID: account.ID, URI: "at://did:plc:other/app.bsky.feed.post/inbox",
+		Payload: []byte(`{"reason":"reply"}`), NextAttemptAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyNotification(ctx, inbox))
+	suite.Require().NoError(suite.db.DeleteBlueskyDataByAccountID(ctx, account.ID))
+	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Error(err)
+	_, err = suite.db.GetBlueskyPostByStatusID(ctx, status.ID)
+	suite.Error(err)
+	_, err = suite.db.GetBlueskyInteractionByURI(ctx, interaction.URI)
+	suite.Error(err)
+	dueInbox, err := suite.db.GetDueBlueskyNotifications(ctx, account.ID, time.Now().Add(time.Minute), 10)
+	suite.Require().NoError(err)
+	suite.Empty(dueInbox)
 }
 
 func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
