@@ -29,6 +29,9 @@ func TestValidateInstanceUpdateAcceptsPlusSettings(t *testing.T) {
 		"profile Plus information": {
 			ProfilesShowPlusInfo: util.Ptr(false),
 		},
+		"profile remote follow": {
+			ProfilesShowRemoteFollow: util.Ptr(true),
+		},
 	}
 
 	for name, form := range tests {

@@ -328,6 +328,11 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 		columns = append(columns, "profiles_show_plus_info")
 	}
 
+	if form.ProfilesShowRemoteFollow != nil {
+		settings.ProfilesShowRemoteFollow = *form.ProfilesShowRemoteFollow
+		columns = append(columns, "profiles_show_remote_follow")
+	}
+
 	// Validate & update site
 	// terms if set on the form.
 	if form.Terms != nil {

@@ -195,6 +195,7 @@ func validateInstanceUpdate(form *apimodel.InstanceSettingsUpdateRequest) error 
 		form.StatusesPreviewCards == nil &&
 		form.ProfilesAutoLoadOlderPosts == nil &&
 		form.ProfilesShowPlusInfo == nil &&
+		form.ProfilesShowRemoteFollow == nil &&
 		form.Terms == nil &&
 		form.Avatar == nil &&
 		form.AvatarDescription == nil &&

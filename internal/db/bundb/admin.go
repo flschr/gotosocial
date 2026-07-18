@@ -534,6 +534,7 @@ func (a *adminDB) CreateInstanceSettings(ctx context.Context) error {
 		StatusesPreviewCards:           config.GetStatusesPreviewCards(),
 		ProfilesAutoLoadOlderPosts:     false,
 		ProfilesShowPlusInfo:           true,
+		ProfilesShowRemoteFollow:       false,
 	}
 
 	// Put settings in the db.

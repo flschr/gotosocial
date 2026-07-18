@@ -118,6 +118,8 @@ type InstanceV1 struct {
 	ProfilesAutoLoadOlderPosts bool `json:"profiles_auto_load_older_posts,omitempty"`
 	// Whether GoToSocial Plus information is shown on public profiles (GoToSocial Plus).
 	ProfilesShowPlusInfo bool `json:"profiles_show_plus_info"`
+	// Show a remote-follow action on public profile pages.
+	ProfilesShowRemoteFollow bool `json:"profiles_show_remote_follow,omitempty"`
 
 	// Random stats generated for the instance.
 	// Only used if `instance-stats-randomize` is true.

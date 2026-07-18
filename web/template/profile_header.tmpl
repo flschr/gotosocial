@@ -201,6 +201,30 @@
             {{- end }}
             {{- end }}
         </dl>
+        {{- if and .instance.ProfilesShowRemoteFollow (not .account.Moved) }}
+        <div class="remote-follow" data-remote-follow data-profile-uri="{{- .account.URL -}}" data-profile-handle="@{{- .account.Username -}}@{{- .instance.AccountDomain -}}">
+            <button type="button" class="remote-follow-button" data-remote-follow-open>
+                <i class="fa fa-user-plus" aria-hidden="true"></i>
+                <span>Follow</span>
+            </button>
+            <button type="button" class="remote-follow-change" data-remote-follow-change hidden>Use another server</button>
+            <noscript><small>Search for @{{- .account.Username -}}@{{- .instance.AccountDomain -}} in your Fediverse app.</small></noscript>
+            <dialog class="remote-follow-dialog" aria-labelledby="remote-follow-title">
+                <form method="dialog" class="remote-follow-form" data-remote-follow-form>
+                    <div class="remote-follow-heading">
+                        <h3 id="remote-follow-title">Follow {{- if .account.DisplayName }} {{ .account.DisplayName }}{{ else }} @{{ .account.Username }}{{ end }}</h3>
+                        <button type="submit" value="cancel" class="remote-follow-close" aria-label="Close">&times;</button>
+                    </div>
+                    <p>Enter the address of your Fediverse server. We’ll send you there to confirm.</p>
+                    <label for="remote-follow-server">Your server</label>
+                    <input id="remote-follow-server" name="server" type="text" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" placeholder="mastodon.social" required data-remote-follow-server>
+                    <p class="remote-follow-error" role="alert" hidden data-remote-follow-error>Please enter a valid server, such as mastodon.social.</p>
+                    <button type="submit" value="continue">Continue to follow</button>
+                    <p class="remote-follow-fallback">Or search for <button type="button" class="remote-follow-copy" data-remote-follow-copy>@{{- .account.Username -}}@{{- .instance.AccountDomain -}}</button> in your Fediverse app.</p>
+                </form>
+            </dialog>
+        </div>
+        {{- end }}
         <a class="u-url u-uid hidden" rel="me" href="/@{{- .account.Username -}}"></a>
     </div>
 </section>

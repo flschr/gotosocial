@@ -36,6 +36,115 @@ const Prism = require("./prism.js");
 Prism.manual = true;
 Prism.highlightAll();
 
+const remoteFollow = document.querySelector("[data-remote-follow]");
+if (remoteFollow) {
+	const storageKey = "gotosocial.remoteFollowServer";
+	const openButton = remoteFollow.querySelector("[data-remote-follow-open]");
+	const changeButton = remoteFollow.querySelector("[data-remote-follow-change]");
+	const dialog = remoteFollow.querySelector("dialog");
+	const form = remoteFollow.querySelector("[data-remote-follow-form]");
+	const serverInput = remoteFollow.querySelector("[data-remote-follow-server]");
+	const error = remoteFollow.querySelector("[data-remote-follow-error]");
+	const copyButton = remoteFollow.querySelector("[data-remote-follow-copy]");
+	let savedServer;
+
+	try {
+		savedServer = window.localStorage.getItem(storageKey);
+	} catch {
+		// Storage can be unavailable in privacy-focused browser modes.
+	}
+
+	const normalizeServer = (input) => {
+		let candidate = input.trim();
+		if (candidate.startsWith("@") && candidate.lastIndexOf("@") > 0) {
+			candidate = candidate.slice(candidate.lastIndexOf("@") + 1);
+		}
+		candidate = candidate.replace(/^https?:\/\//i, "").split("/")[0];
+		if (!candidate || candidate.includes("@")) {
+			return;
+		}
+
+		try {
+			const url = new URL(`https://${candidate}`);
+			if (!url.hostname || url.username || url.password) {
+				return;
+			}
+			return url.host;
+		} catch {
+			return;
+		}
+	};
+
+	const followOn = (server) => {
+		const target = new URL(`https://${server}/authorize_interaction`);
+		target.searchParams.set("uri", remoteFollow.dataset.profileUri);
+		window.location.assign(target.href);
+	};
+
+	if (savedServer) {
+		const normalized = normalizeServer(savedServer);
+		if (normalized) {
+			savedServer = normalized;
+			openButton.querySelector("span").textContent = `Follow on ${savedServer}`;
+			changeButton.hidden = false;
+		} else {
+			savedServer = undefined;
+		}
+	}
+
+	openButton.addEventListener("click", () => {
+		if (savedServer) {
+			followOn(savedServer);
+			return;
+		}
+		dialog.showModal();
+		serverInput.focus();
+	});
+
+	changeButton.addEventListener("click", () => {
+		serverInput.value = savedServer || "";
+		dialog.showModal();
+		serverInput.select();
+	});
+
+	form.addEventListener("submit", (event) => {
+		if (event.submitter?.value === "cancel") {
+			return;
+		}
+
+		event.preventDefault();
+		const server = normalizeServer(serverInput.value);
+		if (!server) {
+			error.hidden = false;
+			serverInput.setAttribute("aria-invalid", "true");
+			serverInput.focus();
+			return;
+		}
+
+		try {
+			window.localStorage.setItem(storageKey, server);
+		} catch {
+			// Following still works when storage is unavailable.
+		}
+		followOn(server);
+	});
+
+	serverInput.addEventListener("input", () => {
+		error.hidden = true;
+		serverInput.removeAttribute("aria-invalid");
+	});
+
+	copyButton.addEventListener("click", async () => {
+		try {
+			await navigator.clipboard.writeText(remoteFollow.dataset.profileHandle);
+			copyButton.textContent = "Copied!";
+		} catch {
+			copyButton.textContent = remoteFollow.dataset.profileHandle;
+			copyButton.title = "Select and copy this address";
+		}
+	});
+}
+
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 let [_, _user, type, id] = window.location.pathname.split("/");

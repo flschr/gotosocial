@@ -77,8 +77,8 @@
 		grid-template-rows: $overlap $name-size auto;
 		grid-template-areas:
 			"avatar . ."
-			"avatar namerole namerole"
-			"avatar namerole namerole";
+			"avatar namerole follow"
+			"avatar namerole follow";
 
 		/*
 			Margin top to inset profile pic into
@@ -217,6 +217,120 @@
 				}
 			}
 		}
+
+		.remote-follow {
+			grid-area: follow;
+			align-self: center;
+			justify-self: end;
+			min-width: 10rem;
+
+			.remote-follow-button {
+				width: 100%;
+				font-weight: bold;
+
+				.fa {
+					margin-right: 0.35rem;
+				}
+			}
+
+			.remote-follow-change {
+				display: block;
+				color: $fg-reduced;
+				background: transparent;
+				border: 0;
+				font-size: 0.75rem;
+				margin: 0.2rem auto 0;
+				padding: 0;
+				text-decoration: underline;
+
+				&[hidden] {
+					display: none;
+				}
+
+				&:hover {
+					color: $fg;
+					background: transparent;
+				}
+			}
+		}
+	}
+}
+
+.remote-follow-dialog {
+	color: $fg;
+	background: $profile-bg;
+	border: $boxshadow-border;
+	border-radius: $br;
+	box-shadow: $boxshadow;
+	box-sizing: border-box;
+	max-width: min(32rem, calc(100vw - 2rem));
+	padding: 0;
+
+	&::backdrop {
+		background: rgb(0 0 0 / 65%);
+	}
+
+	.remote-follow-form {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 1rem;
+
+		> p,
+		> h3 {
+			margin: 0;
+		}
+	}
+
+	.remote-follow-heading {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 1rem;
+
+		h3 {
+			margin: 0;
+		}
+	}
+
+	.remote-follow-close {
+		color: $fg-reduced;
+		background: transparent;
+		border: 0;
+		font-size: 1.75rem;
+		line-height: 1;
+		padding: 0 0.25rem;
+
+		&:hover {
+			color: $fg;
+			background: transparent;
+		}
+	}
+
+	.remote-follow-error {
+		color: $error1;
+		font-weight: bold;
+	}
+
+	.remote-follow-fallback {
+		color: $fg-reduced;
+		font-size: 0.85rem;
+	}
+
+	.remote-follow-copy {
+		display: inline;
+		color: $link-fg;
+		background: transparent;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		text-decoration: underline;
+		word-break: break-all;
+
+		&:hover {
+			color: $fg;
+			background: transparent;
+		}
 	}
 }
 
@@ -330,11 +444,12 @@
 	.profile .profile-header {
 		.basic-info {
 			grid-template-columns: auto 1fr;
-			grid-template-rows: $avatar-size $name-size auto;
+			grid-template-rows: $avatar-size $name-size auto auto;
 			grid-template-areas:
 				"avatar avatar"
 				"namerole namerole"
-				"namerole namerole";
+				"namerole namerole"
+				"follow follow";
 			
 			/*
 				Make display name a bit smaller
@@ -347,6 +462,11 @@
 					line-height: 2rem;
 					margin-top: 0.5rem;
 				}
+			}
+
+			.remote-follow {
+				justify-self: stretch;
+				margin-top: 0.75rem;
 			}
 		}
 	}

@@ -3,8 +3,8 @@
 GoToSocial Plus is a small, independently maintained fork of
 [GoToSocial](https://codeberg.org/superseriousbusiness/gotosocial). It stays
 close to upstream and adds targeted, optional improvements for split-domain
-account display, local role privacy, and link preview cards. It also includes a
-fix for empty RSS feeds.
+account display, local role privacy, link preview cards, and remote follows
+from public profiles. It also includes a fix for empty RSS feeds.
 
 GoToSocial remains the project behind this software. Read the
 [official documentation](https://docs.gotosocial.org/) for installation,
@@ -86,7 +86,7 @@ behavior and is not an instance setting.
 
 ### Public profile experience
 
-Two further settings control public profile pages:
+Three further settings control public profile pages:
 
 - **Automatically load older posts** progressively loads the next page as the
   visitor approaches the end of the current one. It is disabled by default.
@@ -95,6 +95,12 @@ Two further settings control public profile pages:
 - **Show GoToSocial Plus version and source information** displays a small
   footnote after the profile content. It is enabled by default and can be hidden
   without removing the instance-wide source links required by the AGPL.
+- **Show a remote Follow button** adds a prominent action to public profiles.
+  On first use, visitors enter their Fediverse server and continue to its
+  Mastodon-compatible `/authorize_interaction` flow. The server is remembered
+  only in that browser so later follows need just the profile action and the
+  confirmation on the visitor's server. Copying the account address remains a
+  fallback for other Fediverse software.
 
 Automatic loading does not rewrite browser history. Newly loaded posts are
 inserted before the version footnote, so the footnote remains at the actual end
@@ -110,6 +116,7 @@ Plus**:
 - **Generate link preview cards**
 - **Automatically load older posts on public profiles** (off by default)
 - **Show GoToSocial Plus information on public profiles** (on by default)
+- **Show a remote Follow button on public profiles** (off by default)
 
 Existing installations can initially seed these settings with the following
 configuration values:
