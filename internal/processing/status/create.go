@@ -225,6 +225,26 @@ func (p *Processor) Create(
 		return nil, errWithCode
 	}
 
+	// Replies to private Bluesky proxy statuses must never escape into
+	// ActivityPub, even if a client submits broader visibility parameters.
+	if status.InReplyToID != "" {
+		interaction, err := p.state.DB.GetBlueskyInteractionByStatusID(ctx, status.InReplyToID)
+		switch {
+		case err == nil:
+			if interaction.AccountID != requester.ID {
+				const errText = "you do not have permission to reply to this status"
+				return nil, gtserror.NewErrorForbidden(gtserror.New(errText), errText)
+			}
+			form.Visibility = apimodel.VisibilityDirect
+			form.LocalOnly = util.Ptr(true)
+
+		case !errors.Is(err, db.ErrNoEntries):
+			return nil, gtserror.NewErrorInternalError(
+				gtserror.Newf("error checking Bluesky reply target: %w", err),
+			)
+		}
+	}
+
 	// Process the incoming created status visibility.
 	if errWithCode := processVisibility(form, requester.Settings.Privacy, status); errWithCode != nil {
 		return nil, errWithCode
