@@ -152,9 +152,10 @@ func recordDeliveryFailure(ctx context.Context, state *state.State, delivery *gt
 	delay := time.Minute * time.Duration(1<<min(delivery.Attempts-1, 6))
 	delivery.NextAttemptAt = time.Now().Add(delay)
 	delivery.LastError = truncateUTF8(cause.Error(), 1000, 4000)
+	delivery.UpdatedAt = time.Now()
 	delivery.ClaimedUntil = time.Time{}
 	delivery.DeadLetter = delivery.Attempts >= 10
-	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "claimed_until", "dead_letter"); err != nil {
+	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "updated_at", "claimed_until", "dead_letter"); err != nil {
 		return fmt.Errorf("record Bluesky delivery failure after %v: %w", cause, err)
 	}
 	return cause
@@ -202,11 +203,11 @@ func DeleteStatus(ctx context.Context, state *state.State, statusID string) erro
 	if err != nil {
 		return err
 	}
-	endpoint, _ := syntax.ParseNSID("com.atproto.repo.deleteRecord")
 	rkey := post.URI[strings.LastIndex(post.URI, "/")+1:]
-	if err := client.Post(ctx, endpoint, map[string]any{
-		"repo": connection.DID, "collection": "app.bsky.feed.post", "rkey": rkey,
-	}, nil); err != nil {
+	if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.threadgate", rkey, true); err != nil {
+		return fmt.Errorf("delete Bluesky threadgate: %w", err)
+	}
+	if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.post", rkey, false); err != nil {
 		return fmt.Errorf("delete Bluesky post: %w", err)
 	}
 	if err := state.DB.DeleteBlueskyPost(ctx, post.ID); err != nil {
@@ -335,11 +336,7 @@ func syncThreadgate(ctx context.Context, client *atclient.APIClient, repo string
 		if !updating {
 			return nil
 		}
-		endpoint, _ := syntax.ParseNSID("com.atproto.repo.deleteRecord")
-		err := client.Post(ctx, endpoint, map[string]any{
-			"repo": repo, "collection": "app.bsky.feed.threadgate", "rkey": status.ID,
-		}, nil)
-		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "recordnotfound") && !strings.Contains(strings.ToLower(err.Error()), "record not found") {
+		if err := deleteATRecord(ctx, client, repo, "app.bsky.feed.threadgate", status.ID, true); err != nil {
 			return fmt.Errorf("remove Bluesky reply restriction: %w", err)
 		}
 		return nil
@@ -358,6 +355,20 @@ func syncThreadgate(ctx context.Context, client *atclient.APIClient, repo string
 		return fmt.Errorf("apply Bluesky reply restriction: %w", err)
 	}
 	return nil
+}
+
+func deleteATRecord(ctx context.Context, client *atclient.APIClient, repo, collection, rkey string, ignoreMissing bool) error {
+	endpoint, _ := syntax.ParseNSID("com.atproto.repo.deleteRecord")
+	err := client.Post(ctx, endpoint, map[string]any{
+		"repo": repo, "collection": collection, "rkey": rkey,
+	}, nil)
+	if ignoreMissing && err != nil {
+		message := strings.ToLower(err.Error())
+		if strings.Contains(message, "recordnotfound") || strings.Contains(message, "record not found") {
+			return nil
+		}
+	}
+	return err
 }
 
 func policyAllowsPublic(rules *gtsmodel.PolicyRules) bool {

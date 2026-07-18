@@ -66,9 +66,11 @@ func DeleteAccount(ctx context.Context, state *state.State, accountID string) er
 		remoteErrors = append(remoteErrors, postsErr)
 	} else {
 		for _, post := range posts {
-			endpoint, _ := syntax.ParseNSID("com.atproto.repo.deleteRecord")
 			rkey := post.URI[strings.LastIndex(post.URI, "/")+1:]
-			if err := client.Post(ctx, endpoint, map[string]any{"repo": connection.DID, "collection": "app.bsky.feed.post", "rkey": rkey}, nil); err != nil {
+			if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.threadgate", rkey, true); err != nil {
+				remoteErrors = append(remoteErrors, fmt.Errorf("delete threadgate for %s: %w", post.URI, err))
+			}
+			if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.post", rkey, false); err != nil {
 				remoteErrors = append(remoteErrors, fmt.Errorf("delete %s: %w", post.URI, err))
 			}
 		}

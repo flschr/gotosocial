@@ -91,6 +91,10 @@ func (b *blueskyDB) GetBlueskyHealth(ctx context.Context, accountID string) (*gt
 	if err := b.db.NewSelect().Model(latest).Where("account_id = ? AND last_error IS NOT NULL", accountID).Order("updated_at DESC").Limit(1).Scan(ctx); err == nil {
 		health.LastError, health.LastErrorAt = latest.LastError, latest.UpdatedAt
 	}
+	latestNotification := new(gtsmodel.BlueskyNotification)
+	if err := b.db.NewSelect().Model(latestNotification).Where("account_id = ? AND last_error IS NOT NULL", accountID).Order("updated_at DESC").Limit(1).Scan(ctx); err == nil && latestNotification.UpdatedAt.After(health.LastErrorAt) {
+		health.LastError, health.LastErrorAt = latestNotification.LastError, latestNotification.UpdatedAt
+	}
 	return health, nil
 }
 

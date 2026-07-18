@@ -229,9 +229,10 @@ func processNotificationInbox(ctx context.Context, state *state.State, connectio
 			}
 			item.Attempts++
 			item.LastError = truncateUTF8(err.Error(), 1000, 4000)
+			item.UpdatedAt = time.Now()
 			item.DeadLetter = item.Attempts >= 10
 			item.NextAttemptAt = time.Now().Add(time.Minute * time.Duration(1<<min(item.Attempts-1, 6)))
-			if updateErr := state.DB.UpdateBlueskyNotification(ctx, item, "attempts", "last_error", "dead_letter", "next_attempt_at"); updateErr != nil {
+			if updateErr := state.DB.UpdateBlueskyNotification(ctx, item, "attempts", "last_error", "updated_at", "dead_letter", "next_attempt_at"); updateErr != nil {
 				processingErrors = append(processingErrors, updateErr)
 			} else {
 				processingErrors = append(processingErrors, fmt.Errorf("notification %s: %w", item.URI, err))

@@ -6,6 +6,7 @@ package bluesky
 
 import (
 	"strings"
+	"unicode"
 
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/text"
@@ -23,7 +24,7 @@ func blueskyTextForStatus(status *gtsmodel.Status, stripSystemMention bool) (str
 		prefix = "CW: " + warning + "\n\n"
 	}
 	body, facets := htmlTextAndFacets(status.Content)
-	body = strings.TrimSpace(body)
+	body, facets = trimTextAndFacets(body, facets)
 	if stripSystemMention && status.InReplyToAccount != nil {
 		body, facets = stripLeadingAccountMention(body, facets, status.InReplyToAccount.URI, status.InReplyToAccount.URL)
 	}
@@ -42,6 +43,21 @@ func blueskyTextForStatus(status *gtsmodel.Status, stripSystemMention bool) (str
 		Index:    facetIndex{ByteStart: start, ByteEnd: len(trimmed)},
 		Features: []facetFeature{{Type: "app.bsky.richtext.facet#link", URI: status.URL}},
 	}}
+}
+
+func trimTextAndFacets(body string, facets []facet) (string, []facet) {
+	leftTrimmed := strings.TrimLeftFunc(body, unicode.IsSpace)
+	removed := len(body) - len(leftTrimmed)
+	body = strings.TrimRightFunc(leftTrimmed, unicode.IsSpace)
+	kept := facets[:0]
+	for _, value := range facets {
+		value.Index.ByteStart -= removed
+		value.Index.ByteEnd -= removed
+		if value.Index.ByteStart >= 0 && value.Index.ByteEnd > value.Index.ByteStart && value.Index.ByteEnd <= len(body) {
+			kept = append(kept, value)
+		}
+	}
+	return body, kept
 }
 
 func stripLeadingAccountMention(body string, facets []facet, accountURLs ...string) (string, []facet) {
@@ -94,7 +110,7 @@ func htmlTextAndFacets(input string) (string, []facet) {
 			walk(child)
 		}
 		if node.Type == html.ElementNode && node.Data == "a" {
-			if href := htmlAttribute(node, "href"); strings.HasPrefix(href, "https://") || strings.HasPrefix(href, "http://") {
+			if href := htmlAttribute(node, "href"); out.Len() > start && (strings.HasPrefix(href, "https://") || strings.HasPrefix(href, "http://")) {
 				facets = append(facets, facet{
 					Index:    facetIndex{ByteStart: start, ByteEnd: out.Len()},
 					Features: []facetFeature{{Type: "app.bsky.richtext.facet#link", URI: href}},

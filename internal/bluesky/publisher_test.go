@@ -71,6 +71,14 @@ func TestHTMLTextAndFacetsPreservesLinkedLabel(t *testing.T) {
 	require.Equal(t, "https://example.org/post", facets[0].Features[0].URI)
 }
 
+func TestTrimTextKeepsFacetByteOffsets(t *testing.T) {
+	body, facets := htmlTextAndFacets(`  <a href="https://example.org">link</a>  `)
+	body, facets = trimTextAndFacets(body, facets)
+	require.Equal(t, "link", body)
+	require.Len(t, facets, 1)
+	require.Equal(t, facetIndex{ByteStart: 0, ByteEnd: 4}, facets[0].Index)
+}
+
 func TestBlueskyTextTruncatesWithCanonicalLink(t *testing.T) {
 	status := &gtsmodel.Status{
 		Content: strings.Repeat("word ", 100),
