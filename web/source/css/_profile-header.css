@@ -231,8 +231,12 @@
 				white-space: nowrap;
 				font-weight: bold;
 
-				.fa {
+				.bluesky-icon {
+					width: 1.15rem;
+					height: 1.15rem;
 					margin-right: 0.35rem;
+					vertical-align: -0.2rem;
+					fill: currentColor;
 				}
 			}
 		}
