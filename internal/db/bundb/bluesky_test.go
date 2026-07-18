@@ -99,15 +99,17 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	}
 	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, delivery))
 
-	due, err := suite.db.GetDueBlueskyDeliveries(ctx, time.Now(), 10)
+	now := time.Now()
+	due, err := suite.db.ClaimDueBlueskyDeliveries(ctx, now, now.Add(5*time.Minute), 10)
 	suite.Require().NoError(err)
 	suite.Require().Len(due, 1)
 	suite.Equal(status.ID, due[0].StatusID)
 
 	delivery.Attempts = 2
 	delivery.NextAttemptAt = time.Now().Add(time.Hour)
-	suite.Require().NoError(suite.db.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at"))
-	due, err = suite.db.GetDueBlueskyDeliveries(ctx, time.Now(), 10)
+	delivery.ClaimedUntil = time.Time{}
+	suite.Require().NoError(suite.db.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "claimed_until"))
+	due, err = suite.db.ClaimDueBlueskyDeliveries(ctx, time.Now(), time.Now().Add(5*time.Minute), 10)
 	suite.Require().NoError(err)
 	suite.Empty(due)
 	suite.Require().NoError(suite.db.DeleteBlueskyDeliveryByStatusID(ctx, status.ID))

@@ -48,6 +48,20 @@ type BlueskyOAuthState struct {
 	EncryptedData []byte    `bun:",nullzero,notnull"`
 }
 
+type BlueskyNotification struct {
+	bun.BaseModel `bun:"table:bluesky_notifications,unique:bluesky_notifications_account_uri"`
+	ID            string    `bun:"type:CHAR(26),pk,nullzero,notnull,unique"`
+	CreatedAt     time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	AccountID     string    `bun:"type:CHAR(26),nullzero,notnull,unique:bluesky_notifications_account_uri"`
+	URI           string    `bun:",nullzero,notnull,unique:bluesky_notifications_account_uri"`
+	Payload       []byte    `bun:",nullzero,notnull"`
+	Attempts      int       `bun:",notnull,default:0"`
+	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	LastError     string    `bun:",nullzero"`
+	DeadLetter    bool      `bun:",notnull,default:false"`
+}
+
 type BlueskyPost struct {
 	bun.BaseModel `bun:"table:bluesky_posts"`
 	ID            string    `bun:"type:CHAR(26),pk,nullzero,notnull,unique"`

@@ -10,6 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"strings"
@@ -17,14 +23,17 @@ import (
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
+	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
+	"code.superseriousbusiness.org/gotosocial/internal/media"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"code.superseriousbusiness.org/gotosocial/internal/text"
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/rivo/uniseg"
+	_ "golang.org/x/image/webp"
 	"golang.org/x/net/html"
 )
 
@@ -74,7 +83,12 @@ func newATClient(state *state.State, host string) *atclient.APIClient {
 }
 
 func protectedHTTPClient(state *state.State) *http.Client {
-	return &http.Client{Transport: roundTripperFunc(state.HTTPClient.Do)}
+	return &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+		// ATProto request bodies are not always rewindable. Disable the GTS
+		// client's transparent retry loop and let the durable delivery queue
+		// retry by constructing a completely fresh request instead.
+		return state.HTTPClient.Do(request.WithContext(gtscontext.SetFastFail(request.Context())))
+	})}
 }
 
 func QueueStatus(ctx context.Context, state *state.State, status *gtsmodel.Status) (*gtsmodel.BlueskyDelivery, error) {
@@ -252,7 +266,7 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 
 	images := make([]map[string]any, 0, maxImages)
 	for _, attachment := range status.Attachments {
-		if len(images) == maxImages || attachment.Type != gtsmodel.FileTypeImage || attachment.File.FileSize > maxBlobBytes {
+		if len(images) == maxImages || attachment.Type != gtsmodel.FileTypeImage {
 			continue
 		}
 		blob, err := uploadStoredBlob(ctx, state, client, attachment.File.Path, attachment.File.ContentType)
@@ -395,12 +409,13 @@ func uploadStoredBlob(ctx context.Context, state *state.State, client *atclient.
 		return nil, err
 	}
 	defer stream.Close()
-	data, err := io.ReadAll(io.LimitReader(stream, maxBlobBytes+1))
+	data, err := io.ReadAll(io.LimitReader(stream, 50<<20))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > maxBlobBytes {
-		return nil, fmt.Errorf("image exceeds Bluesky blob limit")
+	data, contentType, err = prepareBlueskyImage(data)
+	if err != nil {
+		return nil, err
 	}
 	return uploadBlob(ctx, client, bytes.NewReader(data), contentType)
 }
@@ -422,15 +437,55 @@ func uploadRemoteImage(ctx context.Context, state *state.State, client *atclient
 	if !strings.HasPrefix(contentType, "image/") {
 		return nil, fmt.Errorf("preview is not an image")
 	}
-	limited := io.LimitReader(response.Body, maxBlobBytes+1)
+	limited := io.LimitReader(response.Body, 50<<20)
 	data, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > maxBlobBytes {
-		return nil, fmt.Errorf("preview image exceeds Bluesky blob limit")
+	data, contentType, err = prepareBlueskyImage(data)
+	if err != nil {
+		return nil, err
 	}
 	return uploadBlob(ctx, client, bytes.NewReader(data), contentType)
+}
+
+// prepareBlueskyImage re-encodes an image to remove EXIF and other embedded
+// metadata, then progressively compresses/resizes it to Bluesky's blob limit.
+func prepareBlueskyImage(data []byte) ([]byte, string, error) {
+	source, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", fmt.Errorf("decode image for Bluesky: %w", err)
+	}
+	for source.Bounds().Dx() > 2000 || source.Bounds().Dy() > 2000 {
+		source = resizeImage(source, 0.85)
+	}
+	for quality := 92; ; quality -= 8 {
+		var encoded bytes.Buffer
+		// JPEG has broad PDS support. Drawing onto an opaque white background
+		// produces predictable results for transparent PNG/WebP sources.
+		opaque := image.NewRGBA(image.Rect(0, 0, source.Bounds().Dx(), source.Bounds().Dy()))
+		draw.Draw(opaque, opaque.Bounds(), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+		draw.Draw(opaque, opaque.Bounds(), source, source.Bounds().Min, draw.Over)
+		if err := jpeg.Encode(&encoded, opaque, &jpeg.Options{Quality: max(quality, 60)}); err != nil {
+			return nil, "", err
+		}
+		if encoded.Len() <= maxBlobBytes {
+			return encoded.Bytes(), "image/jpeg", nil
+		}
+		if quality <= 60 {
+			source = resizeImage(source, 0.8)
+			quality = 92
+			if source.Bounds().Dx() < 320 || source.Bounds().Dy() < 320 {
+				return nil, "", fmt.Errorf("image cannot be compressed below Bluesky blob limit")
+			}
+		}
+	}
+}
+
+func resizeImage(source image.Image, scale float64) image.Image {
+	width := max(1, int(float64(source.Bounds().Dx())*scale))
+	height := max(1, int(float64(source.Bounds().Dy())*scale))
+	return media.ResizeDownLinear(source, width, height)
 }
 
 func uploadBlob(ctx context.Context, client *atclient.APIClient, reader io.Reader, contentType string) (any, error) {

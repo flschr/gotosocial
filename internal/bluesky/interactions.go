@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	stdhtml "html"
-	"sort"
 	"strings"
 	"time"
 
@@ -83,10 +82,10 @@ func syncConnection(ctx context.Context, state *state.State, connection *gtsmode
 	endpoint, _ := syntax.ParseNSID("app.bsky.notification.listNotifications")
 	client = client.WithService("did:web:api.bsky.app#bsky_appview")
 
-	var notifications []blueskyNotification
 	latest := connection.NotificationsSeenAt
 	cursor := ""
-	for pageNumber := 0; pageNumber < 10; pageNumber++ {
+	seenCursors := make(map[string]struct{})
+	for {
 		params := map[string]any{"limit": 100}
 		if cursor != "" {
 			params["cursor"] = cursor
@@ -107,27 +106,73 @@ func syncConnection(ctx context.Context, state *state.State, connection *gtsmode
 				latest = notification.IndexedAt
 			}
 			if notification.Reason == "reply" || notification.Reason == "mention" {
-				notifications = append(notifications, notification)
+				payload, marshalErr := json.Marshal(notification)
+				if marshalErr != nil {
+					return fmt.Errorf("encode notification inbox item: %w", marshalErr)
+				}
+				if err := state.DB.PutBlueskyNotification(ctx, &gtsmodel.BlueskyNotification{
+					ID: id.NewULID(), CreatedAt: notification.IndexedAt, AccountID: connection.AccountID,
+					URI: notification.URI, Payload: payload, NextAttemptAt: time.Now(),
+				}); err != nil {
+					return fmt.Errorf("store notification inbox item: %w", err)
+				}
 			}
 		}
 		if stop || page.Cursor == "" {
 			break
 		}
+		if _, duplicate := seenCursors[page.Cursor]; duplicate {
+			return fmt.Errorf("notification pagination returned repeated cursor")
+		}
+		seenCursors[page.Cursor] = struct{}{}
 		cursor = page.Cursor
 	}
 
-	// Oldest first ensures nested replies can resolve their local parent.
-	sort.Slice(notifications, func(i, j int) bool { return notifications[i].IndexedAt.Before(notifications[j].IndexedAt) })
-	for _, notification := range notifications {
-		if err := importNotification(ctx, state, connection, notification); err != nil {
+	if latest.After(connection.NotificationsSeenAt) {
+		connection.NotificationsSeenAt = latest
+		if err := state.DB.UpdateBlueskyConnection(ctx, connection, "notifications_seen_at"); err != nil {
 			return err
 		}
 	}
-	if latest.After(connection.NotificationsSeenAt) {
-		connection.NotificationsSeenAt = latest
-		return state.DB.UpdateBlueskyConnection(ctx, connection, "notifications_seen_at")
+	return processNotificationInbox(ctx, state, connection)
+}
+
+func processNotificationInbox(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
+	var processingErrors []error
+	for {
+		items, err := state.DB.GetDueBlueskyNotifications(ctx, connection.AccountID, time.Now(), 100)
+		if err != nil {
+			return errors.Join(append(processingErrors, err)...)
+		}
+		if len(items) == 0 {
+			return errors.Join(processingErrors...)
+		}
+		for _, item := range items {
+			var notification blueskyNotification
+			err := json.Unmarshal(item.Payload, &notification)
+			if err == nil {
+				err = importNotification(ctx, state, connection, notification)
+			}
+			if err == nil {
+				if deleteErr := state.DB.DeleteBlueskyNotification(ctx, item.ID); deleteErr != nil {
+					processingErrors = append(processingErrors, deleteErr)
+				}
+				continue
+			}
+			item.Attempts++
+			item.LastError = truncateUTF8(err.Error(), 1000, 4000)
+			item.DeadLetter = item.Attempts >= 10
+			item.NextAttemptAt = time.Now().Add(time.Minute * time.Duration(1<<min(item.Attempts-1, 6)))
+			if updateErr := state.DB.UpdateBlueskyNotification(ctx, item, "attempts", "last_error", "dead_letter", "next_attempt_at"); updateErr != nil {
+				processingErrors = append(processingErrors, updateErr)
+			} else {
+				processingErrors = append(processingErrors, fmt.Errorf("notification %s: %w", item.URI, err))
+			}
+		}
+		if len(items) < 100 {
+			return errors.Join(processingErrors...)
+		}
 	}
-	return nil
 }
 
 func authenticatedClient(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (*atclient.APIClient, error) {
@@ -205,21 +250,13 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 		TargetAccountID: target.ID, TargetAccount: target, TargetAccountURI: target.URI, TargetAccountURL: target.URL, IsNew: true,
 	}
 	status.Mentions = []*gtsmodel.Mention{mention}
-	if err := state.DB.PutStatus(ctx, status); err != nil {
-		return err
-	}
-	if err := state.DB.PutMention(ctx, mention); err != nil {
-		_ = state.DB.DeleteStatus(ctx, status, false)
-		return err
-	}
 	interaction := &gtsmodel.BlueskyInteraction{
 		ID: id.NewULID(), AccountID: connection.AccountID, StatusID: statusID,
 		URI: notification.URI, CID: notification.CID, RootURI: root.URI, RootCID: root.CID,
 		ParentURI: parent.URI, ParentCID: parent.CID, AuthorDID: notification.Author.DID,
 		AuthorHandle: notification.Author.Handle, URL: postURL,
 	}
-	if err := state.DB.PutBlueskyInteraction(ctx, interaction); err != nil {
-		_ = state.DB.DeleteStatus(ctx, status, false)
+	if err := state.DB.PutBlueskyInteractionStatus(ctx, status, mention, interaction); err != nil {
 		return err
 	}
 	state.Workers.Client.Queue.Push(&messages.FromClientAPI{
@@ -250,7 +287,11 @@ func mappedLocalStatus(ctx context.Context, state *state.State, accountID, paren
 
 func blueskyPostURL(handle, uri string) string {
 	rkey := uri[strings.LastIndex(uri, "/")+1:]
-	return "https://bsky.app/profile/" + handle + "/post/" + rkey
+	profile := handle
+	if strings.HasPrefix(uri, "at://did:") {
+		profile = strings.Split(strings.TrimPrefix(uri, "at://"), "/")[0]
+	}
+	return "https://bsky.app/profile/" + profile + "/post/" + rkey
 }
 
 func statusIDOf(status *gtsmodel.Status) string {

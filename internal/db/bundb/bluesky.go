@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/uptrace/bun"
 )
 
 type blueskyDB struct {
-	db *bun.DB
+	db    *bun.DB
+	state *state.State
 }
 
 func getBlueskyModel[T any](ctx context.Context, db *bun.DB, column string, value any) (*T, error) {
@@ -58,6 +60,7 @@ func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID 
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		models := []any{
 			(*gtsmodel.BlueskyDelivery)(nil),
+			(*gtsmodel.BlueskyNotification)(nil),
 			(*gtsmodel.BlueskyPost)(nil),
 			(*gtsmodel.BlueskyInteraction)(nil),
 			(*gtsmodel.BlueskyOAuthState)(nil),
@@ -70,6 +73,31 @@ func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID 
 		}
 		return nil
 	})
+}
+
+func (b *blueskyDB) PutBlueskyNotification(ctx context.Context, notification *gtsmodel.BlueskyNotification) error {
+	_, err := b.db.NewInsert().Model(notification).On("CONFLICT (account_id, uri) DO NOTHING").Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) GetDueBlueskyNotifications(ctx context.Context, accountID string, before time.Time, limit int) ([]*gtsmodel.BlueskyNotification, error) {
+	notifications := make([]*gtsmodel.BlueskyNotification, 0, limit)
+	err := b.db.NewSelect().Model(&notifications).
+		Where("account_id = ?", accountID).
+		Where("dead_letter = ?", false).
+		Where("next_attempt_at <= ?", before).
+		Order("created_at ASC").Limit(limit).Scan(ctx)
+	return notifications, err
+}
+
+func (b *blueskyDB) UpdateBlueskyNotification(ctx context.Context, notification *gtsmodel.BlueskyNotification, columns ...string) error {
+	_, err := b.db.NewUpdate().Model(notification).Column(columns...).WherePK().Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) DeleteBlueskyNotification(ctx context.Context, id string) error {
+	_, err := b.db.NewDelete().Model((*gtsmodel.BlueskyNotification)(nil)).Where("id = ?", id).Exec(ctx)
+	return err
 }
 
 func (b *blueskyDB) GetBlueskyOAuthState(ctx context.Context, state string) (*gtsmodel.BlueskyOAuthState, error) {
@@ -173,6 +201,29 @@ func (b *blueskyDB) GetBlueskyInteractionByURI(ctx context.Context, uri string) 
 
 func (b *blueskyDB) PutBlueskyInteraction(ctx context.Context, interaction *gtsmodel.BlueskyInteraction) error {
 	_, err := b.db.NewInsert().Model(interaction).Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) PutBlueskyInteractionStatus(ctx context.Context, status *gtsmodel.Status, mention *gtsmodel.Mention, interaction *gtsmodel.BlueskyInteraction) error {
+	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if status.ThreadID == "" && status.InReplyToID != "" {
+			if err := tx.NewSelect().Table("statuses").Column("thread_id").Where("id = ?", status.InReplyToID).Scan(ctx, &status.ThreadID); err != nil {
+				return err
+			}
+		}
+		if err := insertStatus(ctx, tx, status); err != nil {
+			return err
+		}
+		if _, err := tx.NewInsert().Model(mention).Exec(ctx); err != nil {
+			return err
+		}
+		_, err := tx.NewInsert().Model(interaction).Exec(ctx)
+		return err
+	})
+	if err == nil {
+		b.state.Caches.DB.Status.InvalidateIDs("ID", []string{status.ID})
+		b.state.Caches.DB.Mention.InvalidateIDs("ID", []string{mention.ID})
+	}
 	return err
 }
 

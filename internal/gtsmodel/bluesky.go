@@ -51,6 +51,23 @@ type BlueskyOAuthState struct {
 	EncryptedData []byte    `bun:",nullzero,notnull"`
 }
 
+// BlueskyNotification is a durable inbox item. Persisting the complete payload
+// before advancing the remote watermark prevents pagination volume or one bad
+// record from dropping later notifications.
+type BlueskyNotification struct {
+	bun.BaseModel `bun:"table:bluesky_notifications"`
+	ID            string    `bun:"type:CHAR(26),pk,nullzero,notnull,unique"`
+	CreatedAt     time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	AccountID     string    `bun:"type:CHAR(26),nullzero,notnull"`
+	URI           string    `bun:",nullzero,notnull"`
+	Payload       []byte    `bun:",nullzero,notnull"`
+	Attempts      int       `bun:",notnull,default:0"`
+	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	LastError     string    `bun:",nullzero"`
+	DeadLetter    bool      `bun:",notnull,default:false"`
+}
+
 // BlueskyPost stores the exact Bluesky counterpart of a local status.
 type BlueskyPost struct {
 	bun.BaseModel `bun:"table:bluesky_posts"`

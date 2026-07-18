@@ -185,7 +185,7 @@ func NewBunDBService(ctx context.Context, state *state.State) (db.DB, error) {
 			db: db,
 		},
 		Bluesky: &blueskyDB{
-			db: db,
+			db: db, state: state,
 		},
 		Conversation: &conversationDB{
 			db:    db,

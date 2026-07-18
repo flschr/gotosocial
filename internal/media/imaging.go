@@ -73,6 +73,12 @@ func resizeDownLinear(img image.Image, width, height int) image.Image {
 	return img
 }
 
+// ResizeDownLinear exposes the media pipeline's metadata-free, high-quality
+// downscaler to integrations that must meet a remote image size limit.
+func ResizeDownLinear(img image.Image, width, height int) image.Image {
+	return resizeDownLinear(img, width, height)
+}
+
 // flipH flips the image horizontally (left to right).
 func flipH(img image.Image) image.Image {
 	srcW, srcH := img.Bounds().Dx(), img.Bounds().Dy()
