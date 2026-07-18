@@ -32,7 +32,7 @@ func (b *blueskyDB) GetBlueskyConnectionByAccountID(ctx context.Context, account
 
 func (b *blueskyDB) GetBlueskyConnections(ctx context.Context) ([]*gtsmodel.BlueskyConnection, error) {
 	connections := make([]*gtsmodel.BlueskyConnection, 0)
-	err := b.db.NewSelect().Model(&connections).Scan(ctx)
+	err := b.db.NewSelect().Model(&connections).Where("oauth_session_id IS NOT NULL").Where("oauth_data IS NOT NULL").Scan(ctx)
 	return connections, err
 }
 
@@ -51,6 +51,31 @@ func (b *blueskyDB) DeleteBlueskyConnection(ctx context.Context, id string) erro
 	return err
 }
 
+func (b *blueskyDB) ClaimBlueskyConnection(ctx context.Context, id string, before, claimedUntil time.Time) (bool, error) {
+	result, err := b.db.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).Set("sync_claimed_until = ?", claimedUntil).
+		Where("id = ?", id).Where("sync_claimed_until IS NULL OR sync_claimed_until < ?", before).Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
+func (b *blueskyDB) RenewBlueskyConnectionClaim(ctx context.Context, id string, expected, claimedUntil time.Time) (bool, error) {
+	result, err := b.db.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).Set("sync_claimed_until = ?", claimedUntil).
+		Where("id = ? AND sync_claimed_until = ?", id, expected).Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
+func (b *blueskyDB) ReleaseBlueskyConnectionClaim(ctx context.Context, id string, expected time.Time) error {
+	_, err := b.db.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).Set("sync_claimed_until = NULL").Where("id = ? AND sync_claimed_until = ?", id, expected).Exec(ctx)
+	return err
+}
+
 func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID string) error {
 	return b.deleteBlueskyModels(ctx, accountID, []any{
 		(*gtsmodel.BlueskyDelivery)(nil), (*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyPost)(nil),
@@ -59,9 +84,24 @@ func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID 
 }
 
 func (b *blueskyDB) DeleteBlueskyConnectionDataByAccountID(ctx context.Context, accountID string) error {
-	return b.deleteBlueskyModels(ctx, accountID, []any{
-		(*gtsmodel.BlueskyDelivery)(nil), (*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyInteraction)(nil),
-		(*gtsmodel.BlueskyOAuthState)(nil), (*gtsmodel.BlueskyConnection)(nil),
+	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).
+			Set("oauth_session_id = NULL, oauth_data = NULL, last_sync_error = NULL, last_sync_error_code = NULL, sync_claimed_until = NULL").
+			Where("account_id = ?", accountID).Exec(ctx); err != nil {
+			return err
+		}
+		for _, model := range []any{(*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyInteraction)(nil), (*gtsmodel.BlueskyOAuthState)(nil)} {
+			if _, err := tx.NewDelete().Model(model).Where("account_id = ?", accountID).Exec(ctx); err != nil {
+				return err
+			}
+		}
+		// Cancel never-published work, but retain edits/deletes for statuses with
+		// exact remote mappings so they can resume after reconnect.
+		_, err := tx.NewDelete().Model((*gtsmodel.BlueskyDelivery)(nil)).
+			Where("account_id = ?", accountID).
+			Where("status_id NOT IN (SELECT status_id FROM bluesky_posts WHERE account_id = ?)", accountID).
+			Exec(ctx)
+		return err
 	})
 }
 
@@ -90,21 +130,21 @@ func (b *blueskyDB) GetBlueskyHealth(ctx context.Context, accountID string) (*gt
 	}
 	latest := new(gtsmodel.BlueskyDelivery)
 	if err := b.db.NewSelect().Model(latest).Where("account_id = ? AND last_error IS NOT NULL", accountID).Order("updated_at DESC").Limit(1).Scan(ctx); err == nil {
-		health.LastError, health.LastErrorAt = latest.LastError, latest.UpdatedAt
+		health.LastError, health.LastErrorCode, health.LastErrorAt = latest.LastError, latest.LastErrorCode, latest.UpdatedAt
 	}
 	latestNotification := new(gtsmodel.BlueskyNotification)
 	if err := b.db.NewSelect().Model(latestNotification).Where("account_id = ? AND last_error IS NOT NULL", accountID).Order("updated_at DESC").Limit(1).Scan(ctx); err == nil && latestNotification.UpdatedAt.After(health.LastErrorAt) {
-		health.LastError, health.LastErrorAt = latestNotification.LastError, latestNotification.UpdatedAt
+		health.LastError, health.LastErrorCode, health.LastErrorAt = latestNotification.LastError, latestNotification.LastErrorCode, latestNotification.UpdatedAt
 	}
 	return health, nil
 }
 
 func (b *blueskyDB) RetryBlueskyFailures(ctx context.Context, accountID string, now time.Time) error {
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.NewUpdate().Model((*gtsmodel.BlueskyDelivery)(nil)).Set("attempts = 0, next_attempt_at = ?, claimed_until = NULL, last_error = NULL, dead_letter = ?", now, false).Where("account_id = ?", accountID).Exec(ctx); err != nil {
+		if _, err := tx.NewUpdate().Model((*gtsmodel.BlueskyDelivery)(nil)).Set("attempts = 0, next_attempt_at = ?, claimed_until = NULL, last_error = NULL, last_error_code = NULL, dead_letter = ?", now, false).Where("account_id = ?", accountID).Exec(ctx); err != nil {
 			return err
 		}
-		_, err := tx.NewUpdate().Model((*gtsmodel.BlueskyNotification)(nil)).Set("attempts = 0, next_attempt_at = ?, last_error = NULL, dead_letter = ?", now, false).Where("account_id = ?", accountID).Exec(ctx)
+		_, err := tx.NewUpdate().Model((*gtsmodel.BlueskyNotification)(nil)).Set("attempts = 0, next_attempt_at = ?, last_error = NULL, last_error_code = NULL, dead_letter = ?", now, false).Where("account_id = ?", accountID).Exec(ctx)
 		return err
 	})
 }

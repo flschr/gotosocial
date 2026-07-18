@@ -24,6 +24,8 @@ type BlueskyConnection struct {
 	NotificationsSeenAt time.Time `bun:"type:timestamptz,nullzero"`
 	LastSyncAt          time.Time `bun:"type:timestamptz,nullzero"`
 	LastSyncError       string    `bun:",nullzero"`
+	LastSyncErrorCode   string    `bun:",nullzero"`
+	SyncClaimedUntil    time.Time `bun:"type:timestamptz,nullzero"`
 	CrosspostPublic     bool      `bun:",notnull,default:false"`
 	ShowProfileFollow   bool      `bun:",notnull,default:true"`
 }
@@ -40,6 +42,7 @@ type BlueskyDelivery struct {
 	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
 	ClaimedUntil  time.Time `bun:"type:timestamptz,nullzero"`
 	LastError     string    `bun:",nullzero"`
+	LastErrorCode string    `bun:",nullzero"`
 	DeadLetter    bool      `bun:",notnull,default:false"`
 }
 
@@ -63,6 +66,7 @@ type BlueskyNotification struct {
 	Attempts      int       `bun:",notnull,default:0"`
 	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
 	LastError     string    `bun:",nullzero"`
+	LastErrorCode string    `bun:",nullzero"`
 	DeadLetter    bool      `bun:",notnull,default:false"`
 }
 

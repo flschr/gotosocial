@@ -48,6 +48,10 @@ const extended = gtsApi.injectEndpoints({
 			query: () => ({ method: "DELETE", url: "/api/v1/user/bluesky" }),
 			invalidatesTags: ["Auth"],
 		}),
+		forgetBluesky: build.mutation<void, void>({
+			query: () => ({ method: "DELETE", url: "/api/v1/user/bluesky?forget=true" }),
+			invalidatesTags: ["Auth"],
+		}),
 		retryBluesky: build.mutation<void, void>({
 			query: () => ({ method: "POST", url: "/api/v1/user/bluesky/retry" }),
 			invalidatesTags: ["Auth"],
@@ -60,5 +64,6 @@ export const {
 	useUpdateBlueskySettingsMutation,
 	useConnectBlueskyMutation,
 	useDisconnectBlueskyMutation,
+	useForgetBlueskyMutation,
 	useRetryBlueskyMutation,
 } = extended;

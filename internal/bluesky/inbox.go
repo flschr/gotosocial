@@ -41,9 +41,10 @@ func processNotificationInbox(ctx context.Context, state *state.State, connectio
 			}
 			item.Attempts++
 			item.LastError, item.UpdatedAt = truncateUTF8(err.Error(), 1000, 4000), time.Now()
+			item.LastErrorCode = errorCode(err)
 			item.DeadLetter = item.Attempts >= 10
 			item.NextAttemptAt = time.Now().Add(retryDelay(item.Attempts))
-			if updateErr := state.DB.UpdateBlueskyNotification(ctx, item, "attempts", "last_error", "updated_at", "dead_letter", "next_attempt_at"); updateErr != nil {
+			if updateErr := state.DB.UpdateBlueskyNotification(ctx, item, "attempts", "last_error", "last_error_code", "updated_at", "dead_letter", "next_attempt_at"); updateErr != nil {
 				processingErrors = append(processingErrors, updateErr)
 			} else {
 				processingErrors = append(processingErrors, fmt.Errorf("notification %s: %w", item.URI, err))
@@ -58,7 +59,7 @@ func processNotificationInbox(ctx context.Context, state *state.State, connectio
 func authenticatedClient(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (*atclient.APIClient, error) {
 	app, _, err := NewOAuthClient(state, connection.AccountID)
 	if err != nil {
-		return nil, err
+		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
 	}
 	did, err := syntax.ParseDID(connection.DID)
 	if err != nil {
@@ -66,7 +67,7 @@ func authenticatedClient(ctx context.Context, state *state.State, connection *gt
 	}
 	session, err := app.ResumeSession(ctx, did, connection.OAuthSessionID)
 	if err != nil {
-		return nil, fmt.Errorf("resume Bluesky OAuth session: %w", err)
+		return nil, &ConnectionError{Code: ErrorCodeAuth, Err: fmt.Errorf("resume OAuth session: %w", err)}
 	}
 	client := newATClient(state, connection.PDSURL)
 	client.Auth, client.AccountDID = session, &did

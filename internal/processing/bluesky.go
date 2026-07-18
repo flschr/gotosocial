@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"strings"
 	"time"
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
@@ -38,10 +37,12 @@ func (p *Processor) BlueskyClientMetadata() (*oauth.ClientMetadata, error) {
 }
 
 func (p *Processor) BlueskyConnectStart(ctx context.Context, accountID, identifier string) (*apimodel.BlueskyConnectResponse, gtserror.WithCode) {
-	if _, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID); err == nil {
+	if connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID); err == nil && connection.Active() {
 		return nil, gtserror.NewErrorConflict(errors.New("Bluesky account already connected"))
 	} else if !errors.Is(err, db.ErrNoEntries) {
-		return nil, gtserror.NewErrorInternalError(err)
+		if err != nil {
+			return nil, gtserror.NewErrorInternalError(err)
+		}
 	}
 	app, _, err := p.blueskyOAuthApp(accountID)
 	if err != nil {
@@ -71,11 +72,24 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 	}
 	session, err := app.ProcessCallback(ctx, params)
 	if err != nil {
+		if errors.Is(err, bluesky.ErrIdentityMismatch) {
+			return "", gtserror.NewErrorConflict(err, "Reconnect the previously linked Bluesky account before switching identities")
+		}
 		return "", gtserror.NewErrorBadRequest(err, "Bluesky authorization failed")
 	}
 	identity, err := app.Dir.LookupDID(ctx, session.AccountDID)
 	if err != nil {
 		return "", gtserror.NewErrorUnprocessableEntity(err, "could not resolve the connected Bluesky identity")
+	}
+
+	existing, existingErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, storedState.AccountID)
+	if existingErr == nil && !sameBlueskyIdentity(existing, session.AccountDID.String()) {
+		_ = app.Logout(ctx, session.AccountDID, session.SessionID)
+		_ = store.DeleteSession(ctx, session.AccountDID, session.SessionID)
+		return "", gtserror.NewErrorConflict(errors.New("different Bluesky identity"), "Reconnect the previously linked Bluesky account before switching identities")
+	}
+	if existingErr != nil && !errors.Is(existingErr, db.ErrNoEntries) {
+		return "", gtserror.NewErrorInternalError(existingErr)
 	}
 
 	connection := &gtsmodel.BlueskyConnection{
@@ -88,16 +102,31 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 		CrosspostPublic:     false,
 		ShowProfileFollow:   true,
 	}
-	if err := p.state.DB.PutBlueskyConnection(ctx, connection); err != nil {
-		return "", gtserror.NewErrorInternalError(err)
+	if existingErr == nil {
+		connection = existing
+		connection.Handle = identity.Handle.String()
+		connection.PDSURL = session.HostURL
+		if err := p.state.DB.UpdateBlueskyConnection(ctx, connection, "handle", "pds_url"); err != nil {
+			return "", gtserror.NewErrorInternalError(err)
+		}
+	} else {
+		if err := p.state.DB.PutBlueskyConnection(ctx, connection); err != nil {
+			return "", gtserror.NewErrorInternalError(err)
+		}
 	}
 	if err := store.SaveSession(ctx, *session); err != nil {
-		_ = p.state.DB.DeleteBlueskyConnection(ctx, connection.ID)
+		if existingErr != nil {
+			_ = p.state.DB.DeleteBlueskyConnection(ctx, connection.ID)
+		}
 		return "", gtserror.NewErrorInternalError(err)
 	}
 
 	baseURL, _, _ := bluesky.OAuthURLs()
 	return baseURL + "/settings/user/bluesky?connected=true", nil
+}
+
+func sameBlueskyIdentity(connection *gtsmodel.BlueskyConnection, did string) bool {
+	return connection != nil && connection.DID == did
 }
 
 func (p *Processor) BlueskyDisconnect(ctx context.Context, accountID string) gtserror.WithCode {
@@ -107,10 +136,24 @@ func (p *Processor) BlueskyDisconnect(ctx context.Context, accountID string) gts
 	return nil
 }
 
+func (p *Processor) BlueskyForget(ctx context.Context, accountID string) gtserror.WithCode {
+	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
+	if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		return gtserror.NewErrorInternalError(err)
+	}
+	if err == nil && connection.Active() {
+		return gtserror.NewErrorConflict(errors.New("Bluesky account is connected"), "disconnect Bluesky before forgetting the saved account")
+	}
+	if err := bluesky.Forget(ctx, p.state, accountID); err != nil {
+		return gtserror.NewErrorInternalError(err)
+	}
+	return nil
+}
+
 func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) (*apimodel.BlueskyConnection, gtserror.WithCode) {
 	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
 	if errors.Is(err, db.ErrNoEntries) {
-		return &apimodel.BlueskyConnection{Configured: config.GetBlueskyOAuthEncryptionKey() != ""}, nil
+		return &apimodel.BlueskyConnection{Configured: config.GetBlueskyOAuthEncryptionKey() != "", Status: "disconnected"}, nil
 	}
 	if err != nil {
 		return nil, gtserror.NewErrorInternalError(err)
@@ -122,11 +165,12 @@ func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) 
 	}
 	if health.LastError == "" && connection.LastSyncError != "" {
 		health.LastError = connection.LastSyncError
+		health.LastErrorCode = connection.LastSyncErrorCode
 		health.LastErrorAt = connection.LastSyncAt
 	}
 	status, statusMessage, needsReconnect := blueskyConnectionStatus(connection, health, config.GetBlueskyOAuthEncryptionKey() != "")
 	return &apimodel.BlueskyConnection{
-		Connected:         true,
+		Connected:         connection.Active(),
 		Configured:        config.GetBlueskyOAuthEncryptionKey() != "",
 		Status:            status,
 		StatusMessage:     statusMessage,
@@ -147,16 +191,14 @@ func blueskyConnectionStatus(connection *gtsmodel.BlueskyConnection, health *gts
 	if !configured {
 		return "action_required", "Bluesky is unavailable because this server is missing its connection key. Contact the server administrator.", false
 	}
-	errorText := strings.ToLower(health.LastError)
-	authFailure := strings.Contains(errorText, "oauth") ||
-		strings.Contains(errorText, "refresh") ||
-		strings.Contains(errorText, "session") ||
-		strings.Contains(errorText, "invalid_grant") ||
-		strings.Contains(errorText, "unauthorized") ||
-		strings.Contains(errorText, "decrypt bluesky") ||
-		strings.Contains(errorText, "401")
-	if authFailure {
+	if !connection.Active() {
+		return "disconnected", "Bluesky is disconnected. Reconnect the saved account to resume syncing.", true
+	}
+	if health.LastErrorCode == bluesky.ErrorCodeAuth {
 		return "action_required", "Bluesky authorization is no longer valid. Disconnect and reconnect the account to resume syncing.", true
+	}
+	if health.LastErrorCode == bluesky.ErrorCodeConfiguration {
+		return "action_required", "Bluesky credentials cannot be read with the server's current connection key. Contact the server administrator.", false
 	}
 	if health.DeadDeliveries+health.DeadNotifications > 0 {
 		return "error", "Some Bluesky items could not be synced. Try the sync again; reconnect only if the problem continues.", false

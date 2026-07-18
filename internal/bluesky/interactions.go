@@ -91,7 +91,18 @@ func SyncInteractions(ctx context.Context, state *state.State) error {
 				errChannel <- ctx.Err()
 				return
 			}
-			if err := syncConnection(ctx, state, connection); err != nil {
+			now := time.Now()
+			claimedUntil := now.Add(2 * time.Minute)
+			claimed, err := state.DB.ClaimBlueskyConnection(ctx, connection.ID, now, claimedUntil)
+			if err != nil {
+				errChannel <- fmt.Errorf("claim %s: %w", connection.Handle, err)
+				return
+			}
+			if !claimed {
+				return
+			}
+			connection.SyncClaimedUntil = claimedUntil
+			if err := syncConnectionWithLease(ctx, state, connection); err != nil {
 				errChannel <- fmt.Errorf("%s: %w", connection.Handle, err)
 			}
 		}(connection)
@@ -105,16 +116,50 @@ func SyncInteractions(ctx context.Context, state *state.State) error {
 	return errors.Join(syncErrors...)
 }
 
+func syncConnectionWithLease(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan time.Time, 1)
+	go func() {
+		expected := connection.SyncClaimedUntil
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		defer func() { done <- expected }()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				next := time.Now().Add(2 * time.Minute)
+				renewed, err := state.DB.RenewBlueskyConnectionClaim(ctx, connection.ID, expected, next)
+				if err != nil || !renewed {
+					cancel()
+					return
+				}
+				expected = next
+			}
+		}
+	}()
+	err := syncConnection(ctx, state, connection)
+	cancel()
+	expected := <-done
+	if releaseErr := state.DB.ReleaseBlueskyConnectionClaim(context.WithoutCancel(ctx), connection.ID, expected); releaseErr != nil && err == nil {
+		err = releaseErr
+	}
+	return err
+}
+
 func syncConnection(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (syncErr error) {
 	defer lockAccount(connection.AccountID)()
 	defer func() {
 		connection.LastSyncAt = time.Now()
 		if syncErr != nil {
 			connection.LastSyncError = truncateUTF8(syncErr.Error(), 1000, 4000)
+			connection.LastSyncErrorCode = errorCode(syncErr)
 		} else {
 			connection.LastSyncError = ""
+			connection.LastSyncErrorCode = ""
 		}
-		if err := state.DB.UpdateBlueskyConnection(ctx, connection, "last_sync_at", "last_sync_error"); err != nil && syncErr == nil {
+		if err := state.DB.UpdateBlueskyConnection(ctx, connection, "last_sync_at", "last_sync_error", "last_sync_error_code"); err != nil && syncErr == nil {
 			syncErr = err
 		}
 	}()

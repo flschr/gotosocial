@@ -24,7 +24,7 @@ export interface BlueskyConnection {
 	crosspost_public: boolean;
 	show_profile_follow: boolean;
 	configured: boolean;
-	status: "healthy" | "syncing" | "error" | "action_required";
+	status: "healthy" | "syncing" | "error" | "action_required" | "disconnected";
 	status_message?: string;
 	needs_reconnect: boolean;
 	pending_deliveries: number;

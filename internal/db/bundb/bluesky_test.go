@@ -36,7 +36,6 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 		ShowProfileFollow: true,
 	}
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
-
 	storedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
 	suite.False(storedConnection.CrosspostPublic)
@@ -125,6 +124,13 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	suite.Require().NoError(err)
 	suite.Require().Len(due, 1)
 	suite.Equal(status.ID, due[0].StatusID)
+	renewedUntil := now.Add(10 * time.Minute)
+	renewed, err := suite.db.RenewBlueskyDeliveryClaim(ctx, due[0].ID, due[0].ClaimedUntil, renewedUntil)
+	suite.Require().NoError(err)
+	suite.True(renewed)
+	renewed, err = suite.db.RenewBlueskyDeliveryClaim(ctx, due[0].ID, due[0].ClaimedUntil, renewedUntil.Add(time.Minute))
+	suite.Require().NoError(err)
+	suite.False(renewed)
 	claimedAgain, err := suite.db.ClaimDueBlueskyDeliveries(ctx, now, now.Add(5*time.Minute), 10)
 	suite.Require().NoError(err)
 	suite.Empty(claimedAgain)
@@ -146,8 +152,24 @@ func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndRese
 	connection := &gtsmodel.BlueskyConnection{
 		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:preserve",
 		Handle: "preserve.test", PDSURL: "https://pds.example.test",
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"),
+		NotificationsSeenAt: time.Now().Add(-time.Hour), CrosspostPublic: true, ShowProfileFollow: false,
 	}
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	connection.ShowProfileFollow = false
+	suite.Require().NoError(suite.db.UpdateBlueskyConnection(ctx, connection, "show_profile_follow"))
+	claimUntil := time.Now().Add(2 * time.Minute)
+	claimed, err := suite.db.ClaimBlueskyConnection(ctx, connection.ID, time.Now(), claimUntil)
+	suite.Require().NoError(err)
+	suite.True(claimed)
+	claimed, err = suite.db.ClaimBlueskyConnection(ctx, connection.ID, time.Now(), claimUntil)
+	suite.Require().NoError(err)
+	suite.False(claimed)
+	renewedClaim := claimUntil.Add(time.Minute)
+	renewed, err := suite.db.RenewBlueskyConnectionClaim(ctx, connection.ID, claimUntil, renewedClaim)
+	suite.Require().NoError(err)
+	suite.True(renewed)
+	suite.Require().NoError(suite.db.ReleaseBlueskyConnectionClaim(ctx, connection.ID, renewedClaim))
 	post := &gtsmodel.BlueskyPost{
 		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: account.ID, StatusID: status.ID,
 		URI: "at://did:plc:preserve/app.bsky.feed.post/root", CID: "root-cid",
@@ -176,14 +198,27 @@ func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndRese
 	queued, err = bluesky.QueueDelete(ctx, &suite.state, account.ID, delivery.StatusID)
 	suite.Require().NoError(err)
 	suite.Equal("delete", queued.Action)
+	mappedDelivery := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: account.ID, StatusID: status.ID,
+		Action: "upsert", NextAttemptAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, mappedDelivery))
 
 	suite.Require().NoError(suite.db.DeleteBlueskyConnectionDataByAccountID(ctx, account.ID))
-	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
-	suite.Error(err)
+	preservedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.False(preservedConnection.Active())
+	suite.Equal(connection.NotificationsSeenAt.Unix(), preservedConnection.NotificationsSeenAt.Unix())
+	suite.True(preservedConnection.CrosspostPublic)
+	suite.False(preservedConnection.ShowProfileFollow)
 	preserved, err := suite.db.GetBlueskyPostByStatusID(ctx, status.ID)
 	suite.Require().NoError(err)
 	suite.Equal(post.URI, preserved.URI)
 	suite.Equal(post.ParentURI, preserved.ParentURI)
+	_, err = suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	_, err = suite.db.GetBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+	suite.Error(err)
 }
 
 func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
@@ -212,6 +247,15 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	}
 	suite.Require().NoError(store.SaveSession(ctx, session))
 	storedSession, err := store.GetSession(ctx, did, session.SessionID)
+	suite.Require().NoError(err)
+	suite.Equal(session.RefreshToken, storedSession.RefreshToken)
+	otherDID, err := syntax.ParseDID("did:plc:differentoauthidentity")
+	suite.Require().NoError(err)
+	wrongSession := session
+	wrongSession.AccountDID = otherDID
+	wrongSession.SessionID = "wrong-session"
+	suite.ErrorIs(store.SaveSession(ctx, wrongSession), bluesky.ErrIdentityMismatch)
+	storedSession, err = store.GetSession(ctx, did, session.SessionID)
 	suite.Require().NoError(err)
 	suite.Equal(session.RefreshToken, storedSession.RefreshToken)
 

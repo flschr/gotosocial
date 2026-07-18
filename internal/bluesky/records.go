@@ -41,7 +41,7 @@ func DeleteStatus(ctx context.Context, state *state.State, statusID string) erro
 	if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.threadgate", rkey, true); err != nil {
 		return fmt.Errorf("delete Bluesky threadgate: %w", err)
 	}
-	if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.post", rkey, false); err != nil {
+	if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.post", rkey, true); err != nil {
 		return fmt.Errorf("delete Bluesky post: %w", err)
 	}
 	if err := state.DB.DeleteBlueskyPost(ctx, post.ID); err != nil {

@@ -70,7 +70,11 @@ func (m *Module) BlueskyConnectPOSTHandler(c *gin.Context) {
 func (m *Module) BlueskyCallbackGETHandler(c *gin.Context) {
 	redirectURL, errWithCode := m.processor.BlueskyConnectCallback(c.Request.Context(), c.Request.URL.Query())
 	if errWithCode != nil {
-		c.Redirect(http.StatusFound, "/settings/user/bluesky?error=connection_failed")
+		errorCode := "connection_failed"
+		if errWithCode.Code() == http.StatusConflict {
+			errorCode = "wrong_account"
+		}
+		c.Redirect(http.StatusFound, "/settings/user/bluesky?error="+errorCode)
 		return
 	}
 	c.Redirect(http.StatusFound, redirectURL)
@@ -104,8 +108,14 @@ func (m *Module) BlueskyDELETEHandler(c *gin.Context) {
 		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
 		return
 	}
-	if errWithCode := m.processor.BlueskyDisconnect(c.Request.Context(), authed.Account.ID); errWithCode != nil {
-		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+	var actionErr gtserror.WithCode
+	if c.Query("forget") == "true" {
+		actionErr = m.processor.BlueskyForget(c.Request.Context(), authed.Account.ID)
+	} else {
+		actionErr = m.processor.BlueskyDisconnect(c.Request.Context(), authed.Account.ID)
+	}
+	if actionErr != nil {
+		apiutil.ErrorHandler(c, actionErr, m.processor.InstanceGetV1)
 		return
 	}
 	c.Status(http.StatusNoContent)

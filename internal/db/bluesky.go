@@ -18,6 +18,9 @@ type Bluesky interface {
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	DeleteBlueskyConnection(context.Context, string) error
+	ClaimBlueskyConnection(context.Context, string, time.Time, time.Time) (bool, error)
+	RenewBlueskyConnectionClaim(context.Context, string, time.Time, time.Time) (bool, error)
+	ReleaseBlueskyConnectionClaim(context.Context, string, time.Time) error
 	DeleteBlueskyDataByAccountID(context.Context, string) error
 	DeleteBlueskyConnectionDataByAccountID(context.Context, string) error
 	GetBlueskyHealth(context.Context, string) (*gtsmodel.BlueskyHealth, error)
@@ -32,6 +35,7 @@ type Bluesky interface {
 	DeleteBlueskyNotification(context.Context, string) error
 
 	ClaimDueBlueskyDeliveries(context.Context, time.Time, time.Time, int) ([]*gtsmodel.BlueskyDelivery, error)
+	RenewBlueskyDeliveryClaim(context.Context, string, time.Time, time.Time) (bool, error)
 	GetBlueskyDeliveryByStatusID(context.Context, string) (*gtsmodel.BlueskyDelivery, error)
 	PutBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery) error
 	UpdateBlueskyDelivery(context.Context, *gtsmodel.BlueskyDelivery, ...string) error

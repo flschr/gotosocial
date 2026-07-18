@@ -78,6 +78,16 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 	return errors.Join(proxyErr, state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID))
 }
 
+// Forget removes a disconnected account binding and all retained mappings.
+// It intentionally leaves previously published records on Bluesky untouched.
+func Forget(ctx context.Context, state *state.State, accountID string) error {
+	defer lockAccount(accountID)()
+	return errors.Join(
+		queueProxyStatusDeletes(ctx, state, accountID),
+		state.DB.DeleteBlueskyDataByAccountID(ctx, accountID),
+	)
+}
+
 // DeleteAccount removes crossposts created by GoToSocial before revoking and
 // erasing the connection. Local credential cleanup still happens if a remote
 // record cannot be removed.
@@ -103,7 +113,7 @@ func DeleteAccount(ctx context.Context, state *state.State, accountID string) er
 			if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.threadgate", rkey, true); err != nil {
 				remoteErrors = append(remoteErrors, fmt.Errorf("delete threadgate for %s: %w", post.URI, err))
 			}
-			if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.post", rkey, false); err != nil {
+			if err := deleteATRecord(ctx, client, connection.DID, "app.bsky.feed.post", rkey, true); err != nil {
 				remoteErrors = append(remoteErrors, fmt.Errorf("delete %s: %w", post.URI, err))
 			}
 		}

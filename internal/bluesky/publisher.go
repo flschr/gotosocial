@@ -53,6 +53,7 @@ type uploadBlobResponse struct {
 
 func EligibleForCrosspost(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection) bool {
 	return connection != nil &&
+		connection.Active() &&
 		connection.CrosspostPublic &&
 		status.Visibility == gtsmodel.VisibilityPublic &&
 		!status.LocalOnly() &&
@@ -90,22 +91,10 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 		return fmt.Errorf("populate status for Bluesky: %w", err)
 	}
 
-	app, _, err := NewOAuthClient(state, status.AccountID)
+	client, err := authenticatedClient(ctx, state, connection)
 	if err != nil {
 		return err
 	}
-	did, err := syntax.ParseDID(connection.DID)
-	if err != nil {
-		return err
-	}
-	session, err := app.ResumeSession(ctx, did, connection.OAuthSessionID)
-	if err != nil {
-		return fmt.Errorf("resume Bluesky OAuth session: %w", err)
-	}
-	client := newATClient(state, connection.PDSURL)
-	client.Auth = session
-	client.AccountDID = &did
-	client.Headers.Set("User-Agent", "GoToSocial Plus")
 
 	postText, facets := blueskyTextForStatus(status, interaction != nil)
 	record := map[string]any{

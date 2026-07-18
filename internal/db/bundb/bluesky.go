@@ -87,6 +87,16 @@ func (b *blueskyDB) ClaimDueBlueskyDeliveries(ctx context.Context, before, claim
 	return deliveries, err
 }
 
+func (b *blueskyDB) RenewBlueskyDeliveryClaim(ctx context.Context, id string, expected, claimedUntil time.Time) (bool, error) {
+	result, err := b.db.NewUpdate().Model((*gtsmodel.BlueskyDelivery)(nil)).Set("claimed_until = ?", claimedUntil).
+		Where("id = ? AND claimed_until = ?", id, expected).Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
 func (b *blueskyDB) GetBlueskyDeliveryByStatusID(ctx context.Context, statusID string) (*gtsmodel.BlueskyDelivery, error) {
 	return getBlueskyModel[gtsmodel.BlueskyDelivery](ctx, b.db, "status_id", statusID)
 }

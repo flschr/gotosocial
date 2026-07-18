@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"code.superseriousbusiness.org/gopkg/log"
+	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 )
@@ -41,7 +42,7 @@ func processDueDeliveries(ctx context.Context, state *state.State, converter *ty
 	// Claim immediately before processing so leases cannot expire while jobs
 	// wait behind a large batch of media uploads.
 	for processed := 0; processed < 100; processed++ {
-		deliveries, err := state.DB.ClaimDueBlueskyDeliveries(ctx, now, time.Now().Add(5*time.Minute), 1)
+		deliveries, err := state.DB.ClaimDueBlueskyDeliveries(ctx, now, time.Now().Add(2*time.Minute), 1)
 		if err != nil {
 			log.Errorf(ctx, "error loading queued Bluesky deliveries: %v", err)
 			break
@@ -50,11 +51,41 @@ func processDueDeliveries(ctx context.Context, state *state.State, converter *ty
 			break
 		}
 		delivery := deliveries[0]
-		if err := ProcessDelivery(ctx, state, converter, delivery); err != nil {
+		if err := processDeliveryWithLease(ctx, state, converter, delivery); err != nil {
 			log.Errorf(ctx, "error retrying Bluesky delivery for status %s: %v", delivery.StatusID, err)
 		}
 	}
 	if err := state.DB.DeleteExpiredBlueskyOAuthStates(ctx, now.Add(-15*time.Minute)); err != nil {
 		log.Errorf(ctx, "error deleting expired Bluesky OAuth states: %v", err)
 	}
+}
+
+func processDeliveryWithLease(ctx context.Context, state *state.State, converter *typeutils.Converter, delivery *gtsmodel.BlueskyDelivery) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan struct{})
+	defer func() { <-done }()
+	go func() {
+		defer close(done)
+		expected := delivery.ClaimedUntil
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				next := time.Now().Add(2 * time.Minute)
+				renewed, err := state.DB.RenewBlueskyDeliveryClaim(ctx, delivery.ID, expected, next)
+				if err != nil || !renewed {
+					cancel()
+					return
+				}
+				expected = next
+			}
+		}
+	}()
+	err := ProcessDelivery(ctx, state, converter, delivery)
+	cancel()
+	return err
 }

@@ -50,3 +50,10 @@ provider. Existing post mappings remain available so historical relationships
 are not guessed from post text or URLs. After reconnecting the same Bluesky
 account, edits and deletions can therefore continue to target their exact
 remote records.
+
+A disconnected account remains bound to the same Bluesky DID. Reconnecting
+with a different Bluesky identity is rejected to prevent retained mappings
+from editing the wrong account. Users who intentionally want to switch can
+choose **Forget saved Bluesky account** after disconnecting. Forgetting removes
+the binding and all retained mappings; already published Bluesky posts remain
+online and can no longer be managed by GoToSocial.

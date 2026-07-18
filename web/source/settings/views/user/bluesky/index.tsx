@@ -29,6 +29,7 @@ import {
 	useBlueskyConnectionQuery,
 	useConnectBlueskyMutation,
 	useDisconnectBlueskyMutation,
+	useForgetBlueskyMutation,
 	useRetryBlueskyMutation,
 	useUpdateBlueskySettingsMutation,
 } from "../../../lib/query/user/bluesky";
@@ -52,8 +53,10 @@ export default function BlueskySettings() {
 function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) {
 	const [identifier, setIdentifier] = useState("");
 	const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+	const [confirmForget, setConfirmForget] = useState(false);
 	const [connect, connectResult] = useConnectBlueskyMutation();
 	const [disconnect, disconnectResult] = useDisconnectBlueskyMutation();
+	const [forget, forgetResult] = useForgetBlueskyMutation();
 	const [retry, retryResult] = useRetryBlueskyMutation();
 	const form = {
 		crosspostPublic: useBoolInput("crosspost_public", { source: connection }),
@@ -61,9 +64,10 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 	};
 	const [submitForm, result] = useFormSubmit(form, useUpdateBlueskySettingsMutation());
 	const startConnection = async () => {
-		const response = await connect({ identifier }).unwrap();
+		const response = await connect({ identifier: identifier || connection.handle || "" }).unwrap();
 		window.location.assign(response.authorization_url);
 	};
+	const callbackError = new URLSearchParams(window.location.search).get("error");
 
 	return (
 		<form className="bluesky-settings" onSubmit={submitForm}>
@@ -73,8 +77,11 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 			</div>
 			{connectResult.isError && <ErrorC error={connectResult.error} />}
 			{disconnectResult.isError && <ErrorC error={disconnectResult.error} />}
+			{forgetResult.isError && <ErrorC error={forgetResult.error} />}
 			{retryResult.isError && <ErrorC error={retryResult.error} />}
-			{new URLSearchParams(window.location.search).has("error") && <ErrorC error={new Error("Bluesky could not be connected. Please try again.")} />}
+			{callbackError && <ErrorC error={new Error(callbackError === "wrong_account"
+				? `This GoToSocial account is linked to @${connection.handle}. Sign in to that same Bluesky account, or forget the saved account first.`
+				: "Bluesky could not be connected. Please try again.")} />}
 			{connection.connected ? <>
 				<div className="info">
 					Connected as <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>
@@ -98,14 +105,21 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				</div> :
 					<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={() => setConfirmDisconnect(true)}>Disconnect Bluesky account</button>}
 			</> : <>
-				<div className="info">No Bluesky account is connected yet.</div>
-				<label>
+				<div className="info">{connection.handle
+					? <>Bluesky is disconnected. The saved account is <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>.</>
+					: <>No Bluesky account is connected yet.</>}</div>
+				{!connection.handle && <label>
 					Bluesky handle
 					<input value={identifier} placeholder="your-handle.bsky.social" onChange={(event) => setIdentifier(event.target.value)} />
-				</label>
-				<button type="button" disabled={!connection.configured || !identifier || connectResult.isLoading} onClick={() => void startConnection()}>Connect Bluesky account</button>
+				</label>}
+				<button type="button" disabled={!connection.configured || (!identifier && !connection.handle) || connectResult.isLoading} onClick={() => void startConnection()}>{connection.handle ? "Reconnect saved Bluesky account" : "Connect Bluesky account"}</button>
 				{!connection.configured && <small>Bluesky connections are not configured by this server administrator.</small>}
 				<small>You will be redirected to your Bluesky provider to approve access. Your password is never shared with GoToSocial.</small>
+				{connection.handle && (confirmForget ? <div className="info">
+					<p>Forget this saved account and all post mappings? Existing posts will stay on Bluesky, but GoToSocial will no longer be able to edit or delete them.</p>
+					<button type="button" className="button danger" disabled={forgetResult.isLoading} onClick={() => void forget()}>Yes, forget saved account</button>
+					<button type="button" disabled={forgetResult.isLoading} onClick={() => setConfirmForget(false)}>Cancel</button>
+				</div> : <button type="button" className="button danger" disabled={forgetResult.isLoading} onClick={() => setConfirmForget(true)}>Forget saved Bluesky account</button>)}
 			</>}
 		</form>
 	);

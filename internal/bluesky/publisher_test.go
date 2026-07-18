@@ -6,6 +6,8 @@ package bluesky
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -41,6 +43,25 @@ func TestSyncThreadgateUsesPDSRecord(t *testing.T) {
 	status := &gtsmodel.Status{ID: "status", CreatedAt: time.Now(), InteractionPolicy: &gtsmodel.InteractionPolicy{CanReply: &gtsmodel.PolicyRules{}}}
 	require.NoError(t, syncThreadgate(t.Context(), client, "did:plc:test", status, "at://did:plc:test/app.bsky.feed.post/status", false))
 	require.Equal(t, 1, requestCount)
+}
+
+func TestDeleteATRecordTreatsMissingRecordAsSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "/xrpc/com.atproto.repo.deleteRecord", request.URL.Path)
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusBadRequest)
+		_, _ = response.Write([]byte(`{"error":"RecordNotFound","message":"Record not found"}`))
+	}))
+	defer server.Close()
+	client := atclient.NewAPIClient(server.URL)
+	require.NoError(t, deleteATRecord(t.Context(), client, "did:plc:test", "app.bsky.feed.post", "missing", true))
+	require.Error(t, deleteATRecord(t.Context(), client, "did:plc:test", "app.bsky.feed.post", "missing", false))
+}
+
+func TestConnectionErrorCode(t *testing.T) {
+	err := fmt.Errorf("wrapped: %w", &ConnectionError{Code: ErrorCodeAuth, Err: errors.New("expired")})
+	require.Equal(t, ErrorCodeAuth, errorCode(err))
+	require.Equal(t, ErrorCodeRemote, errorCode(errors.New("timeout")))
 }
 
 func TestPrepareBlueskyImageReencodesAndResizes(t *testing.T) {
@@ -133,7 +154,7 @@ func TestRenderBlueskyRecordFacets(t *testing.T) {
 }
 
 func TestEligibleForCrosspost(t *testing.T) {
-	connection := &gtsmodel.BlueskyConnection{CrosspostPublic: true}
+	connection := &gtsmodel.BlueskyConnection{CrosspostPublic: true, OAuthSessionID: "session", OAuthData: []byte("encrypted")}
 	status := &gtsmodel.Status{Visibility: gtsmodel.VisibilityPublic}
 	status.Flags.SetFederated(true)
 	require.True(t, EligibleForCrosspost(status, connection))

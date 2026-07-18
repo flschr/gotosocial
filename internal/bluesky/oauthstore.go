@@ -17,6 +17,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+var ErrIdentityMismatch = errors.New("Bluesky identity does not match saved account")
+
 type OAuthStore struct {
 	db        db.DB
 	crypter   *Crypter
@@ -59,6 +61,9 @@ func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessio
 	}
 	if err != nil {
 		return err
+	}
+	if connection.DID != session.AccountDID.String() {
+		return ErrIdentityMismatch
 	}
 	encoded, err := json.Marshal(session)
 	if err != nil {

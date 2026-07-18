@@ -33,8 +33,8 @@ func QueueDelete(ctx context.Context, state *state.State, accountID, statusID st
 func queueDelivery(ctx context.Context, state *state.State, accountID, statusID, action string) (*gtsmodel.BlueskyDelivery, error) {
 	if existing, err := state.DB.GetBlueskyDeliveryByStatusID(ctx, statusID); err == nil {
 		existing.Action, existing.Attempts, existing.NextAttemptAt = action, 0, time.Now()
-		existing.ClaimedUntil, existing.LastError, existing.DeadLetter, existing.UpdatedAt = time.Time{}, "", false, time.Now()
-		if err := state.DB.UpdateBlueskyDelivery(ctx, existing, "action", "attempts", "next_attempt_at", "claimed_until", "last_error", "dead_letter", "updated_at"); err != nil {
+		existing.ClaimedUntil, existing.LastError, existing.LastErrorCode, existing.DeadLetter, existing.UpdatedAt = time.Time{}, "", "", false, time.Now()
+		if err := state.DB.UpdateBlueskyDelivery(ctx, existing, "action", "attempts", "next_attempt_at", "claimed_until", "last_error", "last_error_code", "dead_letter", "updated_at"); err != nil {
 			return nil, err
 		}
 		return existing, nil
@@ -75,6 +75,9 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 	}
 	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
 	if errors.Is(err, db.ErrNoEntries) {
+		if _, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); mappingErr == nil {
+			return recordDeliveryFailure(ctx, state, delivery, &ConnectionError{Code: ErrorCodeData, Err: fmt.Errorf("saved Bluesky identity is unavailable: %w", err)})
+		}
 		return state.DB.DeleteBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
 	}
 	if err != nil {
@@ -155,8 +158,9 @@ func recordDeliveryFailure(ctx context.Context, state *state.State, delivery *gt
 	delivery.Attempts++
 	delivery.NextAttemptAt = time.Now().Add(retryDelay(delivery.Attempts))
 	delivery.LastError, delivery.UpdatedAt, delivery.ClaimedUntil = truncateUTF8(cause.Error(), 1000, 4000), time.Now(), time.Time{}
+	delivery.LastErrorCode = errorCode(cause)
 	delivery.DeadLetter = delivery.Attempts >= 10
-	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "updated_at", "claimed_until", "dead_letter"); err != nil {
+	if err := state.DB.UpdateBlueskyDelivery(ctx, delivery, "attempts", "next_attempt_at", "last_error", "last_error_code", "updated_at", "claimed_until", "dead_letter"); err != nil {
 		return fmt.Errorf("record Bluesky delivery failure after %v: %w", cause, err)
 	}
 	return cause
