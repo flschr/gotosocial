@@ -33,6 +33,7 @@ const (
 	TwoFactorQRCodeURIPath = TwoFactorPath + "/qruri"
 	TwoFactorEnablePath    = TwoFactorPath + "/enable"
 	TwoFactorDisablePath   = TwoFactorPath + "/disable"
+	BlueskyPath            = BasePath + "/bluesky"
 )
 
 type Module struct {
@@ -53,4 +54,6 @@ func (m *Module) Route(attachHandler func(method string, path string, f ...gin.H
 	attachHandler(http.MethodGet, TwoFactorQRCodeURIPath, m.TwoFactorQRCodeURIGETHandler)
 	attachHandler(http.MethodPost, TwoFactorEnablePath, m.TwoFactorEnablePOSTHandler)
 	attachHandler(http.MethodPost, TwoFactorDisablePath, m.TwoFactorDisablePOSTHandler)
+	attachHandler(http.MethodGet, BlueskyPath, m.BlueskyGETHandler)
+	attachHandler(http.MethodPatch, BlueskyPath, m.BlueskyPATCHHandler)
 }

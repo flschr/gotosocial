@@ -38,6 +38,7 @@ import RelayPushesOverview from "./relay-pushes";
 import RelayPushNew from "./relay-pushes/new";
 import RelayPushDetail from "./relay-pushes/detail";
 import TokenDetail from "./tokens/detail";
+import BlueskySettings from "./bluesky";
 
 /**
  * - /settings/user/profile
@@ -63,6 +64,7 @@ export default function UserRouter() {
 					<Route path="/profile" component={Profile} />
 					<Route path="/account" component={Account} />
 					<Route path="/posts" component={PostSettings} />
+					<Route path="/bluesky" component={BlueskySettings} />
 					<Route path="/migration" component={Migration} />
 					<Route path="/export-import" component={ExportImport} />
 					<Route path="/instance-info" component={InstanceInfo} />

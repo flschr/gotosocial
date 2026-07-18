@@ -43,6 +43,11 @@ export default function UserMenu() {
 				icon="fa-paper-plane"
 			/>
 			<MenuItem
+				name="Bluesky"
+				itemUrl="bluesky"
+				icon="fa-cloud"
+			/>
+			<MenuItem
 				name="Interaction Requests"
 				itemUrl="interaction_requests"
 				icon="fa-commenting-o"
