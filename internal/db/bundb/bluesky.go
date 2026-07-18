@@ -42,6 +42,20 @@ func (b *blueskyDB) DeleteBlueskyConnection(ctx context.Context, id string) erro
 	return err
 }
 
+func (b *blueskyDB) GetBlueskyOAuthState(ctx context.Context, state string) (*gtsmodel.BlueskyOAuthState, error) {
+	return getBlueskyModel[gtsmodel.BlueskyOAuthState](ctx, b.db, "state", state)
+}
+
+func (b *blueskyDB) PutBlueskyOAuthState(ctx context.Context, state *gtsmodel.BlueskyOAuthState) error {
+	_, err := b.db.NewInsert().Model(state).Exec(ctx)
+	return err
+}
+
+func (b *blueskyDB) DeleteBlueskyOAuthState(ctx context.Context, state string) error {
+	_, err := b.db.NewDelete().Model((*gtsmodel.BlueskyOAuthState)(nil)).Where("? = ?", bun.Ident("state"), state).Exec(ctx)
+	return err
+}
+
 func (b *blueskyDB) GetBlueskyPostByStatusID(ctx context.Context, statusID string) (*gtsmodel.BlueskyPost, error) {
 	return getBlueskyModel[gtsmodel.BlueskyPost](ctx, b.db, "status_id", statusID)
 }

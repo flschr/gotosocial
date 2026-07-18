@@ -15,8 +15,19 @@ type BlueskyConnection struct {
 	DID               string    `bun:",nullzero,notnull,unique"`
 	Handle            string    `bun:",nullzero,notnull"`
 	PDSURL            string    `bun:",nullzero,notnull"`
+	OAuthSessionID    string    `bun:",nullzero"`
+	OAuthData         []byte    `bun:",nullzero"`
 	CrosspostPublic   bool      `bun:",notnull,default:false"`
 	ShowProfileFollow bool      `bun:",notnull,default:true"`
+}
+
+// BlueskyOAuthState stores one short-lived, encrypted authorization request.
+type BlueskyOAuthState struct {
+	ID            string    `bun:"type:CHAR(26),pk,nullzero,notnull,unique"`
+	CreatedAt     time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	AccountID     string    `bun:"type:CHAR(26),nullzero,notnull"`
+	State         string    `bun:",nullzero,notnull,unique"`
+	EncryptedData []byte    `bun:",nullzero,notnull"`
 }
 
 // BlueskyPost stores the exact Bluesky counterpart of a local status.

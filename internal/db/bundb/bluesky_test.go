@@ -37,6 +37,18 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	suite.False(storedConnection.CrosspostPublic)
 	suite.True(storedConnection.ShowProfileFollow)
 
+	oauthState := &gtsmodel.BlueskyOAuthState{
+		ID:            id.NewULID(),
+		AccountID:     account.ID,
+		State:         "oauth-state-test",
+		EncryptedData: []byte("encrypted"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyOAuthState(ctx, oauthState))
+	storedState, err := suite.db.GetBlueskyOAuthState(ctx, oauthState.State)
+	suite.Require().NoError(err)
+	suite.Equal(oauthState.AccountID, storedState.AccountID)
+	suite.Require().NoError(suite.db.DeleteBlueskyOAuthState(ctx, oauthState.State))
+
 	post := &gtsmodel.BlueskyPost{
 		ID:           id.NewULID(),
 		ConnectionID: connection.ID,

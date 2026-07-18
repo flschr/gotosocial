@@ -16,6 +16,9 @@ type Bluesky interface {
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	DeleteBlueskyConnection(context.Context, string) error
+	GetBlueskyOAuthState(context.Context, string) (*gtsmodel.BlueskyOAuthState, error)
+	PutBlueskyOAuthState(context.Context, *gtsmodel.BlueskyOAuthState) error
+	DeleteBlueskyOAuthState(context.Context, string) error
 
 	GetBlueskyPostByStatusID(context.Context, string) (*gtsmodel.BlueskyPost, error)
 	GetBlueskyPostByURI(context.Context, string) (*gtsmodel.BlueskyPost, error)

@@ -17,6 +17,7 @@ func init() {
 		return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 			for _, model := range []any{
 				(*plusbluesky.BlueskyConnection)(nil),
+				(*plusbluesky.BlueskyOAuthState)(nil),
 				(*plusbluesky.BlueskyPost)(nil),
 				(*plusbluesky.BlueskyInteraction)(nil),
 			} {
@@ -30,6 +31,7 @@ func init() {
 				table  string
 				column string
 			}{
+				{"bluesky_oauth_states_account_id_idx", "bluesky_oauth_states", "account_id"},
 				{"bluesky_posts_connection_id_idx", "bluesky_posts", "connection_id"},
 				{"bluesky_posts_account_id_idx", "bluesky_posts", "account_id"},
 				{"bluesky_interactions_account_id_idx", "bluesky_interactions", "account_id"},
