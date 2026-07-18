@@ -20,6 +20,15 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+type blueskyPostsResponse struct {
+	Posts []struct {
+		URI    string          `json:"uri"`
+		CID    string          `json:"cid"`
+		Author blueskyAuthor   `json:"author"`
+		Record json.RawMessage `json:"record"`
+	} `json:"posts"`
+}
+
 func reconcileInteractions(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection, client *atclient.APIClient) error {
 	interactions, err := state.DB.GetBlueskyInteractionsForReconcile(ctx, connection.AccountID, 100)
 	if err != nil || len(interactions) == 0 {

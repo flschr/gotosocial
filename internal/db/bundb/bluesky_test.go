@@ -139,6 +139,53 @@ func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	suite.Require().NoError(suite.db.DeleteBlueskyDeliveryByStatusID(ctx, status.ID))
 }
 
+func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndResetsRetries() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := suite.testStatuses["local_account_1_status_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:preserve",
+		Handle: "preserve.test", PDSURL: "https://pds.example.test",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	post := &gtsmodel.BlueskyPost{
+		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: account.ID, StatusID: status.ID,
+		URI: "at://did:plc:preserve/app.bsky.feed.post/root", CID: "root-cid",
+		RootURI: "at://did:plc:preserve/app.bsky.feed.post/root", RootCID: "root-cid",
+		ParentURI: "at://did:plc:other/app.bsky.feed.post/parent", ParentCID: "parent-cid",
+		URL: "https://bsky.app/profile/did:plc:preserve/post/root",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyPost(ctx, post))
+	isReply, err := bluesky.IsReplyTarget(ctx, &suite.state, &gtsmodel.Status{InReplyToID: status.ID})
+	suite.Require().NoError(err)
+	suite.True(isReply)
+	delivery := &gtsmodel.BlueskyDelivery{
+		ID: id.NewULID(), AccountID: account.ID, StatusID: suite.testStatuses["local_account_1_status_2"].ID,
+		Action: "delete", Attempts: 10, DeadLetter: true, LastError: "failed", NextAttemptAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyDelivery(ctx, delivery))
+	suite.Require().NoError(suite.db.RetryBlueskyFailures(ctx, account.ID, time.Now()))
+	reset, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
+	suite.Require().NoError(err)
+	suite.Zero(reset.Attempts)
+	suite.False(reset.DeadLetter)
+	suite.Empty(reset.LastError)
+	queued, err := bluesky.QueueStatus(ctx, &suite.state, suite.testStatuses["local_account_1_status_2"])
+	suite.Require().NoError(err)
+	suite.Equal("upsert", queued.Action)
+	queued, err = bluesky.QueueDelete(ctx, &suite.state, account.ID, delivery.StatusID)
+	suite.Require().NoError(err)
+	suite.Equal("delete", queued.Action)
+
+	suite.Require().NoError(suite.db.DeleteBlueskyConnectionDataByAccountID(ctx, account.ID))
+	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Error(err)
+	preserved, err := suite.db.GetBlueskyPostByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.Equal(post.URI, preserved.URI)
+	suite.Equal(post.ParentURI, preserved.ParentURI)
+}
+
 func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	ctx := suite.T().Context()
 	account := suite.testAccounts["local_account_1"]

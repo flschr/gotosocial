@@ -38,12 +38,18 @@ func ScheduleJobs(state *state.State, converter *typeutils.Converter) error {
 
 func processDueDeliveries(ctx context.Context, state *state.State, converter *typeutils.Converter) {
 	now := time.Now()
-	deliveries, err := state.DB.ClaimDueBlueskyDeliveries(ctx, now, now.Add(5*time.Minute), 100)
-	if err != nil {
-		log.Errorf(ctx, "error loading queued Bluesky deliveries: %v", err)
-		return
-	}
-	for _, delivery := range deliveries {
+	// Claim immediately before processing so leases cannot expire while jobs
+	// wait behind a large batch of media uploads.
+	for processed := 0; processed < 100; processed++ {
+		deliveries, err := state.DB.ClaimDueBlueskyDeliveries(ctx, now, time.Now().Add(5*time.Minute), 1)
+		if err != nil {
+			log.Errorf(ctx, "error loading queued Bluesky deliveries: %v", err)
+			break
+		}
+		if len(deliveries) == 0 {
+			break
+		}
+		delivery := deliveries[0]
 		if err := ProcessDelivery(ctx, state, converter, delivery); err != nil {
 			log.Errorf(ctx, "error retrying Bluesky delivery for status %s: %v", delivery.StatusID, err)
 		}

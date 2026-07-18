@@ -144,3 +144,13 @@ func TestEligibleForCrosspost(t *testing.T) {
 	status.MentionIDs = []string{"mention"}
 	require.False(t, EligibleForCrosspost(status, connection))
 }
+
+func TestEligibleForExistingMappingWhileDisconnected(t *testing.T) {
+	status := &gtsmodel.Status{Visibility: gtsmodel.VisibilityPublic}
+	status.Flags.SetFederated(true)
+	require.True(t, EligibleForExistingMapping(status, false))
+
+	status.Visibility = gtsmodel.VisibilityFollowersOnly
+	require.False(t, EligibleForExistingMapping(status, false))
+	require.True(t, EligibleForExistingMapping(status, true))
+}

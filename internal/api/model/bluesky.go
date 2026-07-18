@@ -13,10 +13,12 @@ type BlueskyConnection struct {
 	CrosspostPublic   bool      `json:"crosspost_public"`
 	ShowProfileFollow bool      `json:"show_profile_follow"`
 	Configured        bool      `json:"configured"`
+	Status            string    `json:"status"`
+	StatusMessage     string    `json:"status_message,omitempty"`
+	NeedsReconnect    bool      `json:"needs_reconnect"`
 	PendingDeliveries int       `json:"pending_deliveries"`
 	DeadDeliveries    int       `json:"dead_deliveries"`
 	DeadNotifications int       `json:"dead_notifications"`
-	LastError         string    `json:"last_error,omitempty"`
 	LastErrorAt       time.Time `json:"last_error_at,omitempty"`
 	LastSyncAt        time.Time `json:"last_sync_at,omitempty"`
 }

@@ -24,10 +24,12 @@ export interface BlueskyConnection {
 	crosspost_public: boolean;
 	show_profile_follow: boolean;
 	configured: boolean;
+	status: "healthy" | "syncing" | "error" | "action_required";
+	status_message?: string;
+	needs_reconnect: boolean;
 	pending_deliveries: number;
 	dead_deliveries: number;
 	dead_notifications: number;
-	last_error?: string;
 	last_error_at?: string;
 	last_sync_at?: string;
 }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 	"time"
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
@@ -123,9 +124,13 @@ func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) 
 		health.LastError = connection.LastSyncError
 		health.LastErrorAt = connection.LastSyncAt
 	}
+	status, statusMessage, needsReconnect := blueskyConnectionStatus(connection, health, config.GetBlueskyOAuthEncryptionKey() != "")
 	return &apimodel.BlueskyConnection{
 		Connected:         true,
 		Configured:        config.GetBlueskyOAuthEncryptionKey() != "",
+		Status:            status,
+		StatusMessage:     statusMessage,
+		NeedsReconnect:    needsReconnect,
 		Handle:            connection.Handle,
 		ProfileURL:        "https://bsky.app/profile/" + url.PathEscape(connection.DID),
 		CrosspostPublic:   connection.CrosspostPublic,
@@ -133,10 +138,36 @@ func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) 
 		PendingDeliveries: health.PendingDeliveries,
 		DeadDeliveries:    health.DeadDeliveries,
 		DeadNotifications: health.DeadNotifications,
-		LastError:         health.LastError,
 		LastErrorAt:       health.LastErrorAt,
 		LastSyncAt:        connection.LastSyncAt,
 	}, nil
+}
+
+func blueskyConnectionStatus(connection *gtsmodel.BlueskyConnection, health *gtsmodel.BlueskyHealth, configured bool) (string, string, bool) {
+	if !configured {
+		return "action_required", "Bluesky is unavailable because this server is missing its connection key. Contact the server administrator.", false
+	}
+	errorText := strings.ToLower(health.LastError)
+	authFailure := strings.Contains(errorText, "oauth") ||
+		strings.Contains(errorText, "refresh") ||
+		strings.Contains(errorText, "session") ||
+		strings.Contains(errorText, "invalid_grant") ||
+		strings.Contains(errorText, "unauthorized") ||
+		strings.Contains(errorText, "decrypt bluesky") ||
+		strings.Contains(errorText, "401")
+	if authFailure {
+		return "action_required", "Bluesky authorization is no longer valid. Disconnect and reconnect the account to resume syncing.", true
+	}
+	if health.DeadDeliveries+health.DeadNotifications > 0 {
+		return "error", "Some Bluesky items could not be synced. Try the sync again; reconnect only if the problem continues.", false
+	}
+	if health.PendingDeliveries > 0 {
+		return "syncing", "Bluesky is connected. Outgoing posts are waiting to be synced.", false
+	}
+	if connection.LastSyncError != "" {
+		return "error", "Bluesky could not be reached during the last check. GoToSocial will try again automatically.", false
+	}
+	return "healthy", "Bluesky is connected and syncing normally.", false
 }
 
 func (p *Processor) BlueskyRetry(ctx context.Context, accountID string) gtserror.WithCode {

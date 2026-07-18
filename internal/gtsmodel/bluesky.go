@@ -45,6 +45,7 @@ type BlueskyDelivery struct {
 	UpdatedAt     time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
 	AccountID     string    `bun:"type:CHAR(26),nullzero,notnull"`
 	StatusID      string    `bun:"type:CHAR(26),nullzero,notnull,unique"`
+	Action        string    `bun:",nullzero,notnull,default:'upsert'"`
 	Attempts      int       `bun:",notnull,default:0"`
 	NextAttemptAt time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
 	ClaimedUntil  time.Time `bun:"type:timestamptz,nullzero"`
@@ -90,6 +91,10 @@ type BlueskyPost struct {
 	StatusID      string    `bun:"type:CHAR(26),nullzero,notnull,unique"`
 	URI           string    `bun:",nullzero,notnull,unique"`
 	CID           string    `bun:",nullzero,notnull"`
+	RootURI       string    `bun:",nullzero"`
+	RootCID       string    `bun:",nullzero"`
+	ParentURI     string    `bun:",nullzero"`
+	ParentCID     string    `bun:",nullzero"`
 	URL           string    `bun:",nullzero,notnull"`
 }
 

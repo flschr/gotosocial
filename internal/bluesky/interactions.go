@@ -15,7 +15,6 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
-	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
@@ -70,15 +69,6 @@ type blueskyPostRecord struct {
 type blueskyStrongRef struct {
 	URI string `json:"uri"`
 	CID string `json:"cid"`
-}
-
-type blueskyPostsResponse struct {
-	Posts []struct {
-		URI    string          `json:"uri"`
-		CID    string          `json:"cid"`
-		Author blueskyAuthor   `json:"author"`
-		Record json.RawMessage `json:"record"`
-	} `json:"posts"`
 }
 
 // SyncInteractions imports replies and mentions as private, local-only statuses.
@@ -203,63 +193,4 @@ func syncConnection(ctx context.Context, state *state.State, connection *gtsmode
 		processNotificationInbox(ctx, state, connection),
 		reconcileInteractions(ctx, state, connection, client),
 	)
-}
-
-func processNotificationInbox(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
-	var processingErrors []error
-	for {
-		items, err := state.DB.GetDueBlueskyNotifications(ctx, connection.AccountID, time.Now(), 100)
-		if err != nil {
-			return errors.Join(append(processingErrors, err)...)
-		}
-		if len(items) == 0 {
-			return errors.Join(processingErrors...)
-		}
-		for _, item := range items {
-			var notification blueskyNotification
-			err := json.Unmarshal(item.Payload, &notification)
-			if err == nil {
-				err = importNotification(ctx, state, connection, notification)
-			}
-			if err == nil {
-				if deleteErr := state.DB.DeleteBlueskyNotification(ctx, item.ID); deleteErr != nil {
-					processingErrors = append(processingErrors, deleteErr)
-				}
-				continue
-			}
-			item.Attempts++
-			item.LastError = truncateUTF8(err.Error(), 1000, 4000)
-			item.UpdatedAt = time.Now()
-			item.DeadLetter = item.Attempts >= 10
-			item.NextAttemptAt = time.Now().Add(time.Minute * time.Duration(1<<min(item.Attempts-1, 6)))
-			if updateErr := state.DB.UpdateBlueskyNotification(ctx, item, "attempts", "last_error", "updated_at", "dead_letter", "next_attempt_at"); updateErr != nil {
-				processingErrors = append(processingErrors, updateErr)
-			} else {
-				processingErrors = append(processingErrors, fmt.Errorf("notification %s: %w", item.URI, err))
-			}
-		}
-		if len(items) < 100 {
-			return errors.Join(processingErrors...)
-		}
-	}
-}
-
-func authenticatedClient(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (*atclient.APIClient, error) {
-	app, _, err := NewOAuthClient(state, connection.AccountID)
-	if err != nil {
-		return nil, err
-	}
-	did, err := syntax.ParseDID(connection.DID)
-	if err != nil {
-		return nil, err
-	}
-	session, err := app.ResumeSession(ctx, did, connection.OAuthSessionID)
-	if err != nil {
-		return nil, fmt.Errorf("resume Bluesky OAuth session: %w", err)
-	}
-	client := newATClient(state, connection.PDSURL)
-	client.Auth = session
-	client.AccountDID = &did
-	client.Headers.Set("User-Agent", "GoToSocial Plus")
-	return client, nil
 }

@@ -83,11 +83,10 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				<small>Replies, mentions, boosts, polls, and non-public posts are not crossposted.</small>
 				<Checkbox field={form.showProfileFollow} label="Show a ‘Follow on Bluesky’ button on my public profile" />
 				<div className="info">
-					{connection.pending_deliveries === 0 && connection.dead_deliveries === 0 && connection.dead_notifications === 0
-						? "Bluesky sync is healthy."
-						: `${connection.pending_deliveries} outgoing post(s) pending; ${connection.dead_deliveries + connection.dead_notifications} item(s) need attention.`}
+					<strong>{connection.status === "healthy" ? "Connected" : connection.status === "syncing" ? "Syncing" : "Bluesky needs attention"}</strong>
+					{connection.status_message && <p>{connection.status_message}</p>}
+					{connection.pending_deliveries > 0 && <small>{connection.pending_deliveries} outgoing post(s) pending.</small>}
 					{connection.last_sync_at && <small> Last checked {new Date(connection.last_sync_at).toLocaleString()}.</small>}
-					{connection.last_error && <small> Last error: {connection.last_error}</small>}
 				</div>
 				{(connection.pending_deliveries > 0 || connection.dead_deliveries > 0 || connection.dead_notifications > 0) &&
 					<button type="button" disabled={retryResult.isLoading} onClick={() => void retry()}>Retry Bluesky sync</button>}

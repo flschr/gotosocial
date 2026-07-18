@@ -40,6 +40,13 @@ statuses in Mastodon-compatible clients. Replies written from those clients
 are sent to Bluesky under the connected Bluesky identity. The proxy statuses
 and local replies are never federated over ActivityPub.
 
+The settings page reports whether the connector is healthy, syncing, retrying,
+or needs to be reconnected. OAuth revocation, an unusable refresh token, and a
+missing encryption key are shown as actionable messages; protocol details stay
+in the server log.
+
 Disconnecting removes the local OAuth session and attempts to revoke it at the
 provider. Existing post mappings remain available so historical relationships
-are not guessed from post text or URLs.
+are not guessed from post text or URLs. After reconnecting the same Bluesky
+account, edits and deletions can therefore continue to target their exact
+remote records.

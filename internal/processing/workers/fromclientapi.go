@@ -285,16 +285,16 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 	}
 
 	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
-	_, interactionErr := p.state.DB.GetBlueskyInteractionByStatusID(ctx, status.InReplyToID)
-	if err == nil && (interactionErr == nil || bluesky.EligibleForCrosspost(status, connection)) {
+	isReply, replyErr := bluesky.IsReplyTarget(ctx, p.state, status)
+	if err == nil && (isReply || bluesky.EligibleForCrosspost(status, connection)) {
 		_, queueErr := bluesky.QueueStatus(ctx, p.state, status)
 		if queueErr != nil {
 			log.Errorf(ctx, "error queueing Bluesky crosspost: %v", queueErr)
 		}
 	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
 		log.Errorf(ctx, "error checking Bluesky crosspost settings: %v", err)
-	} else if interactionErr != nil && !errors.Is(interactionErr, db.ErrNoEntries) {
-		log.Errorf(ctx, "error checking Bluesky reply mapping: %v", interactionErr)
+	} else if replyErr != nil {
+		log.Errorf(ctx, "error checking Bluesky reply mapping: %v", replyErr)
 	}
 
 	return nil
@@ -780,13 +780,17 @@ func (p *clientAPI) UpdateStatus(ctx context.Context, cMsg *messages.FromClientA
 	// remove its public Bluesky counterpart instead.
 	if _, err := p.state.DB.GetBlueskyPostByStatusID(ctx, status.ID); err == nil {
 		connection, connectionErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
-		if connectionErr == nil && bluesky.EligibleForCrosspost(status, connection) {
+		isReply, replyErr := bluesky.IsReplyTarget(ctx, p.state, status)
+		if (connectionErr == nil && (isReply || bluesky.EligibleForCrosspost(status, connection))) ||
+			(errors.Is(connectionErr, db.ErrNoEntries) && bluesky.EligibleForExistingMapping(status, isReply)) {
 			if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
 				log.Errorf(ctx, "error queueing Bluesky status update: %v", queueErr)
 			}
+		} else if replyErr != nil {
+			log.Errorf(ctx, "error checking Bluesky reply mapping: %v", replyErr)
 		} else if deleteErr := bluesky.DeleteStatus(ctx, p.state, status.ID); deleteErr != nil {
 			log.Errorf(ctx, "error deleting ineligible Bluesky status: %v", deleteErr)
-			if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
+			if _, queueErr := bluesky.QueueDelete(ctx, p.state, status.AccountID, status.ID); queueErr != nil {
 				log.Errorf(ctx, "error queueing Bluesky privacy update retry: %v", queueErr)
 			}
 		}
@@ -999,7 +1003,7 @@ func (p *clientAPI) DeleteStatus(ctx context.Context, cMsg *messages.FromClientA
 	// logged prominently; the mapping is retained until remote deletion works.
 	if err := bluesky.DeleteStatus(ctx, p.state, status.ID); err != nil {
 		log.Errorf(ctx, "error deleting status %s from Bluesky: %v", status.URI, err)
-		if _, queueErr := bluesky.QueueStatus(ctx, p.state, status); queueErr != nil {
+		if _, queueErr := bluesky.QueueDelete(ctx, p.state, status.AccountID, status.ID); queueErr != nil {
 			log.Errorf(ctx, "error queueing Bluesky delete retry: %v", queueErr)
 		}
 	}

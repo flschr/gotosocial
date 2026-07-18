@@ -19,6 +19,7 @@ type Bluesky interface {
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	DeleteBlueskyConnection(context.Context, string) error
 	DeleteBlueskyDataByAccountID(context.Context, string) error
+	DeleteBlueskyConnectionDataByAccountID(context.Context, string) error
 	GetBlueskyHealth(context.Context, string) (*gtsmodel.BlueskyHealth, error)
 	RetryBlueskyFailures(context.Context, string, time.Time) error
 	GetBlueskyOAuthState(context.Context, string) (*gtsmodel.BlueskyOAuthState, error)
