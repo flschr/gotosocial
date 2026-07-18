@@ -36,6 +36,10 @@ type Status interface {
 	// GetStatusByURL fetches the status from the database with matching url column.
 	GetStatusByURL(ctx context.Context, uri string) (*gtsmodel.Status, error)
 
+	// GetStatusByIdempotencyKey fetches a local status previously created with
+	// the given account-, application-, and client-scoped idempotency key.
+	GetStatusByIdempotencyKey(ctx context.Context, accountID string, applicationID string, key string) (*gtsmodel.Status, error)
+
 	// GetStatusByPollID fetches the status from the database with matching poll_id column.
 	GetStatusByPollID(ctx context.Context, pollID string) (*gtsmodel.Status, error)
 

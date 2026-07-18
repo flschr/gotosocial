@@ -322,6 +322,9 @@ func (s *Status) GetBoostOfAccountID() string {
 //
 // swagger:ignore
 type StatusCreateRequest struct {
+	// IdempotencyKey is supplied through the Idempotency-Key HTTP header.
+	// It is not accepted as part of the request body.
+	IdempotencyKey string `form:"-" json:"-"`
 
 	// Text content of the status.
 	// If media_ids is provided, this becomes optional.

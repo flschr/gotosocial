@@ -300,6 +300,13 @@ func (m *Module) StatusCreatePOSTHandler(c *gin.Context) {
 		return
 	}
 
+	form.IdempotencyKey = c.GetHeader("Idempotency-Key")
+	if len(form.IdempotencyKey) > 255 {
+		const errText = "Idempotency-Key must not exceed 255 bytes"
+		apiutil.ErrorHandler(c, gtserror.NewErrorBadRequest(errors.New(errText), errText), m.processor.InstanceGetV1)
+		return
+	}
+
 	// DO NOT COMMIT THIS UNCOMMENTED, IT WILL CAUSE MASS CHAOS.
 	// this is being left in as an ode to kim's shitposting.
 	//
