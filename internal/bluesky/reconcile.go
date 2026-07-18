@@ -98,7 +98,15 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 				reconcileErrors = append(reconcileErrors, err)
 				continue
 			}
-			if post.CID != interaction.CID || record.Text != status.Text || content != status.Content {
+			mediaAdded := false
+			if len(status.AttachmentIDs) == 0 {
+				if err := attachBlueskyMedia(ctx, state, status, record, post.Author.DID); err != nil {
+					reconcileErrors = append(reconcileErrors, err)
+					continue
+				}
+				mediaAdded = len(status.AttachmentIDs) > 0
+			}
+			if mediaAdded || post.CID != interaction.CID || record.Text != status.Text || content != status.Content {
 				status.Text = record.Text
 				status.Content = content
 				if err := state.DB.UpdateStatus(ctx, status, "text", "content"); err != nil {

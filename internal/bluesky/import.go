@@ -10,13 +10,19 @@ import (
 	"errors"
 	"fmt"
 	stdhtml "html"
+	"io"
+	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
+	"code.superseriousbusiness.org/gopkg/log"
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
+	gtsmedia "code.superseriousbusiness.org/gotosocial/internal/media"
 	"code.superseriousbusiness.org/gotosocial/internal/messages"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"code.superseriousbusiness.org/gotosocial/internal/uris"
@@ -82,10 +88,185 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	if err := state.DB.PutBlueskyInteractionStatus(ctx, status, mention, interaction); err != nil {
 		return err
 	}
+	if err := attachBlueskyMedia(ctx, state, status, record, notification.Author.DID); err != nil {
+		// The reply itself is already safely stored. Deliver it without media and
+		// let reconciliation retry the attachment instead of losing the notice.
+		log.Errorf(ctx, "error attaching Bluesky media to interaction %s: %v", interaction.ID, err)
+	}
 	state.Workers.Client.Queue.Push(&messages.FromClientAPI{
 		APObjectType: ap.ObjectNote, APActivityType: ap.ActivityCreate, GTSModel: status, Origin: origin, Target: target,
 	})
 	return nil
+}
+
+type interactionMedia struct {
+	URL         string
+	Description string
+	BlobCID     string
+}
+
+func attachBlueskyMedia(
+	ctx context.Context,
+	state *state.State,
+	status *gtsmodel.Status,
+	record blueskyPostRecord,
+	authorDID string,
+) error {
+	mediaItems := interactionMediaItems(record, authorDID)
+	if len(mediaItems) == 0 {
+		return nil
+	}
+	if len(mediaItems) > 4 {
+		mediaItems = mediaItems[:4]
+	}
+
+	manager := gtsmedia.NewManager(state)
+	for _, item := range mediaItems {
+		item := item
+		if item.URL == "" && item.BlobCID != "" {
+			pds, err := resolveBlueskyPDS(ctx, state, authorDID)
+			if err != nil {
+				return err
+			}
+			item.URL = strings.TrimRight(pds, "/") + "/xrpc/com.atproto.sync.getBlob?did=" + url.QueryEscape(authorDID) + "&cid=" + url.QueryEscape(item.BlobCID)
+		}
+		processing, err := manager.CreateMedia(ctx, status.AccountID, func(ctx context.Context) (io.ReadCloser, error) {
+			request, err := http.NewRequestWithContext(ctx, http.MethodGet, item.URL, nil)
+			if err != nil {
+				return nil, err
+			}
+			response, err := state.HTTPClient.Do(request)
+			if err != nil {
+				return nil, err
+			}
+			if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+				response.Body.Close()
+				return nil, fmt.Errorf("Bluesky media returned %s", response.Status)
+			}
+			return response.Body, nil
+		}, gtsmedia.AdditionalMediaInfo{
+			StatusID:    &status.ID,
+			RemoteURL:   &item.URL,
+			Description: &item.Description,
+		})
+		if err != nil {
+			return err
+		}
+		attachment, err := processing.Load(ctx)
+		if err != nil {
+			return err
+		}
+		if attachment.URL == "" || attachment.Error != 0 {
+			continue
+		}
+		status.AttachmentIDs = append(status.AttachmentIDs, attachment.ID)
+		status.Attachments = append(status.Attachments, attachment)
+	}
+	if len(status.AttachmentIDs) == 0 {
+		return nil
+	}
+	return state.DB.UpdateStatus(ctx, status, "attachments")
+}
+
+func interactionMediaItems(record blueskyPostRecord, authorDID string) []interactionMedia {
+	if record.Embed == nil {
+		return nil
+	}
+	embed := record.Embed
+	if embed.Media != nil {
+		embed = embed.Media
+	}
+	items := make([]interactionMedia, 0, len(embed.Images)+1)
+	for _, image := range embed.Images {
+		if image.Image.Ref.Link == "" {
+			continue
+		}
+		items = append(items, interactionMedia{
+			URL:         "https://cdn.bsky.app/img/feed_fullsize/plain/" + authorDID + "/" + image.Image.Ref.Link + "@jpeg",
+			Description: image.Alt,
+		})
+	}
+	if external := embed.External; external != nil && isDirectMediaURL(external.URI) {
+		description := strings.TrimSpace(strings.TrimPrefix(external.Description, "ALT:"))
+		if description == "" {
+			description = strings.TrimSpace(external.Title)
+		}
+		items = append(items, interactionMedia{URL: external.URI, Description: description})
+	}
+	if embed.Video != nil && embed.Video.Ref.Link != "" {
+		items = append(items, interactionMedia{BlobCID: embed.Video.Ref.Link, Description: embed.Alt})
+	}
+	return items
+}
+
+func resolveBlueskyPDS(ctx context.Context, state *state.State, did string) (string, error) {
+	var documentURL string
+	switch {
+	case strings.HasPrefix(did, "did:plc:"):
+		documentURL = "https://plc.directory/" + url.PathEscape(did)
+	case strings.HasPrefix(did, "did:web:"):
+		parts := strings.Split(strings.TrimPrefix(did, "did:web:"), ":")
+		host, err := url.PathUnescape(parts[0])
+		if err != nil || host == "" {
+			return "", fmt.Errorf("invalid did:web identifier")
+		}
+		if len(parts) == 1 {
+			documentURL = "https://" + host + "/.well-known/did.json"
+		} else {
+			segments := make([]string, 0, len(parts)-1)
+			for _, part := range parts[1:] {
+				segment, err := url.PathUnescape(part)
+				if err != nil || segment == "" || strings.Contains(segment, "/") {
+					return "", fmt.Errorf("invalid did:web identifier")
+				}
+				segments = append(segments, url.PathEscape(segment))
+			}
+			documentURL = "https://" + host + "/" + strings.Join(segments, "/") + "/did.json"
+		}
+	default:
+		return "", fmt.Errorf("unsupported Bluesky DID method")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, documentURL, nil)
+	if err != nil {
+		return "", err
+	}
+	response, err := state.HTTPClient.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("Bluesky DID document returned %s", response.Status)
+	}
+	var document struct {
+		Service []struct {
+			ID              string `json:"id"`
+			Type            string `json:"type"`
+			ServiceEndpoint string `json:"serviceEndpoint"`
+		} `json:"service"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&document); err != nil {
+		return "", err
+	}
+	for _, service := range document.Service {
+		if (service.ID == "#atproto_pds" || service.Type == "AtprotoPersonalDataServer") && strings.HasPrefix(service.ServiceEndpoint, "https://") {
+			return service.ServiceEndpoint, nil
+		}
+	}
+	return "", fmt.Errorf("Bluesky DID document has no PDS endpoint")
+}
+
+func isDirectMediaURL(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+		return false
+	}
+	switch strings.ToLower(path.Ext(parsed.Path)) {
+	case ".gif", ".mp4", ".webm", ".mov", ".m4v":
+		return true
+	default:
+		return false
+	}
 }
 
 func classifyParentLookup(reason string, err error) (bool, error) {
@@ -122,7 +303,7 @@ func renderInteractionContent(record blueskyPostRecord, author blueskyAuthor, po
 		header, body, stdhtml.EscapeString(postURL))
 }
 
-func renderBlueskyRecord(record blueskyPostRecord, authorDID string) string {
+func renderBlueskyRecord(record blueskyPostRecord, _ string) string {
 	textBytes := []byte(record.Text)
 	var out strings.Builder
 	position := 0
@@ -166,15 +347,6 @@ func renderBlueskyRecord(record blueskyPostRecord, authorDID string) string {
 				label = "Open embedded media"
 			}
 			out.WriteString(`<a href="` + stdhtml.EscapeString(external.URI) + `">` + stdhtml.EscapeString(label) + `</a>`)
-		}
-	}
-	if record.Embed != nil {
-		for _, image := range record.Embed.Images {
-			if image.Image.Ref.Link == "" {
-				continue
-			}
-			imageURL := "https://cdn.bsky.app/img/feed_fullsize/plain/" + authorDID + "/" + image.Image.Ref.Link + "@jpeg"
-			out.WriteString(`<br><a href="` + stdhtml.EscapeString(imageURL) + `">Image: ` + stdhtml.EscapeString(image.Alt) + `</a>`)
 		}
 	}
 	return out.String()

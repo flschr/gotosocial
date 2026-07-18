@@ -41,26 +41,35 @@ type blueskyPostRecord struct {
 			Tag  string `json:"tag"`
 		} `json:"features"`
 	} `json:"facets"`
-	Embed *struct {
-		Type   string `json:"$type"`
-		Images []struct {
-			Alt   string `json:"alt"`
-			Image struct {
-				Ref struct {
-					Link string `json:"$link"`
-				} `json:"ref"`
-			} `json:"image"`
-		} `json:"images"`
-		External *struct {
-			URI         string `json:"uri"`
-			Title       string `json:"title"`
-			Description string `json:"description"`
-		} `json:"external"`
-	} `json:"embed"`
+	Embed *blueskyEmbed `json:"embed"`
 	Reply *struct {
 		Root   blueskyStrongRef `json:"root"`
 		Parent blueskyStrongRef `json:"parent"`
 	} `json:"reply"`
+}
+
+type blueskyEmbed struct {
+	Type   string `json:"$type"`
+	Images []struct {
+		Alt   string `json:"alt"`
+		Image struct {
+			Ref struct {
+				Link string `json:"$link"`
+			} `json:"ref"`
+		} `json:"image"`
+	} `json:"images"`
+	External *struct {
+		URI         string `json:"uri"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	} `json:"external"`
+	Video *struct {
+		Ref struct {
+			Link string `json:"$link"`
+		} `json:"ref"`
+	} `json:"video"`
+	Alt   string        `json:"alt"`
+	Media *blueskyEmbed `json:"media"`
 }
 
 type blueskyStrongRef struct {

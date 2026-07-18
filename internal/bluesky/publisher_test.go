@@ -247,6 +247,49 @@ func TestRenderBlueskyExternalEmbedAsPrimaryReplyLink(t *testing.T) {
 	require.NotContains(t, content, "<strong>")
 }
 
+func TestInteractionMediaItemsIncludesImagesGIFAndAltText(t *testing.T) {
+	var record blueskyPostRecord
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"embed": {
+			"images": [
+				{"image":{"ref":{"$link":"image-one"}},"alt":"First image"},
+				{"image":{"ref":{"$link":"image-two"}},"alt":"Second image"}
+			],
+			"external": {
+				"uri":"https://media.example/animation.GIF?size=large",
+				"title":"Animation",
+				"description":"ALT: Moving wheat"
+			}
+		}
+	}`), &record))
+
+	items := interactionMediaItems(record, "did:plc:author")
+	require.Equal(t, []interactionMedia{
+		{URL: "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:author/image-one@jpeg", Description: "First image"},
+		{URL: "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:author/image-two@jpeg", Description: "Second image"},
+		{URL: "https://media.example/animation.GIF?size=large", Description: "Moving wheat"},
+	}, items)
+}
+
+func TestInteractionMediaItemsLeavesNormalLinkCardsAlone(t *testing.T) {
+	var record blueskyPostRecord
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"embed": {"external":{"uri":"https://example.org/article","title":"Article"}}
+	}`), &record))
+	require.Empty(t, interactionMediaItems(record, "did:plc:author"))
+}
+
+func TestInteractionMediaItemsIncludesNativeVideo(t *testing.T) {
+	var record blueskyPostRecord
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"embed": {"video":{"ref":{"$link":"video-cid"}},"alt":"Video description"}
+	}`), &record))
+	require.Equal(t,
+		[]interactionMedia{{BlobCID: "video-cid", Description: "Video description"}},
+		interactionMediaItems(record, "did:plc:author"),
+	)
+}
+
 func TestEligibleForCrosspost(t *testing.T) {
 	connection := &gtsmodel.BlueskyConnection{CrosspostPublic: true, OAuthSessionID: "session", OAuthData: []byte("encrypted")}
 	status := &gtsmodel.Status{Visibility: gtsmodel.VisibilityPublic}
