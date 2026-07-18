@@ -65,6 +65,10 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	if interaction == nil && existingPost != nil && !ShouldUpsertMappedStatus(status, connection, false) {
 		return nil
 	}
+	rkey, err := recordKeyForStatusID(status.ID)
+	if err != nil {
+		return fmt.Errorf("derive Bluesky record key: %w", err)
+	}
 	if err := state.DB.PopulateStatus(ctx, status); err != nil {
 		return fmt.Errorf("populate status for Bluesky: %w", err)
 	}
@@ -140,13 +144,13 @@ func publishStatus(ctx context.Context, state *state.State, status *gtsmodel.Sta
 	if err := client.Post(ctx, endpoint, map[string]any{
 		"repo":       connection.DID,
 		"collection": "app.bsky.feed.post",
-		"rkey":       status.ID,
+		"rkey":       rkey,
 		"record":     record,
 	}, &response); err != nil {
 		return fmt.Errorf("create Bluesky post: %w", err)
 	}
-	rkey := response.URI[strings.LastIndex(response.URI, "/")+1:]
-	if err := syncThreadgate(ctx, client, connection.DID, status, response.URI, existingPost != nil); err != nil {
+	rkey = response.URI[strings.LastIndex(response.URI, "/")+1:]
+	if err := syncThreadgate(ctx, client, connection.DID, status, response.URI, rkey, existingPost != nil); err != nil {
 		return err
 	}
 	if existingPost != nil {

@@ -44,7 +44,7 @@ func TestSyncThreadgateUsesPDSRecord(t *testing.T) {
 	defer server.Close()
 	client := atclient.NewAPIClient(server.URL)
 	status := &gtsmodel.Status{ID: "status", CreatedAt: time.Now(), InteractionPolicy: &gtsmodel.InteractionPolicy{CanReply: &gtsmodel.PolicyRules{}}}
-	require.NoError(t, syncThreadgate(t.Context(), client, "did:plc:test", status, "at://did:plc:test/app.bsky.feed.post/status", false))
+	require.NoError(t, syncThreadgate(t.Context(), client, "did:plc:test", status, "at://did:plc:test/app.bsky.feed.post/status", "3kexampletid", false))
 	require.Equal(t, 1, requestCount)
 }
 

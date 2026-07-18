@@ -63,20 +63,20 @@ func deleteStatus(ctx context.Context, state *state.State, statusID string, clea
 	return nil
 }
 
-func syncThreadgate(ctx context.Context, client *atclient.APIClient, repo string, status *gtsmodel.Status, postURI string, updating bool) error {
+func syncThreadgate(ctx context.Context, client *atclient.APIClient, repo string, status *gtsmodel.Status, postURI, rkey string, updating bool) error {
 	publicReplies := status.InteractionPolicy == nil || policyAllowsPublic(status.InteractionPolicy.CanReply)
 	if publicReplies {
 		if !updating {
 			return nil
 		}
-		if err := deleteATRecord(ctx, client, repo, "app.bsky.feed.threadgate", status.ID, true); err != nil {
+		if err := deleteATRecord(ctx, client, repo, "app.bsky.feed.threadgate", rkey, true); err != nil {
 			return fmt.Errorf("remove Bluesky reply restriction: %w", err)
 		}
 		return nil
 	}
 	endpoint, _ := syntax.ParseNSID("com.atproto.repo.putRecord")
 	if err := client.Post(ctx, endpoint, map[string]any{
-		"repo": repo, "collection": "app.bsky.feed.threadgate", "rkey": status.ID,
+		"repo": repo, "collection": "app.bsky.feed.threadgate", "rkey": rkey,
 		"record": map[string]any{"$type": "app.bsky.feed.threadgate", "post": postURI, "createdAt": status.CreatedAt.UTC().Format(time.RFC3339Nano), "allow": []any{}},
 	}, nil); err != nil {
 		return fmt.Errorf("apply Bluesky reply restriction: %w", err)
