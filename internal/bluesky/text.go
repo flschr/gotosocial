@@ -111,9 +111,14 @@ func htmlTextAndFacets(input string) (string, []facet) {
 		}
 		if node.Type == html.ElementNode && node.Data == "a" {
 			if href := htmlAttribute(node, "href"); out.Len() > start && (strings.HasPrefix(href, "https://") || strings.HasPrefix(href, "http://")) {
+				label := out.String()[start:out.Len()]
+				feature := facetFeature{Type: "app.bsky.richtext.facet#link", URI: href}
+				if strings.HasPrefix(label, "#") && len(label) > 1 {
+					feature = facetFeature{Type: "app.bsky.richtext.facet#tag", Tag: strings.TrimPrefix(label, "#")}
+				}
 				facets = append(facets, facet{
 					Index:    facetIndex{ByteStart: start, ByteEnd: out.Len()},
-					Features: []facetFeature{{Type: "app.bsky.richtext.facet#link", URI: href}},
+					Features: []facetFeature{feature},
 				})
 			}
 		}

@@ -42,7 +42,8 @@ type facetIndex struct {
 
 type facetFeature struct {
 	Type string `json:"$type"`
-	URI  string `json:"uri"`
+	URI  string `json:"uri,omitempty"`
+	Tag  string `json:"tag,omitempty"`
 }
 
 type createRecordResponse struct {

@@ -79,6 +79,14 @@ func TestTrimTextKeepsFacetByteOffsets(t *testing.T) {
 	require.Equal(t, facetIndex{ByteStart: 0, ByteEnd: 4}, facets[0].Index)
 }
 
+func TestHTMLTextCreatesNativeHashtagFacet(t *testing.T) {
+	plain, facets := htmlTextAndFacets(`<a href="https://example.org/tags/golang">#golang</a>`)
+	require.Equal(t, "#golang", plain)
+	require.Len(t, facets, 1)
+	require.Equal(t, "app.bsky.richtext.facet#tag", facets[0].Features[0].Type)
+	require.Equal(t, "golang", facets[0].Features[0].Tag)
+}
+
 func TestBlueskyTextTruncatesWithCanonicalLink(t *testing.T) {
 	status := &gtsmodel.Status{
 		Content: strings.Repeat("word ", 100),
