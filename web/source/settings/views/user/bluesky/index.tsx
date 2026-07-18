@@ -66,7 +66,7 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 		<form className="bluesky-settings" onSubmit={submitForm}>
 			<div className="form-section-docs">
 				<h1>Bluesky</h1>
-				<p>Connect your existing Bluesky account to publish selected posts and handle Bluesky replies from Mastodon clients.</p>
+				<p>Connect your existing Bluesky account to publish eligible public posts and handle Bluesky replies from Mastodon clients.</p>
 			</div>
 			{connectResult.isError && <ErrorC error={connectResult.error} />}
 			{disconnectResult.isError && <ErrorC error={disconnectResult.error} />}

@@ -164,7 +164,7 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	if record.Reply != nil {
 		root, parent = record.Reply.Root, record.Reply.Parent
 	}
-	parentStatus, err := mappedLocalStatus(ctx, state, parent.URI, root.URI)
+	parentStatus, err := mappedLocalStatus(ctx, state, connection.AccountID, parent.URI, root.URI)
 	if notification.Reason == "reply" && err != nil {
 		if errors.Is(err, db.ErrNoEntries) {
 			return nil // Unrelated reply in the account's notification stream.
@@ -227,15 +227,19 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	return nil
 }
 
-func mappedLocalStatus(ctx context.Context, state *state.State, parentURI, rootURI string) (*gtsmodel.Status, error) {
+func mappedLocalStatus(ctx context.Context, state *state.State, accountID, parentURI, rootURI string) (*gtsmodel.Status, error) {
 	for _, uri := range []string{parentURI, rootURI} {
 		if post, err := state.DB.GetBlueskyPostByURI(ctx, uri); err == nil {
-			return state.DB.GetStatusByID(ctx, post.StatusID)
+			if post.AccountID == accountID {
+				return state.DB.GetStatusByID(ctx, post.StatusID)
+			}
 		} else if !errors.Is(err, db.ErrNoEntries) {
 			return nil, err
 		}
 		if interaction, err := state.DB.GetBlueskyInteractionByURI(ctx, uri); err == nil {
-			return state.DB.GetStatusByID(ctx, interaction.StatusID)
+			if interaction.AccountID == accountID {
+				return state.DB.GetStatusByID(ctx, interaction.StatusID)
+			}
 		} else if !errors.Is(err, db.ErrNoEntries) {
 			return nil, err
 		}
