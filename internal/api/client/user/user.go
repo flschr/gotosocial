@@ -34,6 +34,9 @@ const (
 	TwoFactorEnablePath    = TwoFactorPath + "/enable"
 	TwoFactorDisablePath   = TwoFactorPath + "/disable"
 	BlueskyPath            = BasePath + "/bluesky"
+	BlueskyConnectPath     = BlueskyPath + "/connect"
+	BlueskyCallbackPath    = BlueskyPath + "/callback"
+	BlueskyMetadataPath    = BlueskyPath + "/client-metadata.json"
 )
 
 type Module struct {
@@ -56,4 +59,8 @@ func (m *Module) Route(attachHandler func(method string, path string, f ...gin.H
 	attachHandler(http.MethodPost, TwoFactorDisablePath, m.TwoFactorDisablePOSTHandler)
 	attachHandler(http.MethodGet, BlueskyPath, m.BlueskyGETHandler)
 	attachHandler(http.MethodPatch, BlueskyPath, m.BlueskyPATCHHandler)
+	attachHandler(http.MethodDelete, BlueskyPath, m.BlueskyDELETEHandler)
+	attachHandler(http.MethodPost, BlueskyConnectPath, m.BlueskyConnectPOSTHandler)
+	attachHandler(http.MethodGet, BlueskyCallbackPath, m.BlueskyCallbackGETHandler)
+	attachHandler(http.MethodGet, BlueskyMetadataPath, m.BlueskyMetadataGETHandler)
 }

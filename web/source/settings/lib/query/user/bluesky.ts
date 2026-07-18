@@ -17,7 +17,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import type { BlueskyConnection, BlueskySettingsUpdate } from "../../types/bluesky";
+import type { BlueskyConnectResponse, BlueskyConnection, BlueskySettingsUpdate } from "../../types/bluesky";
 import { gtsApi } from "../gts-api";
 
 const extended = gtsApi.injectEndpoints({
@@ -36,7 +36,24 @@ const extended = gtsApi.injectEndpoints({
 			}),
 			invalidatesTags: ["Auth"],
 		}),
+		connectBluesky: build.mutation<BlueskyConnectResponse, { identifier: string }>({
+			query: (body) => ({
+				method: "POST",
+				url: "/api/v1/user/bluesky/connect",
+				asForm: true,
+				body,
+			}),
+		}),
+		disconnectBluesky: build.mutation<void, void>({
+			query: () => ({ method: "DELETE", url: "/api/v1/user/bluesky" }),
+			invalidatesTags: ["Auth"],
+		}),
 	}),
 });
 
-export const { useBlueskyConnectionQuery, useUpdateBlueskySettingsMutation } = extended;
+export const {
+	useBlueskyConnectionQuery,
+	useUpdateBlueskySettingsMutation,
+	useConnectBlueskyMutation,
+	useDisconnectBlueskyMutation,
+} = extended;

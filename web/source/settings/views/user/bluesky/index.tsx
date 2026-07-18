@@ -17,7 +17,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import React from "react";
+import React, { useState } from "react";
 import Loading from "../../../components/loading";
 import { Error as ErrorC } from "../../../components/error";
 import { Checkbox } from "../../../components/form/inputs";
@@ -27,6 +27,8 @@ import useFormSubmit from "../../../lib/form/submit";
 import type { BlueskyConnection } from "../../../lib/types/bluesky";
 import {
 	useBlueskyConnectionQuery,
+	useConnectBlueskyMutation,
+	useDisconnectBlueskyMutation,
 	useUpdateBlueskySettingsMutation,
 } from "../../../lib/query/user/bluesky";
 
@@ -47,11 +49,18 @@ export default function BlueskySettings() {
 }
 
 function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) {
+	const [identifier, setIdentifier] = useState("");
+	const [connect, connectResult] = useConnectBlueskyMutation();
+	const [disconnect, disconnectResult] = useDisconnectBlueskyMutation();
 	const form = {
 		crosspostPublic: useBoolInput("crosspost_public", { source: connection }),
 		showProfileFollow: useBoolInput("show_profile_follow", { source: connection }),
 	};
 	const [submitForm, result] = useFormSubmit(form, useUpdateBlueskySettingsMutation());
+	const startConnection = async () => {
+		const response = await connect({ identifier }).unwrap();
+		window.location.assign(response.authorization_url);
+	};
 
 	return (
 		<form className="bluesky-settings" onSubmit={submitForm}>
@@ -59,6 +68,8 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				<h1>Bluesky</h1>
 				<p>Connect your existing Bluesky account to publish selected posts and handle Bluesky replies from Mastodon clients.</p>
 			</div>
+			{connectResult.isError && <ErrorC error={connectResult.error} />}
+			{disconnectResult.isError && <ErrorC error={disconnectResult.error} />}
 			{connection.connected ? <>
 				<div className="info">
 					Connected as <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>
@@ -67,10 +78,15 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				<small>Replies, mentions, boosts, polls, imports, and non-public posts stay on GoToSocial.</small>
 				<Checkbox field={form.showProfileFollow} label="Show a ‘Follow on Bluesky’ button on my public profile" />
 				<MutationButton disabled={false} label="Save settings" result={result} />
+				<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={() => void disconnect()}>Disconnect Bluesky account</button>
 			</> : <>
 				<div className="info">No Bluesky account is connected yet.</div>
-				<button type="button" disabled>Connect Bluesky account</button>
-				<small>The secure Bluesky authorization flow is the next implementation step.</small>
+				<label>
+					Bluesky handle
+					<input value={identifier} placeholder="your-handle.bsky.social" onChange={(event) => setIdentifier(event.target.value)} />
+				</label>
+				<button type="button" disabled={!identifier || connectResult.isLoading} onClick={() => void startConnection()}>Connect Bluesky account</button>
+				<small>You will be redirected to your Bluesky provider to approve access. Your password is never shared with GoToSocial.</small>
 			</>}
 		</form>
 	);

@@ -16,3 +16,11 @@ type BlueskySettingsUpdateRequest struct {
 	CrosspostPublic   *bool `form:"crosspost_public" json:"crosspost_public"`
 	ShowProfileFollow *bool `form:"show_profile_follow" json:"show_profile_follow"`
 }
+
+type BlueskyConnectRequest struct {
+	Identifier string `form:"identifier" json:"identifier" binding:"required"`
+}
+
+type BlueskyConnectResponse struct {
+	AuthorizationURL string `json:"authorization_url"`
+}

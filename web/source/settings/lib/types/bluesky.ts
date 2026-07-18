@@ -29,3 +29,7 @@ export interface BlueskySettingsUpdate {
 	crosspost_public: boolean;
 	show_profile_follow: boolean;
 }
+
+export interface BlueskyConnectResponse {
+	authorization_url: string;
+}

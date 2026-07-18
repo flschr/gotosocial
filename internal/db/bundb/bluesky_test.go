@@ -5,10 +5,14 @@
 package bundb_test
 
 import (
+	"encoding/base64"
 	"testing"
 
+	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -83,6 +87,40 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	storedInteraction, err := suite.db.GetBlueskyInteractionByURI(ctx, interaction.URI)
 	suite.Require().NoError(err)
 	suite.Equal(interaction.StatusID, storedInteraction.StatusID)
+}
+
+func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	crypter, err := bluesky.NewCrypter(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	suite.Require().NoError(err)
+	store := bluesky.NewOAuthStore(suite.db, crypter, account.ID)
+
+	request := oauth.AuthRequestData{State: "encrypted-state", PKCEVerifier: "pkce-secret"}
+	suite.Require().NoError(store.SaveAuthRequestInfo(ctx, request))
+	storedRequest, err := store.GetAuthRequestInfo(ctx, request.State)
+	suite.Require().NoError(err)
+	suite.Equal(request.PKCEVerifier, storedRequest.PKCEVerifier)
+
+	did, err := syntax.ParseDID("did:plc:testoauthstore")
+	suite.Require().NoError(err)
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: did.String(),
+		Handle: "oauth.test", PDSURL: "https://pds.example.test", ShowProfileFollow: true,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	session := oauth.ClientSessionData{
+		AccountDID: did, SessionID: request.State, HostURL: connection.PDSURL,
+		AccessToken: "access-secret", RefreshToken: "refresh-secret",
+	}
+	suite.Require().NoError(store.SaveSession(ctx, session))
+	storedSession, err := store.GetSession(ctx, did, session.SessionID)
+	suite.Require().NoError(err)
+	suite.Equal(session.RefreshToken, storedSession.RefreshToken)
+
+	storedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.NotContains(string(storedConnection.OAuthData), session.RefreshToken)
 }
 
 func TestBlueskyTestSuite(t *testing.T) {
