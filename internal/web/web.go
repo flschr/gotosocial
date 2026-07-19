@@ -82,6 +82,17 @@ type Module struct {
 	isURIBlocked func(context.Context, *url.URL) (bool, error)
 }
 
+// frontendJavascript returns the progressive enhancement script configured to
+// run only after the page markup has been parsed. Using async here introduces a
+// race where features such as automatic loading of older profile posts cannot
+// find their DOM hooks.
+func frontendJavascript() apiutil.JavascriptEntry {
+	return apiutil.JavascriptEntry{
+		Src:   jsFrontend,
+		Defer: true,
+	}
+}
+
 func New(db db.DB, processor *processing.Processor, cookiePolicy apiutil.CookiePolicy) *Module {
 	return &Module{
 		processor:    processor,

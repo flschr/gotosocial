@@ -76,11 +76,7 @@ func (m *Module) authorizeInteractionGETHandler(c *gin.Context) {
 		OGMeta:      apiutil.OGBase(instance),
 		Stylesheets: []string{cssAbout},
 		Javascript: []apiutil.JavascriptEntry{
-			{
-				Src:   jsFrontend,
-				Async: true,
-				Defer: true,
-			},
+			frontendJavascript(),
 		},
 		Extra: map[string]any{
 			"interactionURI": interactionURI,
