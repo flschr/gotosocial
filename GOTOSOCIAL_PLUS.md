@@ -13,13 +13,40 @@ The snapshot branch deliberately contains no upstream Git history. The official
 Codeberg repository remains configured as the local `upstream` remote and is the
 source of truth for releases and history.
 
+## Included features
+
+GoToSocial Plus currently provides these product-level features:
+
+- **Native Bluesky integration:** connect a Bluesky account, crosspost eligible
+  public posts, and handle Bluesky replies from Mastodon clients.
+- **Improved public profiles:** optional remote-follow actions, configurable
+  profile ordering, automatic loading of older posts, and clearer Plus
+  information.
+- **Better media presentation:** uncropped profile images and a centered,
+  accessible media viewer with image descriptions.
+- **Rich link previews:** Mastodon-compatible cards for links, images, and
+  supported privacy-friendly video embeds.
+- **Split-domain compatibility:** consistent local handles in Mastodon clients
+  when the public account domain differs from the server domain.
+- **Privacy controls:** local administrator and moderator labels can remain
+  private on public profiles.
+- **Reliable publishing and feeds:** duplicate-safe publishing for compatible
+  clients and dependable public RSS output.
+
+The settings application shows this same concise feature catalog together with
+the running Plus version. Bug fixes and internal refinements remain traceable in
+Git history and release notes, but are not listed as separate product features.
+
 ## Patches
 
-The custom behavior is opt-in and controlled by these configuration keys:
+Instance-wide optional behavior is controlled by these configuration keys:
 
 - `accounts-use-account-domain-in-acct`
 - `accounts-hide-local-roles`
 - `statuses-preview-cards`
+- `profiles-auto-load-older-posts`
+- `profiles-show-plus-info`
+- `profiles-show-remote-follow`
 
 ### Split-domain handles in Mastodon API responses
 

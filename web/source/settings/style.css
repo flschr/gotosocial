@@ -249,6 +249,42 @@ nav.menu-tree {
 	text-transform: capitalize;
 }
 
+.plus-overview {
+	.plus-version {
+		display: grid;
+		gap: 0.25rem;
+		margin: 1rem 0 2rem;
+
+		span {
+			color: $fg-reduced;
+			font-size: 0.9rem;
+		}
+
+		strong {
+			font-size: 1.2rem;
+		}
+	}
+
+	.plus-feature-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+		gap: 1rem;
+		margin-top: 1rem;
+	}
+
+	.plus-feature-card {
+		background: $bg;
+		border: 0.1rem solid $gray3;
+		border-radius: $br;
+		padding: 1rem;
+
+		p {
+			color: $fg-reduced;
+			margin: 0.5rem 0 0;
+		}
+	}
+}
+
 input, select, textarea {
 	box-sizing: border-box;
 }

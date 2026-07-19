@@ -37,6 +37,8 @@ import UserRouter from "./views/user/router";
 import { ErrorBoundary } from "./lib/navigation/error";
 import ModerationRouter from "./views/moderation/router";
 import AdminRouter from "./views/admin/router";
+import PlusMenu from "./views/plus/menu";
+import PlusRouter from "./views/plus/router";
 
 interface AppProps {
 	account: Account;
@@ -49,6 +51,7 @@ export function App({ account }: AppProps) {
 			<BaseUrlContext.Provider value={"/settings"}>
 				<SidebarMenu>
 					<UserMenu />
+					<PlusMenu />
 					<ModerationMenu />
 					<AdminMenu />
 				</SidebarMenu>
@@ -56,6 +59,7 @@ export function App({ account }: AppProps) {
 					<Router base="/settings">
 						<ErrorBoundary>
 							<UserRouter />
+							<PlusRouter />
 							<ModerationRouter />
 							<AdminRouter />
 							{/*

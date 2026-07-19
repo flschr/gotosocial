@@ -19,8 +19,8 @@
 
 import React from "react";
 
-import { useTextInput, useFileInput, useBoolInput } from "../../../lib/form";
-import { TextInput, TextArea, FileInput, Checkbox } from "../../../components/form/inputs";
+import { useTextInput, useFileInput } from "../../../lib/form";
+import { TextInput, TextArea, FileInput } from "../../../components/form/inputs";
 import MutationButton from "../../../components/form/mutation-button";
 import { useInstanceV1Query } from "../../../lib/query/gts-api";
 import { useUpdateInstanceMutation } from "../../../lib/query/admin";
@@ -78,12 +78,6 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 		}),
 		contactUser: useTextInput("contact_username", { source: instance, valueSelector: (s) => s.contact_account?.username }),
 		contactEmail: useTextInput("contact_email", { source: instance, valueSelector: (s) => s.email }),
-		accountsUseAccountDomainInAcct: useBoolInput("accounts_use_account_domain_in_acct", { source: instance }),
-		accountsHideLocalRoles: useBoolInput("accounts_hide_local_roles", { source: instance }),
-		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance }),
-		profilesAutoLoadOlderPosts: useBoolInput("profiles_auto_load_older_posts", { source: instance }),
-		profilesShowPlusInfo: useBoolInput("profiles_show_plus_info", { source: instance }),
-		profilesShowRemoteFollow: useBoolInput("profiles_show_remote_follow", { source: instance })
 	};
 
 	const [submitForm, result] = useFormSubmit(form, useUpdateInstanceMutation());
@@ -208,35 +202,6 @@ function InstanceSettingsForm({ data: instance }: InstanceSettingsFormProps) {
 				rows={8}
 				autoCapitalize="none"
 				spellCheck="false"
-			/>
-
-			<div className="form-section-docs">
-				<h3>GoToSocial Plus</h3>
-			</div>
-
-			<Checkbox
-				field={form.accountsUseAccountDomainInAcct}
-				label="Use the account domain in local handles (split-domain configuration)."
-			/>
-			<Checkbox
-				field={form.accountsHideLocalRoles}
-				label="Hide administrator and moderator labels on public profiles."
-			/>
-			<Checkbox
-				field={form.statusesPreviewCards}
-				label="Enable link preview cards, including preview images and supported video embeds."
-			/>
-			<Checkbox
-				field={form.profilesAutoLoadOlderPosts}
-				label="Automatically load older posts on public profiles. The Show older link remains available as a fallback."
-			/>
-			<Checkbox
-				field={form.profilesShowPlusInfo}
-				label="Show GoToSocial Plus version and source information on public profiles."
-			/>
-			<Checkbox
-				field={form.profilesShowRemoteFollow}
-				label="Show a Follow button on public profiles that sends visitors back to their own Fediverse server."
 			/>
 
 			<MutationButton label="Save" result={result} disabled={false} />

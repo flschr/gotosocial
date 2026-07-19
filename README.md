@@ -2,9 +2,11 @@
 
 GoToSocial Plus is a small, independently maintained fork of
 [GoToSocial](https://codeberg.org/superseriousbusiness/gotosocial). It stays
-close to upstream and adds targeted, optional improvements for split-domain
-account display, local role privacy, link preview cards, and remote follows
-from public profiles. It also includes a fix for empty RSS feeds.
+close to upstream and adds targeted improvements including native Bluesky
+integration, better public profiles and media presentation, split-domain
+compatibility, privacy controls, rich link previews, and reliable feeds. See
+the concise [Plus feature catalog](GOTOSOCIAL_PLUS.md#included-features) for the
+current product-level overview.
 
 GoToSocial remains the project behind this software. Read the
 [official documentation](https://docs.gotosocial.org/) for installation,
@@ -19,8 +21,9 @@ operation, federation, client use, and general configuration.
 
 The fork collects a small number of changes needed by
 [social.fischr.org](https://social.fischr.org/) in a public, reproducible source
-tree. Optional behavior can be managed individually under **Instance Settings
-→ GoToSocial Plus**.
+tree. Plus features are collected in the dedicated **GoToSocial Plus** section
+of the settings application. Personal settings, Bluesky, and administrator-only
+instance controls each have their own page there.
 
 ### Split-domain client compatibility
 
@@ -108,8 +111,8 @@ of the profile.
 
 ## Configuration
 
-The optional features can be managed under **Instance Settings → GoToSocial
-Plus**:
+Administrators can manage instance-wide optional behavior under **GoToSocial
+Plus → Instance Features**:
 
 - **Use account domain in local API handles**
 - **Hide local account roles**
