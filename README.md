@@ -6,7 +6,8 @@ close to upstream and adds targeted improvements including native Bluesky
 integration, better public profiles and media presentation, split-domain
 compatibility, privacy controls, rich link previews, and reliable feeds. See
 the concise [Plus feature catalog](GOTOSOCIAL_PLUS.md#included-features) for the
-current product-level overview.
+current product-level overview and the [changelog](CHANGELOG.md) for features
+added by release line.
 
 GoToSocial remains the project behind this software. Read the
 [official documentation](https://docs.gotosocial.org/) for installation,
@@ -24,6 +25,30 @@ The fork collects a small number of changes needed by
 tree. Plus features are collected in the dedicated **GoToSocial Plus** section
 of the settings application. Personal settings, Bluesky, and administrator-only
 instance controls each have their own page there.
+
+### Native Bluesky integration
+
+Each user can optionally connect an existing Bluesky account. When enabled,
+GoToSocial Plus publishes eligible original public posts to Bluesky with text,
+links, up to four images, and their alt text. Replies, mentions, boosts, polls,
+and non-public posts are not crossposted automatically.
+
+Bluesky replies and mentions are imported into GoToSocial so they can be read
+and answered from Mastodon-compatible clients. Replies sent from those clients
+are published as the connected Bluesky identity and retain the correct Bluesky
+conversation context. Supported images, animated GIFs, and videos from Bluesky
+replies appear as local media attachments with available descriptions.
+
+Crossposted posts retain a durable mapping to their Bluesky records. Deleting
+the original GoToSocial post also removes its Bluesky crosspost. GoToSocial
+sends later edits to Bluesky, but Bluesky clients may continue showing the
+earlier version. Existing mapped posts keep their lifecycle even when automatic
+crossposting is switched off for new posts.
+
+The public profile can optionally show a separate Bluesky follow action. The
+connection, automatic crossposting, and public follow action are managed under
+**GoToSocial Plus → Bluesky**. Bluesky access is optional and isolated from the
+ActivityPub federation core.
 
 ### Split-domain client compatibility
 
