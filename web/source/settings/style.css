@@ -961,6 +961,26 @@ section > div.domain-limit-details {
 	}
 }
 
+.bluesky-status {
+	align-items: flex-start;
+	flex-direction: column;
+	gap: 0.25rem;
+	max-width: 42rem;
+	padding: 0.75rem 1rem;
+
+	.bluesky-status-title {
+		font-size: 1.1rem;
+	}
+
+	.bluesky-status-message {
+		margin: 0;
+	}
+
+	.bluesky-status-meta {
+		opacity: 0.85;
+	}
+}
+
 .mutation-button {
 	width: fit-content;
 	display: flex;

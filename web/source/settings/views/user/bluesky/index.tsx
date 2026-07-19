@@ -79,11 +79,11 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				<Checkbox field={form.crosspostPublic} label="Automatically publish public posts to Bluesky" />
 				<small>Replies, mentions, boosts, polls, and non-public posts are not crossposted. Turning this off stops new crossposts; existing crossposts still receive later edits and deletions.</small>
 				<Checkbox field={form.showProfileFollow} label="Show a ‘Follow on Bluesky’ button on my public profile" />
-				<div className="info">
-					<strong>{connection.status === "healthy" ? "Connected" : connection.status === "syncing" ? "Syncing" : "Bluesky needs attention"}</strong>
-					{connection.status_message && <p>{connection.status_message}</p>}
+				<div className="info bluesky-status" aria-label="Bluesky connection status">
+					<strong className="bluesky-status-title">{connection.status === "healthy" ? "Connected" : connection.status === "syncing" ? "Syncing" : "Bluesky needs attention"}</strong>
+					{connection.status_message && <p className="bluesky-status-message">{connection.status_message}</p>}
 					{connection.pending_deliveries > 0 && <small>{connection.pending_deliveries} outgoing post(s) pending.</small>}
-					{connection.last_sync_at && <small> Last checked {new Date(connection.last_sync_at).toLocaleString()}.</small>}
+					{connection.last_sync_at && <small className="bluesky-status-meta">Last checked {new Date(connection.last_sync_at).toLocaleString()}.</small>}
 				</div>
 				{(connection.pending_deliveries > 0 || connection.dead_deliveries > 0 || connection.dead_notifications > 0) &&
 					<button type="button" disabled={retryResult.isLoading} onClick={() => void retry()}>Retry Bluesky sync</button>}
