@@ -96,7 +96,6 @@ if (remoteFollow) {
 		const normalized = normalizeServer(savedServer);
 		if (normalized) {
 			savedServer = normalized;
-			openButton.querySelector("span").textContent = `Follow on ${savedServer}`;
 			changeButton.hidden = false;
 		} else {
 			savedServer = undefined;

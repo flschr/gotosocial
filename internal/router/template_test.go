@@ -41,6 +41,26 @@ func TestRemoteFollowCloseButtonDoesNotSubmitForm(t *testing.T) {
 	}
 }
 
+func TestRemoteFollowButtonLabelStaysStable(t *testing.T) {
+	markup, err := os.ReadFile("../../web/template/profile_header.tmpl")
+	if err != nil {
+		t.Fatalf("read profile header template: %v", err)
+	}
+
+	if !strings.Contains(string(markup), `<span>Follow</span>`) {
+		t.Fatalf("remote follow button must use its neutral label")
+	}
+
+	script, err := os.ReadFile("../../web/source/frontend/index.js")
+	if err != nil {
+		t.Fatalf("read frontend script: %v", err)
+	}
+
+	if strings.Contains(string(script), `openButton.querySelector("span").textContent`) {
+		t.Fatalf("stored server must not replace the remote follow button label")
+	}
+}
+
 func TestStatusAttachmentMarkupIsScopedAndCSPCompatible(t *testing.T) {
 	oldTemplateDir := config.GetWebTemplateBaseDir()
 	config.SetWebTemplateBaseDir("../../web/template")
