@@ -25,10 +25,25 @@ import FormWithData from "../../lib/form/form-with-data";
 import useFormSubmit from "../../lib/form/submit";
 import { useVerifyCredentialsQuery } from "../../lib/query/login";
 import { useUpdateCredentialsMutation } from "../../lib/query/user";
+import { useUpdateInstanceMutation } from "../../lib/query/admin";
+import { useInstanceV1Query } from "../../lib/query/gts-api";
+import { useHasPermission } from "../../lib/navigation/util";
 import type { Account } from "../../lib/types/account";
+import type { InstanceV1 } from "../../lib/types/instance";
 
 export default function PublicProfile() {
-	return <FormWithData dataQuery={useVerifyCredentialsQuery} DataForm={PublicProfileForm} />;
+	const admin = useHasPermission(["admin"]);
+
+	return (
+		<div className="plus-public-profile">
+			<div className="form-section-docs">
+				<h1>Public Profile</h1>
+				<p>Choose how Plus presents public profiles to visitors on the web.</p>
+			</div>
+			<FormWithData dataQuery={useVerifyCredentialsQuery} DataForm={PublicProfileForm} />
+			{admin && <FormWithData dataQuery={useInstanceV1Query} DataForm={InstancePublicProfileForm} />}
+		</div>
+	);
 }
 
 function PublicProfileForm({ data: profile }: { data: Account }) {
@@ -42,12 +57,33 @@ function PublicProfileForm({ data: profile }: { data: Account }) {
 
 	return (
 		<form onSubmit={submitForm}>
-			<div className="form-section-docs">
-				<h1>Public Profile</h1>
-				<p>Choose how Plus presents your profile to visitors on the web.</p>
-			</div>
-			<Checkbox field={form.webBioFirst} label="Show my bio before profile links." />
+			<fieldset>
+				<legend>My profile</legend>
+				<Checkbox field={form.webBioFirst} label="Show my bio before profile links." />
+			</fieldset>
 			<MutationButton disabled={false} label="Save profile settings" result={result} />
+		</form>
+	);
+}
+
+function InstancePublicProfileForm({ data: instance }: { data: InstanceV1 }) {
+	const form = {
+		profilesAutoLoadOlderPosts: useBoolInput("profiles_auto_load_older_posts", { source: instance }),
+		profilesShowPlusInfo: useBoolInput("profiles_show_plus_info", { source: instance }),
+		profilesShowRemoteFollow: useBoolInput("profiles_show_remote_follow", { source: instance }),
+	};
+	const [submitForm, result] = useFormSubmit(form, useUpdateInstanceMutation());
+
+	return (
+		<form onSubmit={submitForm}>
+			<fieldset>
+				<legend>Instance-wide public profile features</legend>
+				<p>These administrator settings apply to every public profile on this instance.</p>
+				<Checkbox field={form.profilesAutoLoadOlderPosts} label="Automatically load older posts. The Show older link remains available as a fallback." />
+				<Checkbox field={form.profilesShowPlusInfo} label="Show the GoToSocial Plus version and source information." />
+				<Checkbox field={form.profilesShowRemoteFollow} label="Show a Follow button that sends visitors back to their own Fediverse server." />
+			</fieldset>
+			<MutationButton disabled={false} label="Save public profile features" result={result} />
 		</form>
 	);
 }

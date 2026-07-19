@@ -23,8 +23,8 @@ operation, federation, client use, and general configuration.
 The fork collects a small number of changes needed by
 [social.fischr.org](https://social.fischr.org/) in a public, reproducible source
 tree. Plus features are collected in the dedicated **GoToSocial Plus** section
-of the settings application. Personal settings, Bluesky, and administrator-only
-instance controls each have their own page there.
+of the settings application. Bluesky, public-profile behavior, and other
+administrator-only instance controls each have a clear place there.
 
 ### Native Bluesky integration
 

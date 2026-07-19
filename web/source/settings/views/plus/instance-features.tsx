@@ -36,9 +36,6 @@ function InstanceFeaturesForm({ data: instance }: { data: InstanceV1 }) {
 		accountsUseAccountDomainInAcct: useBoolInput("accounts_use_account_domain_in_acct", { source: instance }),
 		accountsHideLocalRoles: useBoolInput("accounts_hide_local_roles", { source: instance }),
 		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance }),
-		profilesAutoLoadOlderPosts: useBoolInput("profiles_auto_load_older_posts", { source: instance }),
-		profilesShowPlusInfo: useBoolInput("profiles_show_plus_info", { source: instance }),
-		profilesShowRemoteFollow: useBoolInput("profiles_show_remote_follow", { source: instance }),
 	};
 	const [submitForm, result] = useFormSubmit(form, useUpdateInstanceMutation());
 
@@ -56,12 +53,6 @@ function InstanceFeaturesForm({ data: instance }: { data: InstanceV1 }) {
 			<fieldset>
 				<legend>Posts and media</legend>
 				<Checkbox field={form.statusesPreviewCards} label="Enable link preview cards, including preview images and supported video embeds." />
-			</fieldset>
-			<fieldset>
-				<legend>Public profiles</legend>
-				<Checkbox field={form.profilesAutoLoadOlderPosts} label="Automatically load older posts. The Show older link remains available as a fallback." />
-				<Checkbox field={form.profilesShowPlusInfo} label="Show the GoToSocial Plus version and source information." />
-				<Checkbox field={form.profilesShowRemoteFollow} label="Show a Follow button that sends visitors back to their own Fediverse server." />
 			</fieldset>
 			<MutationButton disabled={false} label="Save instance features" result={result} />
 		</form>
