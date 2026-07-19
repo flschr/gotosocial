@@ -334,11 +334,7 @@ func (m *Module) profileMicroblog(c *gin.Context, p *profile) {
 		OGMeta:      apiutil.OGAccount(p.instance, p.account),
 		Stylesheets: stylesheets,
 		Javascript: []apiutil.JavascriptEntry{
-			{
-				Src:   jsFrontend,
-				Async: true,
-				Defer: true,
-			},
+			frontendJavascript(),
 			{
 				Bottom: true,
 				Src:    jsFrontendPrerender,
@@ -419,11 +415,7 @@ func (m *Module) profileGallery(c *gin.Context, p *profile) {
 		OGMeta:      apiutil.OGAccount(p.instance, p.account),
 		Stylesheets: stylesheets,
 		Javascript: []apiutil.JavascriptEntry{
-			{
-				Src:   jsFrontend,
-				Async: true,
-				Defer: true,
-			},
+			frontendJavascript(),
 			{
 				Bottom: true,
 				Src:    jsFrontendPrerender,

@@ -146,11 +146,7 @@ func (m *Module) threadGETHandler(c *gin.Context) {
 		OGMeta:      apiutil.OGStatus(instance, acct, context.Status),
 		Stylesheets: stylesheets,
 		Javascript: []apiutil.JavascriptEntry{
-			{
-				Src:   jsFrontend,
-				Async: true,
-				Defer: true,
-			},
+			frontendJavascript(),
 			{
 				Bottom: true,
 				Src:    jsFrontendPrerender,
