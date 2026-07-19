@@ -47,7 +47,7 @@ const (
 	instancePollsMinExpiration               = 300     // seconds
 	instancePollsMaxExpiration               = 2629746 // seconds
 	instanceAccountsMaxFeaturedTags          = 10
-	instanceSourceURL                        = "https://github.com/flschr/gotosocial"
+	instanceSourceURL                        = "https://github.com/flschr/gotosocial-plus"
 	instanceMastodonVersion                  = "3.5.3"
 )
 

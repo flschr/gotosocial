@@ -52,4 +52,4 @@ the Git history without becoming separate changelog entries.
 - Optionally show the running Plus version and source on public profiles.
 
 Detailed release artifacts and checksums remain available on the
-[GitHub Releases page](https://github.com/flschr/gotosocial/releases).
+[GitHub Releases page](https://github.com/flschr/gotosocial-plus/releases).

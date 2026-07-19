@@ -162,7 +162,7 @@ take effect immediately.
 ## Releases and installation
 
 Ready-to-run builds are published on the
-[GitHub Releases page](https://github.com/flschr/gotosocial/releases). A release
+[GitHub Releases page](https://github.com/flschr/gotosocial-plus/releases). A release
 archive contains the GoToSocial binary, web assets, web templates, license,
 README, and example configuration.
 
@@ -187,8 +187,8 @@ an upgrade, and existing thumbnails are not regenerated automatically.
 
 ## Source, upstream, and license
 
-- GoToSocial Plus source: <https://github.com/flschr/gotosocial>
-- Plus releases: <https://github.com/flschr/gotosocial/releases>
+- GoToSocial Plus source: <https://github.com/flschr/gotosocial-plus>
+- Plus releases: <https://github.com/flschr/gotosocial-plus/releases>
 - Official GoToSocial source:
   <https://codeberg.org/superseriousbusiness/gotosocial>
 - Official documentation: <https://docs.gotosocial.org/>
