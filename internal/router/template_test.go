@@ -114,6 +114,8 @@ func TestStatusAttachmentMarkupIsScopedAndCSPCompatible(t *testing.T) {
 func TestPublicVersion(t *testing.T) {
 	for input, expected := range map[string]string{
 		"0.22.0-plus+git-0de01b8":                  "0.22.0-plus",
+		"0.22.0-plus.12+git-43c8d97e0":             "0.22.0-plus.12",
+		"0.22.0-plus.12-settings-test.3+git-43c8d": "0.22.0-plus.12",
 		"0.22.0-plus-bluesky-test.2+git-48885a7cc": "0.22.0-plus",
 		"0.22.0+git-0de01b8":                       "0.22.0",
 		"0.22.0":                                   "0.22.0",
@@ -121,6 +123,16 @@ func TestPublicVersion(t *testing.T) {
 		if actual := publicVersion(input); actual != expected {
 			t.Errorf("publicVersion(%q) = %q, want %q", input, actual, expected)
 		}
+	}
+}
+
+func TestPlusVersionParts(t *testing.T) {
+	const version = "0.22.0-plus.12-settings-test.3+git-43c8d97e0"
+	if actual := baseVersion(version); actual != "0.22.0" {
+		t.Errorf("baseVersion(%q) = %q, want 0.22.0", version, actual)
+	}
+	if actual := plusRelease(version); actual != "12" {
+		t.Errorf("plusRelease(%q) = %q, want 12", version, actual)
 	}
 }
 

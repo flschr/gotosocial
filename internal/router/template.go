@@ -152,6 +152,8 @@ var funcMap = template.FuncMap{
 	"noescapeAttr":        noescapeAttr,
 	"noescape":            noescape,
 	"oddOrEven":           oddOrEven,
+	"baseVersion":         baseVersion,
+	"plusRelease":         plusRelease,
 	"publicVersion":       publicVersion,
 	"subtract":            subtract,
 	"timestampPrecise":    timestampPrecise,
@@ -161,12 +163,32 @@ var funcMap = template.FuncMap{
 
 func publicVersion(version string) string {
 	if plus := strings.Index(version, "-plus"); plus >= 0 {
-		return version[:plus+len("-plus")]
+		end := plus + len("-plus")
+		if end+1 < len(version) && version[end] == '.' && version[end+1] >= '0' && version[end+1] <= '9' {
+			for end++; end < len(version) && version[end] >= '0' && version[end] <= '9'; end++ {
+			}
+		}
+		return version[:end]
 	}
 	if build := strings.IndexByte(version, '+'); build >= 0 {
 		return version[:build]
 	}
 	return version
+}
+
+func baseVersion(version string) string {
+	if plus := strings.Index(version, "-plus"); plus >= 0 {
+		return version[:plus]
+	}
+	return publicVersion(version)
+}
+
+func plusRelease(version string) string {
+	public := publicVersion(version)
+	if marker := strings.Index(public, "-plus."); marker >= 0 {
+		return public[marker+len("-plus."):]
+	}
+	return public
 }
 
 func oddOrEven(n int) string {

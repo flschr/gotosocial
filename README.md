@@ -166,6 +166,11 @@ Ready-to-run builds are published on the
 archive contains the GoToSocial binary, web assets, web templates, license,
 README, and example configuration.
 
+Release names follow `v<GoToSocial version>-plus.<Plus release>`. For example,
+`v0.22.0-plus.12` is GoToSocial Plus 12 based on GoToSocial 0.22.0. Public pages
+show those two versions separately so the fork release and its upstream base
+remain clear.
+
 Always deploy the binary and web files from the same archive. Mixing a binary
 with templates or compiled frontend assets from another release can leave
 public pages unstyled or break the settings interface.
