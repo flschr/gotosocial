@@ -90,7 +90,7 @@ var Defaults = Configuration{
 		EmojiLocalMaxSize:   50 * bytesize.KiB,
 		EmojiRemoteMaxSize:  100 * bytesize.KiB,
 		FfmpegPoolSize:      1,
-		ThumbMaxPixels:      512,
+		ThumbMaxPixels:      1024,
 		RemoteCacheDuration: 7 * longdur.Day,
 		CleanupCron:         MustParseCron("0 0 * * *"), // daily at 0am
 	},

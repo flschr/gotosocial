@@ -19,8 +19,64 @@ package router
 
 import (
 	"html/template"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
+	"code.superseriousbusiness.org/gotosocial/internal/config"
+	"github.com/gin-gonic/gin"
 )
+
+func TestStatusAttachmentMediaClass(t *testing.T) {
+	oldTemplateDir := config.GetWebTemplateBaseDir()
+	config.SetWebTemplateBaseDir("../../web/template")
+	t.Cleanup(func() { config.SetWebTemplateBaseDir(oldTemplateDir) })
+
+	engine := gin.New()
+	if err := LoadTemplates(engine); err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+
+	renderAttachment := func(mediaType string) string {
+		t.Helper()
+
+		previewURL := "https://example.org/small.jpeg"
+		attachment := &apimodel.WebAttachment{
+			Attachment: &apimodel.Attachment{
+				Type:       mediaType,
+				PreviewURL: &previewURL,
+				Meta: &apimodel.MediaMeta{
+					Small: apimodel.MediaDimensions{Width: 512, Height: 384},
+					Focus: &apimodel.MediaFocus{},
+				},
+			},
+		}
+		data := struct {
+			Item  *apimodel.WebAttachment
+			Index int
+		}{Item: attachment}
+
+		output := httptest.NewRecorder()
+		if err := engine.HTMLRender.Instance("status_attachment.tmpl", data).Render(output); err != nil {
+			t.Fatalf("render %s attachment: %v", mediaType, err)
+		}
+		return output.Body.String()
+	}
+
+	imageHTML := renderAttachment("image")
+	if !strings.Contains(imageHTML, `class="media-wrapper image-media-wrapper"`) {
+		t.Fatalf("image attachment missing image-specific class:\n%s", imageHTML)
+	}
+	if strings.Contains(imageHTML, `style=`) {
+		t.Fatalf("image attachment contains CSP-incompatible inline style:\n%s", imageHTML)
+	}
+
+	videoHTML := renderAttachment("video")
+	if strings.Contains(videoHTML, "image-media-wrapper") {
+		t.Fatalf("video attachment received image-specific class:\n%s", videoHTML)
+	}
+}
 
 func TestPublicVersion(t *testing.T) {
 	for input, expected := range map[string]string{

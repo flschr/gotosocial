@@ -25,8 +25,38 @@
 	grid-auto-rows: 10rem;
 	overflow: hidden;
 
-	&.single .media-wrapper {
-		grid-column: span 2;
+	&.single {
+		grid-auto-rows: auto;
+
+		.media-wrapper {
+			grid-column: span 2;
+		}
+
+		.image-media-wrapper {
+			height: auto;
+			background: $gray1;
+
+			details {
+				height: auto;
+
+				&:not([open]) {
+					aspect-ratio: 4 / 3;
+				}
+
+				a.photoswipe-slide {
+					position: relative;
+					height: auto;
+					display: block;
+
+					img {
+						width: 100%;
+						height: auto;
+						max-height: min(80vh, 60rem);
+						object-fit: contain;
+					}
+				}
+			}
+		}
 	}
 
 	&.odd .media-wrapper:first-child,

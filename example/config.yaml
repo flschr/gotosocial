@@ -734,8 +734,8 @@ media-remote-max-size: 40MiB
 # a thumbnail (as input media ratio is preserved).
 #
 # Examples: [256, 512, 1024]
-# Default: 512
-media-thumb-max-pixels: 512
+# Default: 1024
+media-thumb-max-pixels: 1024
 
 # Int. Minimum amount of characters required as an image or video description.
 # Examples: [500, 1000, 1500]

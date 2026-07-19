@@ -165,7 +165,7 @@ const lightbox = new PhotoswipeLightbox({
 });
 
 new PhotoswipeCaptionPlugin(lightbox, {
-	type: 'auto',
+	type: 'below',
 	captionContent(slide) {
 		return slide.data.alt;
 	}

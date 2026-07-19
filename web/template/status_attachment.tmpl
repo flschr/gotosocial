@@ -48,7 +48,7 @@
 {{- end }}
 
 {{- with . }}
-<div class="media-wrapper">
+<div class="media-wrapper{{ if eq .Item.Type "image" }} image-media-wrapper{{ end }}">
     <details class="{{- .Item.Type -}}-spoiler media-spoiler" {{- if not .Item.Sensitive }} open{{- end -}}>
         <summary
             {{- if .Item.Description }}
