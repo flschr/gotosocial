@@ -147,6 +147,11 @@ the database, configuration, binary, web files, and media storage. Plus changes
 are maintained as focused commits on top of an unmodified upstream release
 branch so that every upgrade can be reviewed feature by feature.
 
+GoToSocial Plus defaults new media thumbnails to a maximum dimension of 1024
+pixels for sharper public-web presentation. An existing explicit
+`media-thumb-max-pixels` configuration value continues to take precedence after
+an upgrade, and existing thumbnails are not regenerated automatically.
+
 ## Source, upstream, and license
 
 - GoToSocial Plus source: <https://github.com/flschr/gotosocial>

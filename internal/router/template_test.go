@@ -28,7 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestStatusAttachmentMediaClass(t *testing.T) {
+func TestStatusAttachmentMarkupIsScopedAndCSPCompatible(t *testing.T) {
 	oldTemplateDir := config.GetWebTemplateBaseDir()
 	config.SetWebTemplateBaseDir("../../web/template")
 	t.Cleanup(func() { config.SetWebTemplateBaseDir(oldTemplateDir) })
