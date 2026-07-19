@@ -4,7 +4,7 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
-## v0.22.0-plus.12 — 2026-07-19
+## v0.22.0-plus.1 — 2026-07-19
 
 ### Native Bluesky integration
 
@@ -19,6 +19,10 @@ the Git history without becoming separate changelog entries.
 ### Improved public profiles and media
 
 - Choose whether the profile bio or profile links appear first.
+- Optionally load older posts automatically while preserving the normal
+  **Show older** fallback link.
+- Optionally send profile visitors back to their own Mastodon-compatible
+  Fediverse server to confirm a follow.
 - Present single images proportionally without forced cropping.
 - Use sharper thumbnails for newly processed media by default.
 - Open media in a centered, accessible lightbox with the image description
@@ -38,24 +42,13 @@ the Git history without becoming separate changelog entries.
   and publishers can safely retry without creating duplicate posts or
   crossposts.
 
-## v0.22.0-plus.10 to v0.22.0-plus.11
-
-### Remote follow
-
-- Add an optional follow action to public profiles that sends visitors back to
-  their own Mastodon-compatible Fediverse server for confirmation.
-
-## v0.22.0-plus.1 to v0.22.0-plus.9
-
-### Initial Plus features
+### Compatibility, privacy, and feeds
 
 - Improve split-domain handle display in Mastodon clients.
 - Keep local administrator and moderator roles private on public profiles.
 - Add Mastodon-compatible link previews and supported privacy-friendly video
   embeds.
 - Restore reliable public RSS feeds.
-- Optionally load older public profile posts automatically while preserving
-  the normal fallback link.
 - Optionally show the running Plus version and source on public profiles.
 
 Detailed release artifacts and checksums remain available on the

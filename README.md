@@ -167,7 +167,7 @@ archive contains the GoToSocial binary, web assets, web templates, license,
 README, and example configuration.
 
 Release names follow `v<GoToSocial version>-plus.<Plus release>`. For example,
-`v0.22.0-plus.12` is GoToSocial Plus 12 based on GoToSocial 0.22.0. Public pages
+`v0.22.0-plus.1` is GoToSocial Plus 1 based on GoToSocial 0.22.0. Public pages
 show those two versions separately so the fork release and its upstream base
 remain clear.
 

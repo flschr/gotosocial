@@ -53,20 +53,20 @@ jobs:
         env:
           GOOS: linux
           GOARCH: amd64
-          VERSION: 0.22.0-plus
+          VERSION: 0.22.0-plus.1
         run: ./scripts/build.sh
 
       - name: Package deployable archive
         run: |
           mkdir -p dist/gotosocial
-          cp gotosocial LICENSE README.md example/config.yaml example/gotosocial.service dist/gotosocial/
+          cp gotosocial LICENSE README.md CHANGELOG.md GOTOSOCIAL_PLUS.md example/config.yaml example/gotosocial.service dist/gotosocial/
           cp -R web/assets web/template dist/gotosocial/
-          tar -C dist -czf dist/gotosocial_0.22.0-plus_linux_amd64.tar.gz gotosocial
+          tar -C dist -czf dist/gotosocial_0.22.0-plus.1_linux_amd64.tar.gz gotosocial
 
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
-          name: gotosocial-0.22.0-plus-linux-amd64
-          path: dist/gotosocial_0.22.0-plus_linux_amd64.tar.gz
+          name: gotosocial-0.22.0-plus.1-linux-amd64
+          path: dist/gotosocial_0.22.0-plus.1_linux_amd64.tar.gz
           if-no-files-found: error
           retention-days: 30
