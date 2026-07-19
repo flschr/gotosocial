@@ -46,7 +46,18 @@ if (remoteFollow) {
 	const serverInput = remoteFollow.querySelector("[data-remote-follow-server]");
 	const error = remoteFollow.querySelector("[data-remote-follow-error]");
 	const copyButton = remoteFollow.querySelector("[data-remote-follow-copy]");
+	const closeButton = remoteFollow.querySelector("[data-remote-follow-close]");
 	let savedServer;
+
+	const clearError = () => {
+		error.hidden = true;
+		serverInput.removeAttribute("aria-invalid");
+	};
+
+	const closeDialog = () => {
+		clearError();
+		dialog.close();
+	};
 
 	try {
 		savedServer = window.localStorage.getItem(storageKey);
@@ -107,11 +118,15 @@ if (remoteFollow) {
 		serverInput.select();
 	});
 
-	form.addEventListener("submit", (event) => {
-		if (event.submitter?.value === "cancel") {
-			return;
+	closeButton.addEventListener("click", closeDialog);
+	dialog.addEventListener("close", clearError);
+	dialog.addEventListener("click", (event) => {
+		if (event.target === dialog) {
+			closeDialog();
 		}
+	});
 
+	form.addEventListener("submit", (event) => {
 		event.preventDefault();
 		const server = normalizeServer(serverInput.value);
 		if (!server) {

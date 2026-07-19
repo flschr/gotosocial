@@ -20,6 +20,7 @@ package router
 import (
 	"html/template"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -27,6 +28,18 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"github.com/gin-gonic/gin"
 )
+
+func TestRemoteFollowCloseButtonDoesNotSubmitForm(t *testing.T) {
+	markup, err := os.ReadFile("../../web/template/profile_header.tmpl")
+	if err != nil {
+		t.Fatalf("read profile header template: %v", err)
+	}
+
+	closeButton := `type="button" class="remote-follow-close" aria-label="Close" data-remote-follow-close`
+	if !strings.Contains(string(markup), closeButton) {
+		t.Fatalf("remote follow close button must not submit the required form")
+	}
+}
 
 func TestStatusAttachmentMarkupIsScopedAndCSPCompatible(t *testing.T) {
 	oldTemplateDir := config.GetWebTemplateBaseDir()
