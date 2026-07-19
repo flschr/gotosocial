@@ -176,10 +176,17 @@ const lightbox = new PhotoswipeLightbox({
 	// Bit darker than default 0.8.
 	bgOpacity: 0.9,
 	loop: false,
+	paddingFn(viewportSize) {
+		if (viewportSize.x < 600) {
+			return { top: 64, right: 16, bottom: 80, left: 16 };
+		}
+		return { top: 72, right: 72, bottom: 96, left: 72 };
+	},
 });
 
 new PhotoswipeCaptionPlugin(lightbox, {
 	type: 'below',
+	verticallyCenterImage: true,
 	captionContent(slide) {
 		return slide.data.alt;
 	}

@@ -288,6 +288,34 @@
 }
 
 /*
+	Keep lightbox controls legible without reserving
+	a full side rail next to the media.
+*/
+.pswp__top-bar {
+	height: auto;
+	gap: 0.5rem;
+	padding: 0.75rem;
+
+	.pswp__button {
+		width: 3rem;
+		height: 3rem;
+		background: rgba(0, 0, 0, 0.65);
+		border-radius: 50%;
+		margin: 0;
+
+		&:hover,
+		&:focus-visible {
+			background: rgba(0, 0, 0, 0.85);
+		}
+
+		.pswp__icn {
+			top: 0.5rem;
+			left: 0.5rem;
+		}
+	}
+}
+
+/*
 	Style the plyr video thingy both in
 	and out of the photoswipe lightbox.
 */
@@ -381,21 +409,26 @@
 	photoswipe captions.
 */
 .pswp__dynamic-caption {
-  white-space: pre-wrap;
+	white-space: pre-wrap;
 }
 
-.pswp__dynamic-caption--aside {
-	/*
-		Remove unnecessary padding
-		in "normal" width when caption
-		is rendered on the right side.
-	*/
-	padding: 0 0 0 1rem;
+.pswp__dynamic-caption--below {
+	background: rgba(0, 0, 0, 0.72);
+	border-radius: 0.75rem;
+	box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.3);
+	line-height: 1.4;
+	margin-top: 1rem;
+	max-width: min(42rem, calc(100vw - 2rem));
+	padding: 0.65rem 0.9rem;
+}
 
-	/*
-		Let it have a bit more width if it
-		wants, to increase the chance of user
-		being able to see the whole caption.
-	*/
-	max-width: 30rem;
+.pswp__dynamic-caption--mobile {
+	background: rgba(0, 0, 0, 0.72);
+	border-radius: 0.75rem;
+	bottom: 1rem;
+	left: 1rem !important;
+	line-height: 1.4;
+	padding: 0.65rem 0.9rem;
+	right: 1rem;
+	width: auto;
 }
