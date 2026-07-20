@@ -61,6 +61,26 @@ func TestRemoteFollowButtonLabelStaysStable(t *testing.T) {
 	}
 }
 
+func TestRemoteFollowServerChoiceStaysInsideDialog(t *testing.T) {
+	markup, err := os.ReadFile("../../web/template/profile_header.tmpl")
+	if err != nil {
+		t.Fatalf("read profile header template: %v", err)
+	}
+
+	if strings.Contains(string(markup), "Use another server") || strings.Contains(string(markup), "data-remote-follow-change") {
+		t.Fatalf("server change action must not appear below the profile follow button")
+	}
+
+	script, err := os.ReadFile("../../web/source/frontend/index.js")
+	if err != nil {
+		t.Fatalf("read frontend script: %v", err)
+	}
+
+	if !strings.Contains(string(script), `serverInput.value = savedServer || "";`) {
+		t.Fatalf("saved server must be editable in the remote follow dialog")
+	}
+}
+
 func TestStatusAttachmentMarkupIsScopedAndCSPCompatible(t *testing.T) {
 	oldTemplateDir := config.GetWebTemplateBaseDir()
 	config.SetWebTemplateBaseDir("../../web/template")

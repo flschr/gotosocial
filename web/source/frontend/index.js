@@ -40,7 +40,6 @@ const remoteFollow = document.querySelector("[data-remote-follow]");
 if (remoteFollow) {
 	const storageKey = "gotosocial.remoteFollowServer";
 	const openButton = remoteFollow.querySelector("[data-remote-follow-open]");
-	const changeButton = remoteFollow.querySelector("[data-remote-follow-change]");
 	const dialog = remoteFollow.querySelector("dialog");
 	const form = remoteFollow.querySelector("[data-remote-follow-form]");
 	const serverInput = remoteFollow.querySelector("[data-remote-follow-server]");
@@ -96,25 +95,19 @@ if (remoteFollow) {
 		const normalized = normalizeServer(savedServer);
 		if (normalized) {
 			savedServer = normalized;
-			changeButton.hidden = false;
 		} else {
 			savedServer = undefined;
 		}
 	}
 
 	openButton.addEventListener("click", () => {
-		if (savedServer) {
-			followOn(savedServer);
-			return;
-		}
-		dialog.showModal();
-		serverInput.focus();
-	});
-
-	changeButton.addEventListener("click", () => {
 		serverInput.value = savedServer || "";
 		dialog.showModal();
-		serverInput.select();
+		if (savedServer) {
+			serverInput.select();
+		} else {
+			serverInput.focus();
+		}
 	});
 
 	closeButton.addEventListener("click", closeDialog);

@@ -228,14 +228,27 @@
 			align-items: flex-start;
 
 			.profile-follow-button {
+				appearance: none;
 				display: inline-flex;
 				align-items: center;
 				justify-content: center;
 				gap: 0.35rem;
 				color: $button-fg;
+				background: $button-bg;
+				border: 0;
 				white-space: nowrap;
 				font-weight: bold;
 				line-height: normal;
+
+				&:link,
+				&:visited {
+					color: $button-fg;
+					background: $button-bg;
+				}
+
+				&:hover {
+					background: $button-hover-bg;
+				}
 
 				.fa,
 				.bluesky-icon {
@@ -245,11 +258,6 @@
 			}
 
 			.bluesky-follow-button {
-				&:link,
-				&:visited {
-					color: $button-fg;
-				}
-
 				.bluesky-icon {
 					height: 1.15rem;
 					fill: currentColor;
@@ -263,25 +271,6 @@
 				width: auto;
 			}
 
-			.remote-follow-change {
-				display: block;
-				color: $fg-reduced;
-				background: transparent;
-				border: 0;
-				font-size: 0.75rem;
-				margin: 0.2rem auto 0;
-				padding: 0;
-				text-decoration: underline;
-
-				&[hidden] {
-					display: none;
-				}
-
-				&:hover {
-					color: $fg;
-					background: transparent;
-				}
-			}
 		}
 	}
 }
