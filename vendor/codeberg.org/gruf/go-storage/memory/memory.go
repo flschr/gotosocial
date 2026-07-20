@@ -40,12 +40,7 @@ func Open(size int, overwrites bool) *MemoryStorage {
 }
 
 // Clean: implements Storage.Clean().
-func (st *MemoryStorage) Clean(ctx context.Context) error {
-
-	// Check context still valid
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (st *MemoryStorage) Clean(_ context.Context) error {
 
 	// Lock map.
 	st.mu.Lock()
@@ -66,7 +61,7 @@ func (st *MemoryStorage) Clean(ctx context.Context) error {
 }
 
 // ReadBytes: implements Storage.ReadBytes().
-func (st *MemoryStorage) ReadBytes(ctx context.Context, key string) ([]byte, error) {
+func (st *MemoryStorage) ReadBytes(_ context.Context, key string) ([]byte, error) {
 	var b []byte
 
 	// Lock map.
@@ -105,7 +100,7 @@ func (st *MemoryStorage) ReadStream(ctx context.Context, key string) (io.ReadClo
 }
 
 // WriteBytes: implements Storage.WriteBytes().
-func (st *MemoryStorage) WriteBytes(ctx context.Context, key string, b []byte) (int, error) {
+func (st *MemoryStorage) WriteBytes(_ context.Context, key string, b []byte) (int, error) {
 
 	// Lock map.
 	st.mu.Lock()
@@ -148,7 +143,7 @@ func (st *MemoryStorage) WriteStream(ctx context.Context, key string, r io.Reade
 }
 
 // Stat: implements Storage.Stat().
-func (st *MemoryStorage) Stat(ctx context.Context, key string) (*storage.Entry, error) {
+func (st *MemoryStorage) Stat(_ context.Context, key string) (*storage.Entry, error) {
 
 	// Lock map.
 	st.mu.Lock()
@@ -174,7 +169,7 @@ func (st *MemoryStorage) Stat(ctx context.Context, key string) (*storage.Entry, 
 }
 
 // Remove: implements Storage.Remove().
-func (st *MemoryStorage) Remove(ctx context.Context, key string) error {
+func (st *MemoryStorage) Remove(_ context.Context, key string) error {
 
 	// Lock map.
 	st.mu.Lock()
@@ -198,7 +193,7 @@ func (st *MemoryStorage) Remove(ctx context.Context, key string) error {
 }
 
 // WalkKeys: implements Storage.WalkKeys().
-func (st *MemoryStorage) WalkKeys(ctx context.Context, opts storage.WalkKeysOpts) error {
+func (st *MemoryStorage) WalkKeys(_ context.Context, opts storage.WalkKeysOpts) error {
 	if opts.Step == nil {
 		panic("nil step fn")
 	}

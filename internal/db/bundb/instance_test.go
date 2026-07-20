@@ -24,6 +24,7 @@ import (
 
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/paging"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -144,6 +145,41 @@ func (suite *InstanceTestSuite) TestInstanceDeliveryTracking() {
 
 	suite.Empty(instance.DeliveryErrors)
 	suite.WithinDuration(time.Now(), instance.LatestSuccessfulDelivery, 1*time.Minute)
+}
+
+func (suite *InstanceTestSuite) TestInstanceWithErrors() {
+	ctx := suite.T().Context()
+
+	// Set paging.
+	page := new(paging.Page)
+	page.Max.Value = suite.testInstances["example.org"].ID
+	page.Max.Order = paging.OrderDescending
+
+	// Get alphabetical.
+	instances, err := suite.state.DB.GetInstancesPage(
+		ctx,
+		page,
+		"", // domain
+		gtsmodel.InstanceOrderByAlphabetical,
+		true, // withErrorsOnly
+	)
+	if err != nil {
+		suite.FailNow(err.Error())
+	}
+	suite.Len(instances, 1)
+
+	// Get by first seen.
+	instances, err = suite.state.DB.GetInstancesPage(
+		ctx,
+		page,
+		"", // domain
+		gtsmodel.InstanceOrderByFirstSeen,
+		true, // withErrorsOnly
+	)
+	if err != nil {
+		suite.FailNow(err.Error())
+	}
+	suite.Len(instances, 1)
 }
 
 func TestInstanceTestSuite(t *testing.T) {

@@ -7,12 +7,16 @@ import (
 	"unicode/utf8"
 )
 
-// Splitter holds onto a byte buffer for use in minimising allocations during SplitFunc().
+// Splitter holds onto a byte buffer for use
+// in minimising allocations during SplitFunc().
 type Splitter struct{ B []byte }
 
 // SplitFunc will split input string on commas, taking into account string quoting and
 // stripping extra whitespace, passing each split to the given function hook.
 func (s *Splitter) SplitFunc(str string, fn func(string) error) error {
+	if s == nil || fn == nil {
+		panic("nil input(s)")
+	}
 	for {
 		// Reset buffer
 		s.B = s.B[0:0]
@@ -25,9 +29,11 @@ func (s *Splitter) SplitFunc(str string, fn func(string) error) error {
 			return nil
 		}
 
-		switch {
-		// Single / double quoted
-		case str[0] == '\'', str[0] == '"':
+		switch str[0] {
+		// Single /
+		// double quoted
+		case '\'', '"':
+
 			// Calculate next string elem
 			i := 1 + s.next(str[1:], str[0])
 			if i == 0 /* i.e. if .next() returned -1 */ {
@@ -55,8 +61,9 @@ func (s *Splitter) SplitFunc(str string, fn func(string) error) error {
 			// Skip comma
 			str = str[1:]
 
-		// Empty segment
-		case str[0] == ',':
+		// Empty
+		// segment
+		case ',':
 			str = str[1:]
 
 		// No quoting
@@ -154,15 +161,16 @@ func trimLeadingSpace(str string) string {
 	var start int
 
 	for ; start < len(str); start++ {
-		// If beyond ascii range, trim using slower rune check.
+		// If beyond ascii range,
+		// trim using slower rune check.
 		if str[start] >= utf8.RuneSelf {
 			return trimLeadingSpaceSlow(str[start:])
 		}
 
-		// Ascii character
+		// Ascii character.
 		char := str[start]
 
-		// This is first non-space ASCII, trim up to here
+		// This is first non-space ASCII, trim up to here.
 		if (asciiSpace[char/32] & (1 << (char % 32))) == 0 {
 			break
 		}
@@ -171,7 +179,8 @@ func trimLeadingSpace(str string) string {
 	return str[start:]
 }
 
-// trimLeadingSpaceSlow trims leading space using the slower unicode.IsSpace check.
+// trimLeadingSpaceSlow trims leading space
+// using the slower unicode.IsSpace check.
 func trimLeadingSpaceSlow(str string) string {
 	for i, r := range str {
 		if !unicode.IsSpace(r) {

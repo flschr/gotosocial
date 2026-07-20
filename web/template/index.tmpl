@@ -34,7 +34,9 @@
             <nav>
                 <ul>
                     <li><a href="/about">See more details</a></li>
+                    {{- if .showAcctDir }}
                     <li><a href="/directory">Accounts on this instance</a></li>
+                    {{- end }}
                 </ul>
             </nav>
         </div>

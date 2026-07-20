@@ -154,6 +154,7 @@ func New(cfg Config) *Client {
 
 	// Set wrapped HTTP client roundtripper with compression and signing.
 	c.client.Transport = gzhttp.Transport(&signingtransport{http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           d.DialContext,
 		TLSClientConfig:       tlsClientConfig,
 		DisableKeepAlives:     cfg.DisableKeepAlives,

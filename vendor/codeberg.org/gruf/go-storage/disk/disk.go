@@ -220,6 +220,9 @@ func (st *DiskStorage) WriteStream(_ context.Context, key string, stream io.Read
 func (st *DiskStorage) Stat(_ context.Context, key string) (*storage.Entry, error) {
 	stat, err := st.FS.Stat(key)
 	if err != nil {
+		if internal.Is(err, storage.ErrNotFound) {
+			err = nil // mask not-found errors
+		}
 		return nil, err
 	}
 	return &storage.Entry{

@@ -446,4 +446,4 @@ You can also use this page to delete your application. When a managed applicatio
 
 ## Relay Pushes
 
-Using this section, you can view, create, and remove relay push connections that send your posts to relays. For more information on relay push connections, please see the dedicated [relay pushes](./relay-pushes.md) document.
+Using this section, you can view, create, and remove relay push connections that send your posts to relays. For more information on relay push connections, please see the dedicated [relay pushes](./relay_pushes.md) document.

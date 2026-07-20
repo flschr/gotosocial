@@ -335,5 +335,8 @@ func templatePage(
 	// ends up with class "page index-page".
 	obj["pageClass"] = template[:len(template)-5]
 
+	// So the template knows if the account directory is enabled.
+	obj["showAcctDir"] = config.GetInstanceDirectoryWebEnabled()
+
 	c.HTML(code, pageTmpl, obj)
 }

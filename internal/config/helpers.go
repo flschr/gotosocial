@@ -26,6 +26,17 @@ func GetHTTPClientOutgoingScheme() (schema string) {
 	return "https://"
 }
 
+func GetInstanceDirectoryWebEnabled() bool {
+	switch GetInstanceDirectoryMode() {
+	case InstanceDirectoryModeOpen:
+		return true
+	case InstanceDirectoryModeWebOnly:
+		return true
+	default:
+		return false
+	}
+}
+
 func GetMediaRemoteCacheOlderThanTime(now time.Time) time.Time {
 	_, dur := GetMediaRemoteCacheDuration().Duration()
 	return now.Add(-dur)

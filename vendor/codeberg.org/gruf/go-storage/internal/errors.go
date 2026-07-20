@@ -1,5 +1,13 @@
 package internal
 
+// Is performs an extremely simple "errors.Is()"
+// using the knowledge that our errors are only
+// ever wrapped at most once as *errorWithKey{}.
+func Is(err, is error) bool {
+	ewk, ok := err.(*errorWithKey)
+	return ok && ewk.err == is
+}
+
 func ErrWithKey(err error, key string) error {
 	return &errorWithKey{key: key, err: err}
 }

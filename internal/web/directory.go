@@ -53,10 +53,8 @@ func (m *Module) directoryGETHandler(c *gin.Context) {
 		return
 	}
 
-	// Only serve the directory if permitte to do so.
-	directoryMode := config.GetInstanceDirectoryMode()
-	if directoryMode != config.InstanceDirectoryModeOpen &&
-		directoryMode != config.InstanceDirectoryModeWebOnly {
+	// Only serve the directory if permitted to do so.
+	if !config.GetInstanceDirectoryWebEnabled() {
 		const errText = "directory not exposed"
 		const errTextHelpful = "this instance does not currently expose an account directory"
 		errWithCode := gtserror.NewErrorNotFound(errors.New(errText), errTextHelpful)

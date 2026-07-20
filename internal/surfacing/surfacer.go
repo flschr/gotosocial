@@ -20,6 +20,7 @@ package surfacing
 import (
 	"context"
 	"errors"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/email"
@@ -91,7 +92,10 @@ func New(
 			return nil
 		}
 
-		if isNew {
+		// We only timeline and notify like a new status IF:
+		// - it is new to our instance (i.e. just been dereference)
+		// - it was created in the last day (accounting for timezones).
+		if isNew && time.Since(status.CreatedAt) < 25*time.Hour {
 			return s.TimelineAndNotifyStatus(ctx, status)
 		} else { //nolint
 			return s.TimelineAndNotifyStatusUpdate(ctx, status)

@@ -61,7 +61,7 @@ export default function RelayPushesOverview() {
 					you've created in order to push your posts to relays.
 				</p>
 				<a
-					href="https://docs.gotosocial.org/en/stable/admin/relay-pushes/"
+					href="https://docs.gotosocial.org/en/stable/user_guide/relay_pushes/"
 					target="_blank"
 					className="docslink"
 					rel="noreferrer"

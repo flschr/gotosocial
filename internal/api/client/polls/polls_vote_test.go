@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/api/client/polls"
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
@@ -90,10 +91,10 @@ func (suite *PollCreateTestSuite) voteInPoll(
 
 	resp := &apimodel.Poll{}
 	if err := json.Unmarshal(b, resp); err != nil {
-		return nil, err
+		errs.Appendf("error unmarshaling body: %v", err)
 	}
 
-	return resp, nil
+	return resp, errs.Combine()
 }
 
 func (suite *PollCreateTestSuite) formVoteInPoll(
@@ -153,34 +154,34 @@ func (suite *PollCreateTestSuite) jsonVoteInPoll(
 
 func (suite *PollCreateTestSuite) TestPollVoteForm() {
 	targetPoll := suite.testPolls["local_account_1_status_6_poll"]
+	targetPoll.ExpiresAt = time.Now().Add(1 * time.Hour)
+	err := suite.db.UpdatePoll(suite.T().Context(), targetPoll, "expires_at")
+	suite.NoError(err)
 
 	poll, err := suite.formVoteInPoll(targetPoll.ID, []int{2}, http.StatusOK, "")
-	if err != nil {
-		suite.FailNow(err.Error())
-	}
-
+	suite.NoError(err)
 	suite.NotEmpty(poll)
 }
 
 func (suite *PollCreateTestSuite) TestPollVoteJSONInt() {
 	targetPoll := suite.testPolls["local_account_1_status_6_poll"]
+	targetPoll.ExpiresAt = time.Now().Add(1 * time.Hour)
+	err := suite.db.UpdatePoll(suite.T().Context(), targetPoll, "expires_at")
+	suite.NoError(err)
 
 	poll, err := suite.jsonVoteInPoll(targetPoll.ID, []interface{}{2}, http.StatusOK, "")
-	if err != nil {
-		suite.FailNow(err.Error())
-	}
-
+	suite.NoError(err)
 	suite.NotEmpty(poll)
 }
 
 func (suite *PollCreateTestSuite) TestPollVoteJSONStr() {
 	targetPoll := suite.testPolls["local_account_1_status_6_poll"]
+	targetPoll.ExpiresAt = time.Now().Add(1 * time.Hour)
+	err := suite.db.UpdatePoll(suite.T().Context(), targetPoll, "expires_at")
+	suite.NoError(err)
 
 	poll, err := suite.jsonVoteInPoll(targetPoll.ID, []interface{}{"2"}, http.StatusOK, "")
-	if err != nil {
-		suite.FailNow(err.Error())
-	}
-
+	suite.NoError(err)
 	suite.NotEmpty(poll)
 }
 

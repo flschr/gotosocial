@@ -397,7 +397,7 @@ loop:
 func (st *S3Storage) Stat(ctx context.Context, key string) (*storage.Entry, error) {
 	info, err := st.StatObject(ctx, key, minio.StatObjectOptions{})
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
+		if internal.Is(err, storage.ErrNotFound) {
 			err = nil // mask not-found errors
 		}
 		return nil, err

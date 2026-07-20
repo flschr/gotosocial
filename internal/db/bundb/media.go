@@ -118,7 +118,7 @@ func (m *mediaDB) UnattachAttachments(ctx context.Context, ids ...string) error 
 	if _, err := m.db.NewUpdate().
 		Table("media_attachments").
 		Where("? IN (?)", bun.Ident("id"), bun.List(ids)).
-		Set("? = ?", bun.Ident("status_id"), "").
+		Set("? = NULL", bun.Ident("status_id")).
 		Exec(ctx); err != nil && !errors.Is(err, db.ErrNoEntries) {
 		return err
 	}

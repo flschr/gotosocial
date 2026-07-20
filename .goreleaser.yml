@@ -384,7 +384,7 @@ release:
 
 # https://goreleaser.com/customization/changelog/
 changelog:
-  use: gitea
+  use: git
   groups:
     - title: Features and performance
       regexp: '^.*\[(?:feature|performance).*\].*$'

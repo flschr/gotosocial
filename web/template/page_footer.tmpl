@@ -28,6 +28,7 @@
                 About {{ .instance.Title }}
             </a>
         </li>
+        {{- if .showAcctDir }}
         <li id="directory">
             <a
                 href="/directory"
@@ -36,6 +37,7 @@
                 Account Directory
             </a>
         </li>
+        {{- end }}
         <li id="version">
             <a
                 href="https://github.com/flschr/gotosocial-plus"

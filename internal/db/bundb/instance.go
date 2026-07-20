@@ -34,6 +34,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect"
 )
 
 type instanceDB struct {
@@ -218,16 +219,20 @@ func (i *instanceDB) GetInstancesPage(
 ) ([]*gtsmodel.Instance, error) {
 	var (
 		// Extract page params.
-		minID = page.Min.Value
-		maxID = page.Max.Value
-		limit = page.Limit
-		order = page.Order()
+		minID = page.GetMin()
+		maxID = page.GetMax()
+		limit = page.GetLimit()
+		order = page.GetOrder()
 
-		// Pre-allocate slice of IDs.
-		instanceIDs = make([]string, 0, limit)
+		// Pre-allocate slice of instances
+		// to select column values into.
+		selectInto = make([]gtsmodel.Instance, 0, limit)
 
 		// We know orderBy is either Latest or Alphabetical.
 		orderByAlphabetical = orderBy == gtsmodel.InstanceOrderByAlphabetical
+
+		// Query differs if we're running on Postgres.
+		postgres = i.db.Dialect().Name() == dialect.PG
 	)
 
 	q := i.db.
@@ -238,6 +243,9 @@ func (i *instanceDB) GetInstancesPage(
 		TableExpr("? AS ?", bun.Ident("instances"), bun.Ident("instance"))
 
 	if undeliverableOnly {
+		// Select only instances with matching
+		// federation errors, and use DISTINCT
+		// to avoid duplicate rows in results.
 		q = q.Join(
 			"RIGHT JOIN ? AS ? ON ? = ?",
 			bun.Ident("federation_errors"),
@@ -312,11 +320,23 @@ func (i *instanceDB) GetInstancesPage(
 	case orderByAlphabetical && order == paging.OrderDescending:
 		// Order alphabetically (paging down).
 		// Z > A in ASCII so use ASC.
+		if postgres {
+			// When doing DISTINCT Postgres wants
+			// anything used in ORDER BY to also
+			// be included in the SELECT columns.
+			q = q.Column("instance.domain")
+		}
 		q = q.Order("instance.domain ASC")
 
 	case orderByAlphabetical && order == paging.OrderAscending:
 		// Order alphabetically (paging up).
 		// A < Z in ASCII so use DESC.
+		if postgres {
+			// When doing DISTINCT Postgres wants
+			// anything used in ORDER BY to also
+			// be included in the SELECT columns.
+			q = q.Column("instance.domain")
+		}
 		q = q.Order("instance.domain DESC")
 	}
 
@@ -325,11 +345,11 @@ func (i *instanceDB) GetInstancesPage(
 	q = q.Limit(limit)
 
 	// Run the query.
-	if err := q.Scan(ctx, &instanceIDs); err != nil {
+	if err := q.Scan(ctx, &selectInto); err != nil {
 		return nil, err
 	}
 
-	count := len(instanceIDs)
+	count := len(selectInto)
 	if count == 0 {
 		// Nothing for
 		// this query.
@@ -339,8 +359,8 @@ func (i *instanceDB) GetInstancesPage(
 	// Preallocate slice of instances,
 	// and fetch each instance by ID.
 	instances := make([]*gtsmodel.Instance, 0, count)
-	for _, instanceID := range instanceIDs {
-		instance, err := i.GetInstanceByID(ctx, instanceID)
+	for _, v := range selectInto {
+		instance, err := i.GetInstanceByID(ctx, v.ID)
 		if err != nil {
 			err := gtserror.Newf("db error getting instance: %w", err)
 			return nil, err

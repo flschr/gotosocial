@@ -54,10 +54,24 @@ func (p *Poll) Expired() bool {
 		time.Now().After(p.ExpiresAt)
 }
 
-// Closed returns whether the Poll is closed (i.e. date is set and BEFORE now).
+// Closed returns whether the Poll is closed, i.e. ClosedAt is set and BEFORE now,
+// OR the ExpiresAt date is set and BEFORE now. This helps to account for serializing
+// remote statuses that have expired since last dereference, with new dereference still
+// pending. It doesn't update it in the database, but it behaves as expected via API.
 func (p *Poll) Closed() bool {
-	return !p.ClosedAt.IsZero() &&
-		time.Now().After(p.ClosedAt)
+
+	// If closedAt set, rely
+	// on this for the result.
+	if !p.ClosedAt.IsZero() {
+		return time.Now().After(p.ClosedAt)
+	}
+
+	// Else rely on ExpiresAt.
+	if !p.ExpiresAt.IsZero() {
+		return time.Now().After(p.ExpiresAt)
+	}
+
+	return false
 }
 
 // IncrementVotes increments Poll vote counts for given choices, and voters if 'isNew' is set.

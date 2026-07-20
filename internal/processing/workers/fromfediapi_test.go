@@ -142,6 +142,10 @@ func (suite *FromFediAPITestSuite) TestProcessReplyMention() {
 	replyingStatusable := testrig.NewTestFediStatuses()[replyingURI]
 	ap.AppendInReplyTo(replyingStatusable, testrig.URLMustParse(repliedStatus.URI))
 
+	// Update the replying status published time
+	// so it passes the "isNew" timeline heuristics.
+	ap.SetPublished(replyingStatusable, time.Now())
+
 	// Open a websocket stream to later test the streamed status reply.
 	wssStream, errWithCode := testStructs.Processor.Stream().Open(suite.T().Context(), repliedAccount, stream.TimelineHome)
 	suite.NoError(errWithCode)
