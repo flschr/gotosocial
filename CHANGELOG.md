@@ -4,6 +4,27 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
+## v0.22.1-plus.2 — 2026-07-20
+
+### GoToSocial 0.22.1 bugfixes
+
+- Restore outgoing HTTP proxy configuration that was accidentally removed.
+- Fix voting availability for expired remote polls and the closed-poll
+  detection heuristic.
+- Prevent old statuses from producing new-status notifications when they are
+  added to timelines.
+- Fix media cleanup for attachments detached from deleted local statuses.
+- Improve undeliverable-instance handling for PostgreSQL installations.
+- Hide the public directory link when the directory is disabled.
+- Update bundled dependencies, including SQLite.
+
+### Public profile follow actions
+
+- Always open the remote-follow dialog from the Mastodon follow button so a
+  previously saved server remains visible and can be changed.
+- Keep Mastodon and Bluesky follow actions visually consistent on desktop and
+  mobile.
+
 ## v0.22.0-plus.1 — 2026-07-19
 
 ### Native Bluesky integration
