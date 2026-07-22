@@ -143,6 +143,89 @@ func (d *Dereferencer) RefreshStatus(
 	return latest, latestStatusable, err
 }
 
+// RefreshStatusForThreadContext refreshes a remote status and imports the
+// first attached page of replies before returning. Remaining ancestors,
+// reply pages, and nested replies continue asynchronously. Concurrent context
+// requests for the same status are coalesced and failures leave the existing
+// database thread available to the caller.
+func (d *Dereferencer) RefreshStatusForThreadContext(
+	ctx context.Context,
+	requestUser string,
+	status *gtsmodel.Status,
+) (*gtsmodel.Status, error) {
+	if status.Flags.Local() || status.Flags.Deleted() {
+		return status, nil
+	}
+	if d.threadContextRefreshFresh(status.URI, time.Now()) {
+		return status, nil
+	}
+
+	lockKey := "thread-context-refresh:" + status.URI
+	unlock := d.state.ProcessingLocks.Lock(lockKey)
+	defer unlock()
+
+	// Another context request may have completed while this one waited.
+	if d.threadContextRefreshFresh(status.URI, time.Now()) {
+		return status, nil
+	}
+	markAttempt := func(success bool) {
+		d.threadContextRefreshes.Set(status.URI, threadContextRefresh{
+			at:      time.Now(),
+			success: success,
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, ThreadContextRefreshTimeout)
+	defer cancel()
+
+	latest, err := d.state.DB.GetStatusByID(ctx, status.ID)
+	if err != nil {
+		markAttempt(false)
+		return status, gtserror.Newf("error reloading thread status: %w", err)
+	}
+
+	uri, err := url.Parse(latest.URI)
+	if err != nil {
+		markAttempt(false)
+		return latest, gtserror.Newf("invalid status uri %q: %w", latest.URI, err)
+	}
+
+	latest, statusable, isNew, err := d.enrichAndStoreStatusSafely(
+		ctx,
+		requestUser,
+		uri,
+		latest,
+		nil,
+	)
+	if err != nil {
+		markAttempt(false)
+		return latest, err
+	}
+
+	if statusable == nil {
+		markAttempt(false)
+		return latest, nil
+	}
+
+	// Import the first reply page before the context query reads descendants.
+	// Any failure is non-fatal: callers can still return the cached thread.
+	firstPageErr := d.dereferenceStatusDescendantsFirstPage(
+		ctx,
+		requestUser,
+		uri,
+		statusable,
+	)
+	if firstPageErr != nil {
+		log.Errorf(ctx, "error refreshing first reply page for %s: %v", latest.URI, firstPageErr)
+	}
+
+	// Continue the complete thread traversal outside the request path.
+	d.dereferenceThread(ctx, requestUser, uri, latest, statusable, isNew)
+	markAttempt(firstPageErr == nil)
+
+	return latest, nil
+}
+
 // RefreshStatusAsync is functionally equivalent to callling RefreshStatus()
 // yourself within a dereferencer worker function, except that it performs an
 // optimized hand-off operation by performing freshness and validity checks

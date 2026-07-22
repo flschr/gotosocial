@@ -32,6 +32,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"code.superseriousbusiness.org/gotosocial/internal/transport"
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
+	cache "codeberg.org/gruf/go-cache/v3"
 )
 
 // FreshnessWindow represents a duration in which a
@@ -77,6 +78,20 @@ var (
 	// i.e. no model dereference is required.
 	// Otherwise it could DoS the model's host.
 	Freshest = time.Nanosecond
+
+	// ThreadContextFreshness limits synchronous refreshes triggered by
+	// authenticated thread-context requests. This keeps remote replies
+	// reasonably current without contacting the origin on every open.
+	ThreadContextFreshness = 10 * time.Minute
+
+	// ThreadContextRefreshTimeout bounds the extra latency added while
+	// importing the first page of replies for a remote thread.
+	ThreadContextRefreshTimeout = 3 * time.Second
+
+	// ThreadContextFailureFreshness prevents an unavailable origin from being
+	// retried for every context request while recovering much sooner than a
+	// successful refresh.
+	ThreadContextFailureFreshness = time.Minute
 )
 
 // Dereferencer wraps logic and functionality for doing dereferencing
@@ -119,6 +134,9 @@ type Dereferencer struct {
 	derefEmojis   keyedList[*media.ProcessingEmoji]
 	derefEmojisMu sync.Mutex
 
+	// recently attempted remote reply collection refreshes
+	threadContextRefreshes cache.Cache[string, threadContextRefresh]
+
 	// handshakes marks current in-progress handshakes
 	// occurring, useful to prevent a deadlock between
 	// gotosocial instances attempting to dereference
@@ -142,15 +160,39 @@ func NewDereferencer(
 	mediaManager *media.Manager,
 ) Dereferencer {
 	return Dereferencer{
-		state:               state,
-		converter:           converter,
-		transportController: transportController,
-		mediaManager:        mediaManager,
-		visFilter:           visFilter,
-		intFilter:           intFilter,
-		relayFilter:         relayFilter,
-		handshakes:          make(map[string][]*url.URL),
+		state:                  state,
+		converter:              converter,
+		transportController:    transportController,
+		mediaManager:           mediaManager,
+		visFilter:              visFilter,
+		intFilter:              intFilter,
+		relayFilter:            relayFilter,
+		threadContextRefreshes: cache.New[string, threadContextRefresh](0, 1000),
+		handshakes:             make(map[string][]*url.URL),
 	}
+}
+
+type threadContextRefresh struct {
+	at      time.Time
+	success bool
+}
+
+func (d *Dereferencer) threadContextRefreshFresh(uri string, now time.Time) bool {
+	refresh, ok := d.threadContextRefreshes.Get(uri)
+	if !ok {
+		return false
+	}
+
+	freshness := ThreadContextFailureFreshness
+	if refresh.success {
+		freshness = ThreadContextFreshness
+	}
+	if now.Sub(refresh.at) < freshness {
+		return true
+	}
+
+	d.threadContextRefreshes.Invalidate(uri)
+	return false
 }
 
 func (d *Dereferencer) onAccountDereference(ctx context.Context, account *gtsmodel.Account) {

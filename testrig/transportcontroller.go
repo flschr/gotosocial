@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"code.superseriousbusiness.org/activity/pub"
 	"code.superseriousbusiness.org/activity/streams"
@@ -62,6 +63,7 @@ type MockHTTPClient struct {
 	do func(req *http.Request) (*http.Response, error)
 
 	TestRemoteStatuses    map[string]vocab.ActivityStreamsNote
+	TestRemoteCollections map[string]vocab.ActivityStreamsCollectionPage
 	TestRemotePeople      map[string]vocab.ActivityStreamsPerson
 	TestRemoteGroups      map[string]vocab.ActivityStreamsGroup
 	TestRemoteServices    map[string]vocab.ActivityStreamsService
@@ -69,7 +71,8 @@ type MockHTTPClient struct {
 	TestRemoteEmojis      map[string]vocab.TootEmoji
 	TestTombstones        map[string]*gtsmodel.Tombstone
 
-	SentMessages sync.Map
+	SentMessages  sync.Map
+	RequestCounts sync.Map
 }
 
 // NewMockHTTPClient returns a client that conforms to the pub.HttpClient interface.
@@ -90,6 +93,7 @@ func NewMockHTTPClient(do func(req *http.Request) (*http.Response, error), relat
 	}
 
 	mockHTTPClient.TestRemoteStatuses = NewTestFediStatuses()
+	mockHTTPClient.TestRemoteCollections = make(map[string]vocab.ActivityStreamsCollectionPage)
 	mockHTTPClient.TestRemotePeople = NewTestFediPeople()
 	mockHTTPClient.TestRemoteGroups = NewTestFediGroups()
 	mockHTTPClient.TestRemoteServices = NewTestFediServices()
@@ -106,6 +110,9 @@ func NewMockHTTPClient(do func(req *http.Request) (*http.Response, error), relat
 			extraHeaders          = make(map[string]string, 0)
 			reqURLString          = req.URL.String()
 		)
+
+		count, _ := mockHTTPClient.RequestCounts.LoadOrStore(reqURLString, new(atomic.Int64))
+		count.(*atomic.Int64).Add(1)
 
 		if req.Method == http.MethodPost {
 			b, err := io.ReadAll(req.Body)
@@ -140,6 +147,19 @@ func NewMockHTTPClient(do func(req *http.Request) (*http.Response, error), relat
 			responseCode, responseBytes, responseContentType, responseContentLength, extraHeaders = NodeInfoResponse(req)
 		} else if strings.Contains(reqURLString, "lists.example.org") {
 			responseCode, responseBytes, responseContentType, responseContentLength, extraHeaders = DomainPermissionSubscriptionResponse(req)
+		} else if page, ok := mockHTTPClient.TestRemoteCollections[reqURLString]; ok {
+			pageI, err := streams.Serialize(page)
+			if err != nil {
+				panic(err)
+			}
+			pageJSON, err := json.Marshal(pageI)
+			if err != nil {
+				panic(err)
+			}
+			responseCode = http.StatusOK
+			responseBytes = pageJSON
+			responseContentType = applicationActivityJSON
+			responseContentLength = len(pageJSON)
 		} else if note, ok := mockHTTPClient.TestRemoteStatuses[reqURLString]; ok {
 			// the request is for a note that we have stored
 			noteI, err := streams.Serialize(note)
@@ -271,6 +291,14 @@ func NewMockHTTPClient(do func(req *http.Request) (*http.Response, error), relat
 	}
 
 	return mockHTTPClient
+}
+
+func (m *MockHTTPClient) RequestCount(uri string) int64 {
+	count, ok := m.RequestCounts.Load(uri)
+	if !ok {
+		return 0
+	}
+	return count.(*atomic.Int64).Load()
 }
 
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
