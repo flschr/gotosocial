@@ -102,8 +102,36 @@ func getAttachedStatusCollectionPage(status ap.Statusable) (ap.CollectionPageIte
 		return ap.WrapOrderedCollectionPage(page), getIDString(page)
 	}
 
-	log.Warnf(nil, "replies without collection page: %s", getIDString(status))
+	// A referenced first page is also valid and may be fetched by callers
+	// that explicitly allow network work.
+	if getAttachedStatusCollectionPageIRI(status) == nil {
+		log.Warnf(nil, "replies without collection page: %s", getIDString(status))
+	}
 	return nil, ""
+}
+
+// getAttachedStatusCollectionPageIRI returns the IRI of an attached first
+// replies page when the remote status references the page instead of embedding
+// it. Both representations are valid ActivityStreams.
+func getAttachedStatusCollectionPageIRI(status ap.Statusable) *url.URL {
+	replies := status.GetActivityStreamsReplies()
+	if replies == nil {
+		return nil
+	}
+
+	if collection := replies.GetActivityStreamsCollection(); collection != nil {
+		if first := collection.GetActivityStreamsFirst(); first != nil && first.IsIRI() {
+			return first.GetIRI()
+		}
+	}
+
+	if collection := replies.GetActivityStreamsOrderedCollection(); collection != nil {
+		if first := collection.GetActivityStreamsFirst(); first != nil && first.IsIRI() {
+			return first.GetIRI()
+		}
+	}
+
+	return nil
 }
 
 func getRepliesCollectionPage(replies vocab.ActivityStreamsRepliesProperty) vocab.ActivityStreamsCollectionPage {

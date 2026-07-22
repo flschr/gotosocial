@@ -347,6 +347,17 @@ func (suite *webContextGetTestSuite) TestAllVisibleIndexable() {
 	suite.True(webContext.Indexable)
 }
 
+func (suite *webContextGetTestSuite) TestUnauthenticatedRemoteContextDoesNotRefresh() {
+	ctx := suite.T().Context()
+	remote := suite.testStatuses["remote_account_1_status_1"]
+	suite.Require().NotNil(remote)
+
+	before := suite.client.RequestCount(remote.URI)
+	_, err := suite.status.WebContextGet(ctx, remote.ID)
+	suite.Require().Nil(err)
+	suite.Equal(before, suite.client.RequestCount(remote.URI))
+}
+
 // If any visible statuses in a thread are not indexable, so is the thread.
 func (suite *webContextGetTestSuite) TestOneVisibleNonindexable() {
 	ctx := suite.T().Context()

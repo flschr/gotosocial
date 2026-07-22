@@ -49,6 +49,7 @@ type StatusStandardTestSuite struct {
 	state         state.State
 	mediaManager  *media.Manager
 	federator     *federation.Federator
+	client        *testrig.MockHTTPClient
 
 	// standard suite models
 	testTokens            map[string]*gtsmodel.Token
@@ -89,7 +90,8 @@ func (suite *StatusStandardTestSuite) SetupTest() {
 	suite.state.DB = suite.db
 	suite.state.AdminActions = admin.New(suite.state.DB, &suite.state.Workers)
 
-	suite.tc = testrig.NewTestTransportController(&suite.state, testrig.NewMockHTTPClient(nil, "../../../testrig/media"))
+	suite.client = testrig.NewMockHTTPClient(nil, "../../../testrig/media")
+	suite.tc = testrig.NewTestTransportController(&suite.state, suite.client)
 	suite.storage = testrig.NewInMemoryStorage()
 	suite.state.Storage = suite.storage
 	suite.mediaManager = testrig.NewTestMediaManager(&suite.state)

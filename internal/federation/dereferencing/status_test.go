@@ -19,6 +19,8 @@ package dereferencing_test
 
 import (
 	"fmt"
+	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -75,6 +77,220 @@ func (suite *StatusTestSuite) TestDereferenceSimpleStatus() {
 	suite.Equal("brand_new_person", account.Username)
 	suite.NotNil(account.PublicKey)
 	suite.Nil(account.PrivateKey)
+}
+
+func (suite *StatusTestSuite) TestRefreshStatusForThreadContextImportsFirstReplyPage() {
+	ctx := suite.T().Context()
+	fetchingAccount := suite.testAccounts["local_account_1"]
+
+	const (
+		rootURI  = "https://unknown-instance.com/users/brand_new_person/statuses/01FE4NTHKWW7THT67EF10EB839"
+		replyURI = "https://unknown-instance.com/users/brand_new_person/statuses/01KYTHREADREPLY000000000001"
+	)
+
+	root, _, err := suite.dereferencer.GetStatusByURI(
+		ctx,
+		fetchingAccount.Username,
+		testrig.URLMustParse(rootURI),
+	)
+	suite.Require().NoError(err)
+
+	reply := testrig.NewAPNote(&testrig.NewAPNoteParams{
+		ID:           testrig.URLMustParse(replyURI),
+		URL:          testrig.URLMustParse(replyURI),
+		CreatedAt:    time.Now().Add(-time.Minute),
+		Content:      "A newly discovered reply",
+		AttributedTo: testrig.URLMustParse("https://unknown-instance.com/users/brand_new_person"),
+		To:           []*url.URL{ap.PublicIRI()},
+		InReplyTo:    testrig.URLMustParse(rootURI),
+	})
+	suite.client.TestRemoteStatuses[replyURI] = reply
+
+	items := streams.NewActivityStreamsItemsProperty()
+	items.AppendIRI(testrig.URLMustParse(replyURI))
+	page := streams.NewActivityStreamsCollectionPage()
+	page.SetActivityStreamsItems(items)
+	first := streams.NewActivityStreamsFirstProperty()
+	first.SetActivityStreamsCollectionPage(page)
+	collection := streams.NewActivityStreamsCollection()
+	collection.SetActivityStreamsFirst(first)
+	replies := streams.NewActivityStreamsRepliesProperty()
+	replies.SetActivityStreamsCollection(collection)
+	remoteRoot := suite.client.TestRemoteStatuses[rootURI]
+	remoteRoot.SetActivityStreamsReplies(replies)
+
+	// A normal status request may just have refreshed fetched_at. Thread
+	// freshness must be tracked separately so the following context request
+	// still imports replies.
+	root.FetchedAt = time.Now()
+	suite.Require().NoError(suite.db.UpdateStatus(ctx, root, "fetched_at"))
+
+	refreshed, err := suite.dereferencer.RefreshStatusForThreadContext(
+		ctx,
+		fetchingAccount.Username,
+		root,
+	)
+	suite.Require().NoError(err)
+	suite.NotNil(refreshed)
+
+	storedReply, err := suite.db.GetStatusByURI(ctx, replyURI)
+	suite.Require().NoError(err)
+	suite.Equal(root.ID, storedReply.InReplyToID)
+
+	firstFetchedAt := refreshed.FetchedAt
+	refreshedAgain, err := suite.dereferencer.RefreshStatusForThreadContext(
+		ctx,
+		fetchingAccount.Username,
+		refreshed,
+	)
+	suite.Require().NoError(err)
+	suite.Equal(firstFetchedAt, refreshedAgain.FetchedAt)
+}
+
+func (suite *StatusTestSuite) TestRefreshStatusForThreadContextFollowsReferencedPagesAsync() {
+	ctx := suite.T().Context()
+	fetchingAccount := suite.testAccounts["local_account_1"]
+
+	const (
+		rootURI   = "https://unknown-instance.com/users/brand_new_person/statuses/01FE4NTHKWW7THT67EF10EB839"
+		page1URI  = rootURI + "/replies?page=1"
+		page2URI  = rootURI + "/replies?page=2"
+		reply1URI = "https://unknown-instance.com/users/brand_new_person/statuses/01KYTHREADREPLY000000000002"
+		reply2URI = "https://unknown-instance.com/users/brand_new_person/statuses/01KYTHREADREPLY000000000003"
+	)
+
+	root, _, err := suite.dereferencer.GetStatusByURI(
+		ctx,
+		fetchingAccount.Username,
+		testrig.URLMustParse(rootURI),
+	)
+	suite.Require().NoError(err)
+	for suite.state.Workers.Dereference.Queue.Len() > 0 {
+		_, _ = suite.state.Workers.Dereference.Queue.Pop()
+	}
+
+	for _, replyURI := range []string{reply1URI, reply2URI} {
+		suite.client.TestRemoteStatuses[replyURI] = testrig.NewAPNote(&testrig.NewAPNoteParams{
+			ID:           testrig.URLMustParse(replyURI),
+			URL:          testrig.URLMustParse(replyURI),
+			CreatedAt:    time.Now().Add(-time.Minute),
+			Content:      "A referenced-page reply",
+			AttributedTo: testrig.URLMustParse("https://unknown-instance.com/users/brand_new_person"),
+			To:           []*url.URL{ap.PublicIRI()},
+			InReplyTo:    testrig.URLMustParse(rootURI),
+		})
+	}
+
+	page1Items := streams.NewActivityStreamsItemsProperty()
+	page1Items.AppendIRI(testrig.URLMustParse(reply1URI))
+	page1 := streams.NewActivityStreamsCollectionPage()
+	ap.SetJSONLDId(page1, testrig.URLMustParse(page1URI))
+	page1.SetActivityStreamsItems(page1Items)
+	next := streams.NewActivityStreamsNextProperty()
+	next.SetIRI(testrig.URLMustParse(page2URI))
+	page1.SetActivityStreamsNext(next)
+
+	page2Items := streams.NewActivityStreamsItemsProperty()
+	page2Items.AppendIRI(testrig.URLMustParse(reply2URI))
+	page2 := streams.NewActivityStreamsCollectionPage()
+	ap.SetJSONLDId(page2, testrig.URLMustParse(page2URI))
+	page2.SetActivityStreamsItems(page2Items)
+	suite.client.TestRemoteCollections[page1URI] = page1
+	suite.client.TestRemoteCollections[page2URI] = page2
+
+	first := streams.NewActivityStreamsFirstProperty()
+	first.SetIRI(testrig.URLMustParse(page1URI))
+	collection := streams.NewActivityStreamsCollection()
+	collection.SetActivityStreamsFirst(first)
+	replies := streams.NewActivityStreamsRepliesProperty()
+	replies.SetActivityStreamsCollection(collection)
+	suite.client.TestRemoteStatuses[rootURI].SetActivityStreamsReplies(replies)
+
+	_, err = suite.dereferencer.RefreshStatusForThreadContext(
+		ctx,
+		fetchingAccount.Username,
+		root,
+	)
+	suite.Require().NoError(err)
+	_, err = suite.db.GetStatusByURI(ctx, reply1URI)
+	suite.Require().NoError(err)
+	_, err = suite.db.GetStatusByURI(ctx, reply2URI)
+	suite.ErrorIs(err, db.ErrNoEntries)
+
+	suite.state.Workers.Dereference.Start(1)
+	suite.Eventually(func() bool {
+		_, err := suite.db.GetStatusByURI(ctx, reply2URI)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func (suite *StatusTestSuite) TestRefreshStatusForThreadContextCoalescesConcurrentRequests() {
+	ctx := suite.T().Context()
+	fetchingAccount := suite.testAccounts["local_account_1"]
+	const rootURI = "https://unknown-instance.com/users/brand_new_person/statuses/01FE4NTHKWW7THT67EF10EB839"
+
+	root, _, err := suite.dereferencer.GetStatusByURI(
+		ctx,
+		fetchingAccount.Username,
+		testrig.URLMustParse(rootURI),
+	)
+	suite.Require().NoError(err)
+	suite.EqualValues(1, suite.client.RequestCount(rootURI))
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := suite.dereferencer.RefreshStatusForThreadContext(
+				ctx,
+				fetchingAccount.Username,
+				root,
+			)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		suite.NoError(err)
+	}
+
+	suite.EqualValues(2, suite.client.RequestCount(rootURI))
+}
+
+func (suite *StatusTestSuite) TestRefreshStatusForThreadContextCachesFailureBriefly() {
+	ctx := suite.T().Context()
+	fetchingAccount := suite.testAccounts["local_account_1"]
+	const rootURI = "https://unknown-instance.com/users/brand_new_person/statuses/01FE4NTHKWW7THT67EF10EB839"
+
+	root, _, err := suite.dereferencer.GetStatusByURI(
+		ctx,
+		fetchingAccount.Username,
+		testrig.URLMustParse(rootURI),
+	)
+	suite.Require().NoError(err)
+	delete(suite.client.TestRemoteStatuses, rootURI)
+
+	_, err = suite.dereferencer.RefreshStatusForThreadContext(
+		ctx,
+		fetchingAccount.Username,
+		root,
+	)
+	suite.Error(err)
+	suite.EqualValues(2, suite.client.RequestCount(rootURI))
+
+	// The negative cache returns the existing database model without
+	// immediately contacting the unavailable origin again.
+	cached, err := suite.dereferencer.RefreshStatusForThreadContext(
+		ctx,
+		fetchingAccount.Username,
+		root,
+	)
+	suite.NoError(err)
+	suite.Equal(root.ID, cached.ID)
+	suite.EqualValues(2, suite.client.RequestCount(rootURI))
 }
 
 func (suite *StatusTestSuite) TestDereferenceStatusWithMention() {

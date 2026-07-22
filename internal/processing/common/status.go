@@ -81,6 +81,7 @@ func (p *Processor) GetVisibleTargetStatusBy(
 		requester,
 		getTargetFromDB,
 		window,
+		false, // standard status refresh
 
 		// don't allow deleted
 		// status stubs.
@@ -124,6 +125,7 @@ func (p *Processor) GetVisibleTargetStatusInThread(
 		requester,
 		func() (*gtsmodel.Status, error) { return p.state.DB.GetStatusByID(ctx, targetID) },
 		window,
+		true, // synchronously refresh first remote reply page
 
 		// allow deleted
 		// status stubs.
@@ -156,6 +158,7 @@ func (p *Processor) getVisibleTargetStatusBy(
 	requester *gtsmodel.Account,
 	getTargetFromDB func() (*gtsmodel.Status, error),
 	window *dereferencing.FreshnessWindow,
+	refreshThreadContext bool,
 	allowDeleted bool,
 ) (
 	status *gtsmodel.Status,
@@ -166,6 +169,7 @@ func (p *Processor) getVisibleTargetStatusBy(
 		requester,
 		getTargetFromDB,
 		window,
+		refreshThreadContext,
 		allowDeleted,
 	)
 	if errWithCode != nil {
@@ -208,6 +212,7 @@ func (p *Processor) getTargetStatusBy(
 	requester *gtsmodel.Account,
 	getTargetFromDB func() (*gtsmodel.Status, error),
 	window *dereferencing.FreshnessWindow,
+	refreshThreadContext bool,
 	allowDeleted bool,
 ) (
 	status *gtsmodel.Status,
@@ -266,12 +271,22 @@ func (p *Processor) getTargetStatusBy(
 		// Only refresh status if visible to requester,
 		// and there is *authorized* requester to prevent
 		// a possible DOS vector for unauthorized clients.
-		latest, _, err := p.federator.RefreshStatus(ctx,
-			requester.Username,
-			target,
-			nil,
-			window,
-		)
+		var latest *gtsmodel.Status
+		var err error
+		if refreshThreadContext {
+			latest, err = p.federator.Dereferencer.RefreshStatusForThreadContext(
+				ctx,
+				requester.Username,
+				target,
+			)
+		} else {
+			latest, _, err = p.federator.RefreshStatus(ctx,
+				requester.Username,
+				target,
+				nil,
+				window,
+			)
+		}
 		if err != nil {
 			log.Errorf(ctx, "error refreshing target %s: %v", target.URI, err)
 			return target, visible, nil

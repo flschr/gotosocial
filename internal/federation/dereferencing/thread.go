@@ -316,6 +316,20 @@ func (d *Dereferencer) dereferenceStatusDescendants(
 				// Start input frame is built from the first input.
 				page, pageURI := getAttachedStatusCollectionPage(parent)
 				if page == nil {
+					pageIRI := getAttachedStatusCollectionPageIRI(parent)
+					if pageIRI == nil {
+						return nil
+					}
+
+					var err error
+					page, err = d.dereferenceCollectionPage(ctx, username, pageIRI)
+					if err != nil {
+						l.Errorf("error dereferencing first reply page %q: %s", pageIRI, err)
+						return nil
+					}
+					pageURI = pageIRI.String()
+				}
+				if page == nil {
 					return nil
 				}
 				return &frame{page: page, pageURI: pageURI}
@@ -466,6 +480,54 @@ stackLoop:
 	}
 
 	return gtserror.Newf("reached %d descendant iterations for %q", maxIter, statusIRIStr)
+}
+
+// dereferenceStatusDescendantsFirstPage imports only the first page of direct
+// replies. It is intentionally bounded for use in the authenticated thread
+// context request path; the full recursive traversal remains asynchronous.
+func (d *Dereferencer) dereferenceStatusDescendantsFirstPage(
+	ctx context.Context,
+	username string,
+	statusIRI *url.URL,
+	parent ap.Statusable,
+) error {
+	page, _ := getAttachedStatusCollectionPage(parent)
+	if page == nil {
+		pageIRI := getAttachedStatusCollectionPageIRI(parent)
+		if pageIRI == nil {
+			return nil
+		}
+
+		var err error
+		page, err = d.dereferenceCollectionPage(ctx, username, pageIRI)
+		if err != nil {
+			return gtserror.Newf("error dereferencing first reply page %q: %w", pageIRI, err)
+		}
+	}
+
+	localhost := config.GetHost()
+	for {
+		next := page.NextItem()
+		if next == nil {
+			return nil
+		}
+
+		itemIRI, _ := pub.ToId(next)
+		if itemIRI == nil || itemIRI.Host == localhost {
+			continue
+		}
+
+		if _, _, _, err := d.getStatusByURI(ctx, username, itemIRI); err != nil &&
+			!gtserror.IsUnretrievable(err) &&
+			!gtserror.IsMalformed(err) {
+			return gtserror.Newf(
+				"error dereferencing reply %s for %s: %w",
+				itemIRI,
+				statusIRI,
+				err,
+			)
+		}
+	}
 }
 
 // updateStatusParent updates the given status' parent
