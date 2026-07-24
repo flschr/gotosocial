@@ -44,6 +44,8 @@ type InstanceSettingsUpdateRequest struct {
 	AccountsHideLocalRoles *bool `form:"accounts_hide_local_roles" json:"accounts_hide_local_roles" xml:"accounts_hide_local_roles"`
 	// Generate and expose status link preview cards (GoToSocial Plus).
 	StatusesPreviewCards *bool `form:"statuses_preview_cards" json:"statuses_preview_cards" xml:"statuses_preview_cards"`
+	// Hide Mastodon's quote fallback when a matching preview card is available (GoToSocial Plus).
+	StatusesHideQuoteFallback *bool `form:"statuses_hide_quote_fallback" json:"statuses_hide_quote_fallback" xml:"statuses_hide_quote_fallback"`
 	// Automatically load older posts on public profiles (GoToSocial Plus).
 	ProfilesAutoLoadOlderPosts *bool `form:"profiles_auto_load_older_posts" json:"profiles_auto_load_older_posts" xml:"profiles_auto_load_older_posts"`
 	// Show GoToSocial Plus information on public profiles (GoToSocial Plus).

@@ -107,6 +107,7 @@ var Defaults = Configuration{
 	StatusesPollOptionMaxChars:     50,
 	StatusesMediaMaxFiles:          6,
 	StatusesPreviewCards:           false,
+	StatusesHideQuoteFallback:      false,
 	StatusesCleanupCron:            MustParseCron("0 1 * * 0"), // weekly at 1am
 	StatusesCleanupRemoteOlderThan: 0,
 

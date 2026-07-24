@@ -166,6 +166,9 @@ Profiles can have up to
                 {{- if .instance.StatusesPreviewCards }}
                 <li><strong>Link preview cards:</strong> eligible links can include previews in API responses and public web pages.</li>
                 {{- end }}
+                {{- if .instance.StatusesHideQuoteFallback }}
+                <li><strong>Cleaner quote posts:</strong> redundant Mastodon <code>RE:</code> fallback links are hidden when the matching quote preview is available.</li>
+                {{- end }}
                 <li><strong>Reliable RSS feeds:</strong> fixes an upstream issue that could leave enabled feeds empty despite public posts.</li>
             </ul>
             <p>

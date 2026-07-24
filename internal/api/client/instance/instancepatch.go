@@ -193,6 +193,7 @@ func validateInstanceUpdate(form *apimodel.InstanceSettingsUpdateRequest) error 
 		form.AccountsUseAccountDomainInAcct == nil &&
 		form.AccountsHideLocalRoles == nil &&
 		form.StatusesPreviewCards == nil &&
+		form.StatusesHideQuoteFallback == nil &&
 		form.ProfilesAutoLoadOlderPosts == nil &&
 		form.ProfilesShowPlusInfo == nil &&
 		form.ProfilesShowRemoteFollow == nil &&

@@ -44,6 +44,7 @@ Instance-wide optional behavior is controlled by these configuration keys:
 - `accounts-use-account-domain-in-acct`
 - `accounts-hide-local-roles`
 - `statuses-preview-cards`
+- `statuses-hide-quote-fallback`
 - `profiles-auto-load-older-posts`
 - `profiles-show-plus-info`
 - `profiles-show-remote-follow`
@@ -82,6 +83,16 @@ watch, short, embed, and `youtu.be` links additionally receive a video card
 with a privacy-enhanced `youtube-nocookie.com` player. The player URL is built
 only from a validated YouTube video ID; arbitrary third-party embed HTML is
 never rendered.
+
+### Cleaner Mastodon quote posts
+
+Mastodon prepends a `p.quote-inline` paragraph containing an `RE:` link to
+native quote posts for backward compatibility. Clients connected through
+GoToSocial can otherwise show that fallback directly above the matching Plus
+preview card. When enabled, this option removes only a leading quote-inline
+paragraph whose URL exactly matches an available card. It preserves ordinary
+links, user-authored `RE:` text, unmatched quote links, and all quote fallbacks
+when no card is available.
 
 ### Keep local account roles private
 

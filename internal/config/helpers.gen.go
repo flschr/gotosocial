@@ -109,6 +109,7 @@ const (
 	StatusesPollOptionMaxCharsFlag                = "statuses-poll-option-max-chars"
 	StatusesMediaMaxFilesFlag                     = "statuses-media-max-files"
 	StatusesPreviewCardsFlag                      = "statuses-preview-cards"
+	StatusesHideQuoteFallbackFlag                 = "statuses-hide-quote-fallback"
 	StatusesCleanupCronFlag                       = "statuses-cleanup-cron"
 	StatusesCleanupRemoteOlderThanFlag            = "statuses-cleanup-remote-older-than"
 	ScheduledStatusesMaxTotalFlag                 = "scheduled-statuses-max-total"
@@ -358,6 +359,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.Int("statuses-poll-option-max-chars", cfg.StatusesPollOptionMaxChars, "Max amount of characters for a poll option")
 	flags.Int("statuses-media-max-files", cfg.StatusesMediaMaxFiles, "Maximum number of media files/attachments per status")
 	flags.Bool("statuses-preview-cards", cfg.StatusesPreviewCards, "Fetch linked pages and include preview cards in Mastodon API status responses.")
+	flags.Bool("statuses-hide-quote-fallback", cfg.StatusesHideQuoteFallback, "Hide Mastodon's quote-inline fallback when a matching preview card is available.")
 	flags.String("statuses-cleanup-cron", cfg.StatusesCleanupCron.String(), "Cron expression defining statuses cleanup task scheduling")
 	flags.String("statuses-cleanup-remote-older-than", cfg.StatusesCleanupRemoteOlderThan.String(), "Duration defining status age beyond which to clean")
 	flags.Int("scheduled-statuses-max-total", cfg.ScheduledStatusesMaxTotal, "Maximum number of scheduled statuses per user")
@@ -520,7 +522,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 }
 
 func (cfg *Configuration) MarshalMap() map[string]any {
-	cfgmap := make(map[string]any, 248)
+	cfgmap := make(map[string]any, 249)
 	cfgmap["log-level"] = cfg.LogLevel
 	cfgmap["log-format"] = cfg.LogFormat
 	cfgmap["log-timestamp-format"] = cfg.LogTimestampFormat
@@ -596,6 +598,7 @@ func (cfg *Configuration) MarshalMap() map[string]any {
 	cfgmap["statuses-poll-option-max-chars"] = cfg.StatusesPollOptionMaxChars
 	cfgmap["statuses-media-max-files"] = cfg.StatusesMediaMaxFiles
 	cfgmap["statuses-preview-cards"] = cfg.StatusesPreviewCards
+	cfgmap["statuses-hide-quote-fallback"] = cfg.StatusesHideQuoteFallback
 	cfgmap["statuses-cleanup-cron"] = cfg.StatusesCleanupCron.String()
 	cfgmap["statuses-cleanup-remote-older-than"] = cfg.StatusesCleanupRemoteOlderThan.String()
 	cfgmap["scheduled-statuses-max-total"] = cfg.ScheduledStatusesMaxTotal
@@ -1392,6 +1395,14 @@ func (cfg *Configuration) UnmarshalMap(cfgmap map[string]any) error {
 		cfg.StatusesPreviewCards, err = cast.ToBoolE(ival)
 		if err != nil {
 			return fmt.Errorf("error casting %#v -> bool for 'statuses-preview-cards': %w", ival, err)
+		}
+	}
+
+	if ival, ok := cfgmap["statuses-hide-quote-fallback"]; ok {
+		var err error
+		cfg.StatusesHideQuoteFallback, err = cast.ToBoolE(ival)
+		if err != nil {
+			return fmt.Errorf("error casting %#v -> bool for 'statuses-hide-quote-fallback': %w", ival, err)
 		}
 	}
 
@@ -4137,6 +4148,23 @@ func GetStatusesPreviewCards() bool { return global.GetStatusesPreviewCards() }
 
 // SetStatusesPreviewCards safely sets the value for global configuration 'StatusesPreviewCards' field
 func SetStatusesPreviewCards(v bool) { global.SetStatusesPreviewCards(v) }
+
+// GetStatusesHideQuoteFallback safely fetches the Configuration value for state's 'StatusesHideQuoteFallback' field
+func (st *ConfigState) GetStatusesHideQuoteFallback() (v bool) {
+	return st.config.StatusesHideQuoteFallback
+}
+
+// SetStatusesHideQuoteFallback safely sets the Configuration value for state's 'StatusesHideQuoteFallback' field
+func (st *ConfigState) SetStatusesHideQuoteFallback(v bool) {
+	st.config.StatusesHideQuoteFallback = v
+	st.reloadToViper()
+}
+
+// GetStatusesHideQuoteFallback safely fetches the value for global configuration 'StatusesHideQuoteFallback' field
+func GetStatusesHideQuoteFallback() bool { return global.GetStatusesHideQuoteFallback() }
+
+// SetStatusesHideQuoteFallback safely sets the value for global configuration 'StatusesHideQuoteFallback' field
+func SetStatusesHideQuoteFallback(v bool) { global.SetStatusesHideQuoteFallback(v) }
 
 // GetStatusesCleanupCron safely fetches the Configuration value for state's 'StatusesCleanupCron' field
 func (st *ConfigState) GetStatusesCleanupCron() (v CronExpression) {
