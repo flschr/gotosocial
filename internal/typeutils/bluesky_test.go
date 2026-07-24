@@ -8,11 +8,20 @@ import (
 	"testing"
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBlueskyInteractionAccountLooksLikeNativeAuthor(t *testing.T) {
+	oldProtocol := config.GetProtocol()
+	oldHost := config.GetHost()
+	t.Cleanup(func() {
+		config.SetProtocol(oldProtocol)
+		config.SetHost(oldHost)
+	})
+	config.SetProtocol("http")
+	config.SetHost("localhost:8080")
 	fallback := &apimodel.Account{
 		ID:           "instance-account",
 		Username:     "social.example.org",
@@ -32,10 +41,16 @@ func TestBlueskyInteractionAccountLooksLikeNativeAuthor(t *testing.T) {
 
 	require.Equal(t, "bluesky:did:plc:author", account.ID)
 	require.Equal(t, "finest.day", account.Username)
-	require.Equal(t, "finest.day (🦋)", account.Acct)
-	require.Equal(t, "Sebastian", account.DisplayName)
+	require.Equal(t, "finest.day", account.Acct)
+	require.Equal(t, "Sebastian :bluesky:", account.DisplayName)
 	require.Equal(t, "https://bsky.app/profile/did:plc:author", account.URL)
 	require.Equal(t, "https://cdn.bsky.app/avatar.jpeg", account.Avatar)
 	require.Equal(t, account.Avatar, account.AvatarStatic)
+	require.Equal(t, []apimodel.Emoji{{
+		Shortcode:       "bluesky",
+		URL:             "http://localhost:8080/assets/bluesky.png",
+		StaticURL:       "http://localhost:8080/assets/bluesky.png",
+		VisibleInPicker: false,
+	}}, account.Emojis)
 	require.Equal(t, "instance-account", fallback.ID)
 }
