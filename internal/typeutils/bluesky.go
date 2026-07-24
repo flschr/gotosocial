@@ -19,7 +19,6 @@ func BlueskyInteractionAccount(interaction *gtsmodel.BlueskyInteraction, fallbac
 	if displayName == "" {
 		displayName = interaction.AuthorHandle
 	}
-	displayName += " :bluesky:"
 	emojiURL := config.GetProtocol() + "://" + config.GetHost() + "/assets/bluesky.png"
 	account := *fallback
 	account.ID = interaction.AuthorAccountID
@@ -46,9 +45,14 @@ func BlueskyInteractionAccount(interaction *gtsmodel.BlueskyInteraction, fallbac
 	account.StatusesCount = 0
 	account.LastStatusAt = nil
 	account.Roles = make([]apimodel.AccountDisplayRole, 0)
+	// Apply the instance policy to author-supplied display name content before
+	// adding our own service-origin marker. The Bluesky icon is UI metadata,
+	// not a profile decoration.
+	account.Emojis = nil
+	ApplyAccountNameEmojiPolicy(&account)
+	account.DisplayName += " :bluesky:"
 	account.Emojis = []apimodel.Emoji{{
 		Shortcode: "bluesky", URL: emojiURL, StaticURL: emojiURL, VisibleInPicker: false,
 	}}
-	ApplyAccountNameEmojiPolicy(&account)
 	return &account
 }

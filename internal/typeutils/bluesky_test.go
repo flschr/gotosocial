@@ -71,10 +71,10 @@ func TestBlueskyInteractionAccountHidesNameEmoji(t *testing.T) {
 	account := BlueskyInteractionAccount(&gtsmodel.BlueskyInteraction{
 		AuthorAccountID:   "01K00000000000000000000000",
 		AuthorHandle:      "finest.day",
-		AuthorDisplayName: "Sebastian",
+		AuthorDisplayName: "Sebastian 🦋",
 	}, &apimodel.Account{})
 
-	require.Equal(t, "Sebastian", account.DisplayName)
+	require.Equal(t, "Sebastian :bluesky:", account.DisplayName)
 	require.Equal(t, "finest.day", account.Username)
 	require.Equal(t, "finest.day", account.Acct)
 	require.Len(t, account.Emojis, 1, "emoji metadata remains available outside the display name")
