@@ -4,7 +4,7 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
-## v0.22.1-plus.3 — Unreleased
+## v0.22.1-plus.3 — 2026-07-24
 
 ### More complete remote conversations
 

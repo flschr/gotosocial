@@ -5,6 +5,11 @@ on:
     branches:
       - "plus/**"
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Exact release version, for example 0.22.1-plus.3 (leave empty for a development build)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -62,13 +67,29 @@ jobs:
           test -f web/assets/dist/base.css
           test -f web/assets/dist/settings.js
 
-      - name: Compute development version
+      - name: Compute build version
         shell: bash
         run: |
-          short_sha="${GITHUB_SHA:0:9}"
-          dev_version="${PLUS_BASE_VERSION}-plus-dev+git-${short_sha}"
-          echo "DEV_VERSION=${dev_version}" >> "${GITHUB_ENV}"
-          echo "DEV_ARCHIVE=gotosocial_${dev_version}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"
+          requested_version="${{ inputs.release_version }}"
+          if [[ -n "${requested_version}" ]]
+          then
+            if [[ "${GITHUB_REF_NAME}" != "plus/v${PLUS_BASE_VERSION}" ]]
+            then
+              echo "Release builds must run from plus/v${PLUS_BASE_VERSION}." >&2
+              exit 1
+            fi
+            if [[ ! "${requested_version}" =~ ^${PLUS_BASE_VERSION}-plus\.[0-9]+$ ]]
+            then
+              echo "Invalid release version: ${requested_version}" >&2
+              exit 1
+            fi
+            build_version="${requested_version}"
+          else
+            short_sha="${GITHUB_SHA:0:9}"
+            build_version="${PLUS_BASE_VERSION}-plus-dev+git-${short_sha}"
+          fi
+          echo "BUILD_VERSION=${build_version}" >> "${GITHUB_ENV}"
+          echo "BUILD_ARCHIVE=gotosocial_${build_version}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"
 
       - name: Test Plus behavior
         shell: bash
@@ -95,19 +116,19 @@ jobs:
         env:
           GOOS: linux
           GOARCH: amd64
-        run: VERSION="${DEV_VERSION}" ./scripts/build.sh
+        run: VERSION="${BUILD_VERSION}" ./scripts/build.sh
 
       - name: Package deployable archive
         run: |
           mkdir -p dist/gotosocial
           cp gotosocial LICENSE README.md CHANGELOG.md GOTOSOCIAL_PLUS.md example/config.yaml example/gotosocial.service dist/gotosocial/
           cp -R web/assets web/template dist/gotosocial/
-          tar -C dist -czf "dist/${DEV_ARCHIVE}" gotosocial
+          tar -C dist -czf "dist/${BUILD_ARCHIVE}" gotosocial
 
       - name: Upload build
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: gotosocial-${{ env.DEV_VERSION }}-linux-amd64
-          path: dist/${{ env.DEV_ARCHIVE }}
+          name: gotosocial-${{ env.BUILD_VERSION }}-linux-amd64
+          path: dist/${{ env.BUILD_ARCHIVE }}
           if-no-files-found: error
           retention-days: 30
