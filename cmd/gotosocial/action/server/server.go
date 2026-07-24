@@ -49,6 +49,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/filter/status"
 	"code.superseriousbusiness.org/gotosocial/internal/filter/visibility"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
+	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/httpclient"
 	"code.superseriousbusiness.org/gotosocial/internal/media"
 	"code.superseriousbusiness.org/gotosocial/internal/media/ffmpeg"
@@ -227,9 +228,7 @@ func Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error retrieving instance settings: %s", err)
 	}
-	config.SetAccountsUseAccountDomainInAcct(instanceSettings.AccountsUseAccountDomainInAcct)
-	config.SetAccountsHideLocalRoles(instanceSettings.AccountsHideLocalRoles)
-	config.SetStatusesPreviewCards(instanceSettings.StatusesPreviewCards)
+	applyInstanceSettingsToConfig(instanceSettings)
 	if err := dbService.CreateInstanceApplication(ctx); err != nil {
 		return fmt.Errorf("error creating instance application: %s", err)
 	}
@@ -625,6 +624,13 @@ func Start(ctx context.Context) error {
 	<-ctx.Done()
 	log.Info(ctx, "received signal, shutting down")
 	return nil
+}
+
+func applyInstanceSettingsToConfig(instanceSettings *gtsmodel.InstanceSettings) {
+	config.SetAccountsUseAccountDomainInAcct(instanceSettings.AccountsUseAccountDomainInAcct)
+	config.SetAccountsHideLocalRoles(instanceSettings.AccountsHideLocalRoles)
+	config.SetStatusesPreviewCards(instanceSettings.StatusesPreviewCards)
+	config.SetStatusesHideQuoteFallback(instanceSettings.StatusesHideQuoteFallback)
 }
 
 func setLimits(ctx context.Context) {
