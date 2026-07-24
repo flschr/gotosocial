@@ -27,6 +27,7 @@ type blueskyAuthor struct {
 	DID         string `json:"did"`
 	Handle      string `json:"handle"`
 	DisplayName string `json:"displayName"`
+	Avatar      string `json:"avatar"`
 }
 
 type blueskyPostRecord struct {

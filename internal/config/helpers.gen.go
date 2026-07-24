@@ -90,6 +90,7 @@ const (
 	AccountsRegistrationBacklogLimitFlag          = "accounts-registration-backlog-limit"
 	AccountsAllowCustomCSSFlag                    = "accounts-allow-custom-css"
 	AccountsHideLocalRolesFlag                    = "accounts-hide-local-roles"
+	AccountsHideNameEmojisFlag                    = "accounts-hide-name-emojis"
 	AccountsCustomCSSLengthFlag                   = "accounts-custom-css-length"
 	AccountsMaxProfileFieldsFlag                  = "accounts-max-profile-fields"
 	StorageBackendFlag                            = "storage-backend"
@@ -340,6 +341,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.Int("accounts-registration-backlog-limit", cfg.AccountsRegistrationBacklogLimit, "Limit how big the 'accounts pending approval' queue can grow before registration is closed. 0 or less = no limit.")
 	flags.Bool("accounts-allow-custom-css", cfg.AccountsAllowCustomCSS, "Allow accounts to enable custom CSS for their profile pages and statuses.")
 	flags.Bool("accounts-hide-local-roles", cfg.AccountsHideLocalRoles, "Hide local admin and moderator role labels from public Mastodon API account responses.")
+	flags.Bool("accounts-hide-name-emojis", cfg.AccountsHideNameEmojis, "Remove Unicode and custom emojis from account display names in Mastodon API responses.")
 	flags.Int("accounts-custom-css-length", cfg.AccountsCustomCSSLength, "Maximum permitted length (characters) of custom CSS for accounts.")
 	flags.Int("accounts-max-profile-fields", cfg.AccountsMaxProfileFields, "Maximum number of profile fields allowed for each account.")
 	flags.String("storage-backend", cfg.StorageBackend, "Storage backend to use for media attachments")
@@ -579,6 +581,7 @@ func (cfg *Configuration) MarshalMap() map[string]any {
 	cfgmap["accounts-registration-backlog-limit"] = cfg.AccountsRegistrationBacklogLimit
 	cfgmap["accounts-allow-custom-css"] = cfg.AccountsAllowCustomCSS
 	cfgmap["accounts-hide-local-roles"] = cfg.AccountsHideLocalRoles
+	cfgmap["accounts-hide-name-emojis"] = cfg.AccountsHideNameEmojis
 	cfgmap["accounts-custom-css-length"] = cfg.AccountsCustomCSSLength
 	cfgmap["accounts-max-profile-fields"] = cfg.AccountsMaxProfileFields
 	cfgmap["storage-backend"] = cfg.StorageBackend
@@ -1243,6 +1246,14 @@ func (cfg *Configuration) UnmarshalMap(cfgmap map[string]any) error {
 		cfg.AccountsHideLocalRoles, err = cast.ToBoolE(ival)
 		if err != nil {
 			return fmt.Errorf("error casting %#v -> bool for 'accounts-hide-local-roles': %w", ival, err)
+		}
+	}
+
+	if ival, ok := cfgmap["accounts-hide-name-emojis"]; ok {
+		var err error
+		cfg.AccountsHideNameEmojis, err = cast.ToBoolE(ival)
+		if err != nil {
+			return fmt.Errorf("error casting %#v -> bool for 'accounts-hide-name-emojis': %w", ival, err)
 		}
 	}
 
@@ -3825,6 +3836,23 @@ func GetAccountsHideLocalRoles() bool { return global.GetAccountsHideLocalRoles(
 
 // SetAccountsHideLocalRoles safely sets the value for global configuration 'AccountsHideLocalRoles' field
 func SetAccountsHideLocalRoles(v bool) { global.SetAccountsHideLocalRoles(v) }
+
+// GetAccountsHideNameEmojis safely fetches the Configuration value for state's 'AccountsHideNameEmojis' field
+func (st *ConfigState) GetAccountsHideNameEmojis() (v bool) {
+	return st.config.AccountsHideNameEmojis
+}
+
+// SetAccountsHideNameEmojis safely sets the Configuration value for state's 'AccountsHideNameEmojis' field
+func (st *ConfigState) SetAccountsHideNameEmojis(v bool) {
+	st.config.AccountsHideNameEmojis = v
+	st.reloadToViper()
+}
+
+// GetAccountsHideNameEmojis safely fetches the value for global configuration 'AccountsHideNameEmojis' field
+func GetAccountsHideNameEmojis() bool { return global.GetAccountsHideNameEmojis() }
+
+// SetAccountsHideNameEmojis safely sets the value for global configuration 'AccountsHideNameEmojis' field
+func SetAccountsHideNameEmojis(v bool) { global.SetAccountsHideNameEmojis(v) }
 
 // GetAccountsCustomCSSLength safely fetches the Configuration value for state's 'AccountsCustomCSSLength' field
 func (st *ConfigState) GetAccountsCustomCSSLength() (v int) {

@@ -51,6 +51,9 @@ type InstanceSettings struct {
 	// Hide local administrator and moderator role labels from public responses.
 	AccountsHideLocalRoles bool `bun:",notnull,default:false"`
 
+	// Hide Unicode and custom emojis in account display names.
+	AccountsHideNameEmojis bool `bun:",notnull,default:false"`
+
 	// Generate and expose link preview cards for statuses.
 	StatusesPreviewCards bool `bun:",notnull,default:false"`
 

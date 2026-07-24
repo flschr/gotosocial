@@ -42,6 +42,8 @@ type InstanceSettingsUpdateRequest struct {
 	AccountsUseAccountDomainInAcct *bool `form:"accounts_use_account_domain_in_acct" json:"accounts_use_account_domain_in_acct" xml:"accounts_use_account_domain_in_acct"`
 	// Hide local administrator and moderator labels publicly (GoToSocial Plus).
 	AccountsHideLocalRoles *bool `form:"accounts_hide_local_roles" json:"accounts_hide_local_roles" xml:"accounts_hide_local_roles"`
+	// Hide Unicode and custom emojis in account display names (GoToSocial Plus).
+	AccountsHideNameEmojis *bool `form:"accounts_hide_name_emojis" json:"accounts_hide_name_emojis" xml:"accounts_hide_name_emojis"`
 	// Generate and expose status link preview cards (GoToSocial Plus).
 	StatusesPreviewCards *bool `form:"statuses_preview_cards" json:"statuses_preview_cards" xml:"statuses_preview_cards"`
 	// Hide Mastodon's quote fallback when a matching preview card is available (GoToSocial Plus).

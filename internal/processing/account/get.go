@@ -28,6 +28,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 )
 
 // Get processes the given request for account information.
@@ -35,6 +36,24 @@ func (p *Processor) Get(ctx context.Context, requestingAccount *gtsmodel.Account
 	targetAccount, err := p.state.DB.GetAccountByID(ctx, targetAccountID)
 	if err != nil {
 		if errors.Is(err, db.ErrNoEntries) {
+			interaction, interactionErr := p.state.DB.GetBlueskyInteractionByAuthorAccountID(ctx, targetAccountID, requestingAccount.ID)
+			if interactionErr == nil {
+				instanceAccount, instanceErr := p.state.DB.GetInstanceAccount(ctx, "")
+				if instanceErr != nil {
+					err := gtserror.Newf("db error getting instance account: %w", instanceErr)
+					return nil, gtserror.NewErrorInternalError(err)
+				}
+				apiAccount, convertErr := p.converter.AccountToAPIAccountPublic(ctx, instanceAccount)
+				if convertErr != nil {
+					err := gtserror.Newf("error converting virtual Bluesky account: %w", convertErr)
+					return nil, gtserror.NewErrorInternalError(err)
+				}
+				return typeutils.BlueskyInteractionAccount(interaction, apiAccount), nil
+			}
+			if interactionErr != nil && !errors.Is(interactionErr, db.ErrNoEntries) {
+				err := gtserror.Newf("db error getting virtual Bluesky account: %w", interactionErr)
+				return nil, gtserror.NewErrorInternalError(err)
+			}
 			err := gtserror.New("account not found")
 			return nil, gtserror.NewErrorNotFound(err)
 		}

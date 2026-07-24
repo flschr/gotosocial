@@ -192,6 +192,7 @@ func validateInstanceUpdate(form *apimodel.InstanceSettingsUpdateRequest) error 
 		form.CustomCSS == nil &&
 		form.AccountsUseAccountDomainInAcct == nil &&
 		form.AccountsHideLocalRoles == nil &&
+		form.AccountsHideNameEmojis == nil &&
 		form.StatusesPreviewCards == nil &&
 		form.StatusesHideQuoteFallback == nil &&
 		form.ProfilesAutoLoadOlderPosts == nil &&

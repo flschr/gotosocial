@@ -100,6 +100,9 @@ var (
 	// See: https://regex101.com/r/478XGM/1
 	EmojiFinder = regexp.MustCompile(emojiFinder)
 
+	// UnicodeEmoji matches one complete Unicode emoji sequence.
+	UnicodeEmoji = regexp.MustCompile(unicodeEmoji)
+
 	// DoubleSpaceFinder extracts double whitespaces from a piece of text.
 	DoubleSpaceFinder = regexp.MustCompile(doubleSpaceFinder)
 

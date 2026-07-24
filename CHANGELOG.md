@@ -4,6 +4,54 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
+## v0.22.1-plus.3 — 2026-07-24
+
+### More complete remote conversations
+
+- Refresh the available ActivityPub context when opening a thread so missing
+  ancestors and remote replies are recovered more reliably.
+- Preserve normal federation, visibility, and authorization rules while
+  loading additional context.
+
+### Native-looking Bluesky replies
+
+- Present imported Bluesky replies with the author's display name, handle,
+  locally cached avatar, and a compact Bluesky origin marker.
+- Use private virtual API identities that are not federated, discoverable, or
+  indexable.
+- Remove the repeated author byline and large Bluesky preview card while
+  retaining the normal **View reply on Bluesky** link.
+- Refresh connected clients when an imported Bluesky author's handle, name, or
+  avatar changes.
+
+### Cleaner identity and link presentation
+
+- Add an optional instance setting that removes Unicode and custom emojis from
+  account display names returned through the Mastodon API.
+- Keep handles, posts, bios, profile fields, emoji metadata, and stored or
+  federated profile data unchanged.
+- Preserve the system-owned Bluesky marker when display-name emojis are
+  hidden.
+- Suppress preview cards for profile links that exist only because of a
+  structured mention, including affected micro.blog replies.
+
+### Cleaner Mastodon quote posts
+
+- Add an optional setting that removes Mastodon's redundant leading `RE:` link
+  when it exactly matches the visible quote preview card.
+- Preserve ordinary links, user-authored `RE:` text, unmatched targets, and
+  quote fallbacks without a card.
+- Persist the setting across restarts and expose it consistently through the
+  settings application and instance API.
+
+### Upgrade notes
+
+- This release remains based on GoToSocial 0.22.1.
+- Database migrations run automatically on startup.
+- The new display-name and quote-fallback options default to disabled.
+- Deploy the binary, web assets, and templates from the same release archive.
+- No breaking configuration or federation changes are expected.
+
 ## v0.22.1-plus.2 — 2026-07-20
 
 ### GoToSocial 0.22.1 bugfixes

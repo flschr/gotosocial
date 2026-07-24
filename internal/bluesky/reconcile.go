@@ -98,6 +98,21 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 				reconcileErrors = append(reconcileErrors, err)
 				continue
 			}
+			authorChanged := post.Author.Handle != interaction.AuthorHandle ||
+				post.Author.DisplayName != interaction.AuthorDisplayName ||
+				post.Author.Avatar != interaction.AuthorAvatar
+			if post.Author.Avatar != interaction.AuthorAvatar || interaction.AuthorAvatarURL == "" {
+				if post.Author.Avatar != interaction.AuthorAvatar {
+					// Do not keep serving the previous author's bytes under new
+					// metadata. Empty local URLs also make the next pass retry.
+					interaction.AuthorAvatarURL = ""
+					interaction.AuthorAvatarStaticURL = ""
+				}
+				interaction.AuthorAvatar = post.Author.Avatar
+				if err := cacheBlueskyAuthorAvatar(ctx, state, status.AccountID, interaction); err != nil {
+					reconcileErrors = append(reconcileErrors, err)
+				}
+			}
 			mediaAdded := false
 			if len(status.AttachmentIDs) == 0 {
 				if err := attachBlueskyMedia(ctx, state, status, record, post.Author.DID); err != nil {
@@ -106,13 +121,17 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 				}
 				mediaAdded = len(status.AttachmentIDs) > 0
 			}
-			if mediaAdded || post.CID != interaction.CID || record.Text != status.Text || content != status.Content {
+			statusChanged := mediaAdded || post.CID != interaction.CID || record.Text != status.Text || content != status.Content
+			if statusChanged {
 				status.Text = record.Text
 				status.Content = content
 				if err := state.DB.UpdateStatus(ctx, status, "text", "content"); err != nil {
 					reconcileErrors = append(reconcileErrors, err)
 					continue
 				}
+				interaction.CID = post.CID
+			}
+			if statusChanged || authorChanged {
 				if err := state.DB.PopulateStatus(ctx, status); err == nil {
 					if target, err := state.DB.GetAccountByID(ctx, connection.AccountID); err == nil {
 						state.Workers.Client.Queue.Push(&messages.FromClientAPI{
@@ -121,11 +140,23 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 						})
 					}
 				}
-				interaction.CID = post.CID
-				interaction.AuthorHandle = post.Author.Handle
 			}
+			interaction.AuthorHandle = post.Author.Handle
+			interaction.AuthorDisplayName = post.Author.DisplayName
+			interaction.AuthorAvatar = post.Author.Avatar
 			interaction.LastCheckedAt = time.Now()
-			if err := state.DB.UpdateBlueskyInteraction(ctx, interaction, "cid", "author_handle", "last_checked_at"); err != nil {
+			if err := state.DB.UpdateBlueskyInteraction(
+				ctx,
+				interaction,
+				"cid",
+				"author_account_id",
+				"author_handle",
+				"author_display_name",
+				"author_avatar",
+				"author_avatar_url",
+				"author_avatar_static_url",
+				"last_checked_at",
+			); err != nil {
 				reconcileErrors = append(reconcileErrors, err)
 			}
 		}

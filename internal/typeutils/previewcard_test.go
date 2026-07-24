@@ -8,17 +8,56 @@ import (
 	"net/url"
 	"testing"
 
+	"code.superseriousbusiness.org/gotosocial/internal/config"
+	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPreviewCardSkippedForBlueskyInteraction(t *testing.T) {
+	config.SetStatusesPreviewCards(true)
+	converter := NewConverter(&state.State{})
+	card := converter.previewCardForStatus(t.Context(), &gtsmodel.Status{
+		Content:              `<a href="https://bsky.app/profile/example/post/1">View reply on Bluesky</a>`,
+		BlueskyInteractionID: "01K00000000000000000000000",
+	}, false)
+	require.Nil(t, card)
+}
 
 func TestFirstPreviewCardURLSkipsMentionsAndTags(t *testing.T) {
 	content := `<p><a class="mention" href="https://social.example/@alice">@alice</a> ` +
 		`<a rel="tag" href="https://social.example/tags/test">#test</a> ` +
 		`<a href="https://example.org/article">article</a></p>`
 
-	found := firstPreviewCardURL(content)
+	found := firstPreviewCardURL(content, nil)
 	require.NotNil(t, found)
 	require.Equal(t, "https://example.org/article", found.String())
+}
+
+func TestFirstPreviewCardURLSkipsStructuredMentionProfile(t *testing.T) {
+	status := &gtsmodel.Status{
+		Content: `<p><a href="https://micro.blog/activitypub/iChris">@iChris</a> ` +
+			`<a href="https://micro.blog/manton/94592960">post</a></p>`,
+		Mentions: []*gtsmodel.Mention{{
+			TargetAccountURI: "https://micro.blog/activitypub/iChris/",
+			TargetAccountURL: "https://micro.blog/iChris",
+		}},
+	}
+
+	found := firstPreviewCardURL(status.Content, previewCardMentionURLs(status))
+	require.NotNil(t, found)
+	require.Equal(t, "https://micro.blog/manton/94592960", found.String())
+}
+
+func TestFirstPreviewCardURLReturnsNilForMentionProfileOnly(t *testing.T) {
+	status := &gtsmodel.Status{
+		Content: `<p><a href="https://micro.blog/activitypub/iChris">@iChris</a></p>`,
+		Mentions: []*gtsmodel.Mention{{
+			TargetAccountURI: "https://micro.blog/activitypub/iChris",
+		}},
+	}
+
+	require.Nil(t, firstPreviewCardURL(status.Content, previewCardMentionURLs(status)))
 }
 
 func TestParsePreviewCard(t *testing.T) {

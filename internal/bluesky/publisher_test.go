@@ -241,9 +241,10 @@ func TestRenderBlueskyExternalEmbedAsPrimaryReplyLink(t *testing.T) {
 		"https://bsky.app/profile/did:plc:gilly/post/reply",
 	)
 	require.Equal(t,
-		`<p>Gilly 🐈🇪🇺 (@gilly.berlin) via Bluesky</p><p><a href="https://media.example/gladiator.gif">Gladiator: Hand in Wheat Field</a></p><p><a href="https://bsky.app/profile/did:plc:gilly/post/reply">View reply on Bluesky</a></p>`,
+		`<p><a href="https://media.example/gladiator.gif">Gladiator: Hand in Wheat Field</a></p><p><a href="https://bsky.app/profile/did:plc:gilly/post/reply">View reply on Bluesky</a></p>`,
 		content,
 	)
+	require.NotContains(t, content, "via Bluesky")
 	require.NotContains(t, content, "<strong>")
 }
 

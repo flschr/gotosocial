@@ -74,6 +74,7 @@ var Defaults = Configuration{
 	InstanceRobotsAllowIndexing:      false,
 
 	AccountsRegistrationOpen:         false,
+	AccountsHideNameEmojis:           false,
 	AccountsReasonRequired:           true,
 	AccountsRegistrationDailyLimit:   10,
 	AccountsRegistrationBacklogLimit: 20,

@@ -62,6 +62,8 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	// record timestamp so a malformed remote post cannot distort local ordering.
 	createdAt := interactionCreatedAt(notification.IndexedAt, record.CreatedAt)
 	statusID := id.NewULIDFromTime(createdAt)
+	interactionID := id.NewULID()
+	authorAccountID := id.ULIDFromString("bluesky-author", notification.Author.DID)
 	originURIs := uris.GenerateURIsForAccount(origin.Username)
 	postURL := blueskyPostURL(notification.Author.Handle, notification.URI)
 	content := renderInteractionContent(record, notification.Author, postURL)
@@ -73,6 +75,7 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 		Visibility: gtsmodel.VisibilityDirect, Flags: gtsmodel.StatusFlags(gtsmodel.StatusFlagLocal),
 		MentionIDs: []string{mentionID}, InReplyToID: statusIDOf(parentStatus), InReplyToURI: uriOf(parentStatus),
 		InReplyToAccountID: connection.AccountID, InReplyTo: parentStatus, InReplyToAccount: target,
+		BlueskyInteractionID: interactionID,
 	}
 	mention := &gtsmodel.Mention{
 		ID: mentionID, StatusID: statusID, Status: status, OriginAccountID: origin.ID, OriginAccountURI: origin.URI, OriginAccount: origin,
@@ -80,10 +83,14 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	}
 	status.Mentions = []*gtsmodel.Mention{mention}
 	interaction := &gtsmodel.BlueskyInteraction{
-		ID: id.NewULID(), AccountID: connection.AccountID, StatusID: statusID,
+		ID: interactionID, AccountID: connection.AccountID, StatusID: statusID,
 		URI: notification.URI, CID: notification.CID, RootURI: root.URI, RootCID: root.CID,
 		ParentURI: parent.URI, ParentCID: parent.CID, AuthorDID: notification.Author.DID,
-		AuthorHandle: notification.Author.Handle, URL: postURL,
+		AuthorAccountID: authorAccountID, AuthorHandle: notification.Author.Handle, AuthorDisplayName: notification.Author.DisplayName,
+		AuthorAvatar: notification.Author.Avatar, URL: postURL,
+	}
+	if err := cacheBlueskyAuthorAvatar(ctx, state, origin.ID, interaction); err != nil {
+		log.Warnf(ctx, "error caching Bluesky author avatar for %s: %v", interaction.AuthorDID, err)
 	}
 	if err := state.DB.PutBlueskyInteractionStatus(ctx, status, mention, interaction); err != nil {
 		return err
@@ -96,6 +103,63 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 	state.Workers.Client.Queue.Push(&messages.FromClientAPI{
 		APObjectType: ap.ObjectNote, APActivityType: ap.ActivityCreate, GTSModel: status, Origin: origin, Target: target,
 	})
+	return nil
+}
+
+func cacheBlueskyAuthorAvatar(
+	ctx context.Context,
+	state *state.State,
+	ownerAccountID string,
+	interaction *gtsmodel.BlueskyInteraction,
+) error {
+	if interaction.AuthorAvatar == "" {
+		interaction.AuthorAvatarURL = ""
+		interaction.AuthorAvatarStaticURL = ""
+		return nil
+	}
+	if existing, err := state.DB.GetBlueskyInteractionByAuthorAccountID(ctx, interaction.AuthorAccountID, interaction.AccountID); err == nil &&
+		existing.AuthorAvatar == interaction.AuthorAvatar &&
+		existing.AuthorAvatarURL != "" {
+		interaction.AuthorAvatarURL = existing.AuthorAvatarURL
+		interaction.AuthorAvatarStaticURL = existing.AuthorAvatarStaticURL
+		return nil
+	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		return err
+	}
+
+	remoteURL := interaction.AuthorAvatar
+	isAvatar := true
+	manager := gtsmedia.NewManager(state)
+	processing, err := manager.CreateMedia(ctx, ownerAccountID, func(ctx context.Context) (io.ReadCloser, error) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		response, err := state.HTTPClient.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+			response.Body.Close()
+			return nil, fmt.Errorf("Bluesky avatar returned %s", response.Status)
+		}
+		return response.Body, nil
+	}, gtsmedia.AdditionalMediaInfo{RemoteURL: &remoteURL, Avatar: &isAvatar})
+	if err != nil {
+		return err
+	}
+	attachment, err := processing.Load(ctx)
+	if err != nil {
+		return err
+	}
+	if attachment.URL == "" || attachment.Error != 0 {
+		return fmt.Errorf("Bluesky avatar could not be processed")
+	}
+	interaction.AuthorAvatarURL = attachment.URL
+	interaction.AuthorAvatarStaticURL = attachment.Thumbnail.URL
+	if interaction.AuthorAvatarStaticURL == "" {
+		interaction.AuthorAvatarStaticURL = attachment.URL
+	}
 	return nil
 }
 
@@ -291,16 +355,11 @@ func interactionCreatedAt(indexedAt, recordCreatedAt time.Time) time.Time {
 
 func renderInteractionContent(record blueskyPostRecord, author blueskyAuthor, postURL string) string {
 	body := renderBlueskyRecord(record, author.DID)
-	displayName := strings.TrimSpace(author.DisplayName)
-	if displayName == "" {
-		displayName = author.Handle
-	}
-	header := stdhtml.EscapeString(displayName) + " (@" + stdhtml.EscapeString(author.Handle) + ") via Bluesky"
 	if body == "" {
-		return fmt.Sprintf(`<p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`, header, stdhtml.EscapeString(postURL))
+		return fmt.Sprintf(`<p><a href="%s">View reply on Bluesky</a></p>`, stdhtml.EscapeString(postURL))
 	}
-	return fmt.Sprintf(`<p>%s</p><p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`,
-		header, body, stdhtml.EscapeString(postURL))
+	return fmt.Sprintf(`<p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`,
+		body, stdhtml.EscapeString(postURL))
 }
 
 func renderBlueskyRecord(record blueskyPostRecord, _ string) string {

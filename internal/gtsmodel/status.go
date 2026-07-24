@@ -170,6 +170,10 @@ type Status struct {
 	// AnnounceAuthorization, which approves the Announce, Create or
 	// interaction request Activity that this status was/will be attached to.
 	ApprovedByURI string `bun:",nullzero"`
+
+	// BlueskyInteractionID marks a private local proxy status imported from
+	// Bluesky. It deliberately does not represent an ActivityPub actor.
+	BlueskyInteractionID string `bun:"type:CHAR(26),nullzero"`
 }
 
 // GetAccount returns the account that owns

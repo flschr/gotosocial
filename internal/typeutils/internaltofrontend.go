@@ -435,6 +435,7 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 	// if we didn't have one already.
 	c.ensureAvatar(accountFrontend)
 	c.ensureHeader(accountFrontend)
+	ApplyAccountNameEmojiPolicy(accountFrontend)
 
 	return accountFrontend, nil
 }
@@ -956,6 +957,19 @@ func (c *Converter) statusToAPIStatus(
 		status.Account)
 	if err != nil {
 		return nil, gtserror.Newf("error converting status author: %w", err)
+	}
+	if status.BlueskyInteractionID != "" {
+		interaction, interactionErr := c.state.DB.GetBlueskyInteractionByID(ctx, status.BlueskyInteractionID)
+		switch {
+		case interactionErr == nil:
+			apiStatus.Account = BlueskyInteractionAccount(interaction, apiStatus.Account)
+			// The original Bluesky link remains in the content, but its preview
+			// card would make these compact private replies visually dominate
+			// native Mastodon replies.
+			apiStatus.Card = nil
+		case !errors.Is(interactionErr, db.ErrNoEntries):
+			return nil, gtserror.Newf("error getting Bluesky interaction author: %w", interactionErr)
+		}
 	}
 
 	// Convert author of boosted
@@ -1684,6 +1698,7 @@ func (c *Converter) InstanceSettingsToAPIV1Instance(
 		TermsRaw:                       settings.TermsText,
 		AccountsUseAccountDomainInAcct: settings.AccountsUseAccountDomainInAcct,
 		AccountsHideLocalRoles:         settings.AccountsHideLocalRoles,
+		AccountsHideNameEmojis:         settings.AccountsHideNameEmojis,
 		StatusesPreviewCards:           settings.StatusesPreviewCards,
 		StatusesHideQuoteFallback:      settings.StatusesHideQuoteFallback,
 		ProfilesAutoLoadOlderPosts:     settings.ProfilesAutoLoadOlderPosts,
