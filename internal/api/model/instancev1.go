@@ -114,6 +114,8 @@ type InstanceV1 struct {
 	AccountsHideLocalRoles bool `json:"accounts_hide_local_roles,omitempty"`
 	// Whether status link preview cards are enabled (GoToSocial Plus).
 	StatusesPreviewCards bool `json:"statuses_preview_cards,omitempty"`
+	// Whether redundant Mastodon quote fallbacks are hidden (GoToSocial Plus).
+	StatusesHideQuoteFallback bool `json:"statuses_hide_quote_fallback,omitempty"`
 	// Whether older posts load automatically on public profiles (GoToSocial Plus).
 	ProfilesAutoLoadOlderPosts bool `json:"profiles_auto_load_older_posts,omitempty"`
 	// Whether GoToSocial Plus information is shown on public profiles (GoToSocial Plus).

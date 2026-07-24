@@ -318,6 +318,11 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 		columns = append(columns, "statuses_preview_cards")
 	}
 
+	if form.StatusesHideQuoteFallback != nil {
+		settings.StatusesHideQuoteFallback = *form.StatusesHideQuoteFallback
+		columns = append(columns, "statuses_hide_quote_fallback")
+	}
+
 	if form.ProfilesAutoLoadOlderPosts != nil {
 		settings.ProfilesAutoLoadOlderPosts = *form.ProfilesAutoLoadOlderPosts
 		columns = append(columns, "profiles_auto_load_older_posts")
@@ -406,6 +411,7 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 		config.SetAccountsUseAccountDomainInAcct(settings.AccountsUseAccountDomainInAcct)
 		config.SetAccountsHideLocalRoles(settings.AccountsHideLocalRoles)
 		config.SetStatusesPreviewCards(settings.StatusesPreviewCards)
+		config.SetStatusesHideQuoteFallback(settings.StatusesHideQuoteFallback)
 	}
 
 	return p.InstanceGetV1(ctx)

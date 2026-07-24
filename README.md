@@ -142,6 +142,7 @@ Plus → Instance Features**:
 - **Use account domain in local API handles**
 - **Hide local account roles**
 - **Generate link preview cards**
+- **Hide redundant Mastodon quote fallback links** (off by default)
 - **Automatically load older posts on public profiles** (off by default)
 - **Show GoToSocial Plus information on public profiles** (on by default)
 - **Show a remote Follow button on public profiles** (off by default)
@@ -153,6 +154,7 @@ configuration values:
 accounts-use-account-domain-in-acct: false
 accounts-hide-local-roles: false
 statuses-preview-cards: false
+statuses-hide-quote-fallback: false
 ```
 
 After the Plus settings migration has run, the values stored in

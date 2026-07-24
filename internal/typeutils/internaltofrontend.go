@@ -1338,6 +1338,12 @@ func (c *Converter) baseStatusToFrontend(
 		return nil, gtserror.Newf("error converting interaction policy: %w", err)
 	}
 
+	apiCard := c.previewCardForStatus(ctx, status, sensitive)
+	apiContent := status.Content
+	if config.GetStatusesHideQuoteFallback() {
+		apiContent = hideMatchingQuoteFallback(apiContent, apiCard)
+	}
+
 	apiStatus := &apimodel.Status{
 		ID:                 status.ID,
 		CreatedAt:          util.FormatISO8601(status.CreatedAt),
@@ -1352,7 +1358,7 @@ func (c *Converter) baseStatusToFrontend(
 		RepliesCount:       repliesCount,
 		ReblogsCount:       reblogsCount,
 		FavouritesCount:    favesCount,
-		Content:            status.Content,
+		Content:            apiContent,
 		Reblog:             nil, // Set below.
 		Application:        nil, // Set below.
 		Account:            nil, // Caller must do this.
@@ -1360,7 +1366,7 @@ func (c *Converter) baseStatusToFrontend(
 		Mentions:           apiMentions,
 		Tags:               apiTags,
 		Emojis:             apiEmojis,
-		Card:               c.previewCardForStatus(ctx, status, sensitive),
+		Card:               apiCard,
 		Text:               status.Text,
 		ContentType:        ContentTypeToAPIContentType(status.ContentType),
 		InteractionPolicy:  apiInteractionPolicy,
@@ -1679,6 +1685,7 @@ func (c *Converter) InstanceSettingsToAPIV1Instance(
 		AccountsUseAccountDomainInAcct: settings.AccountsUseAccountDomainInAcct,
 		AccountsHideLocalRoles:         settings.AccountsHideLocalRoles,
 		StatusesPreviewCards:           settings.StatusesPreviewCards,
+		StatusesHideQuoteFallback:      settings.StatusesHideQuoteFallback,
 		ProfilesAutoLoadOlderPosts:     settings.ProfilesAutoLoadOlderPosts,
 		ProfilesShowPlusInfo:           settings.ProfilesShowPlusInfo,
 		ProfilesShowRemoteFollow:       settings.ProfilesShowRemoteFollow,

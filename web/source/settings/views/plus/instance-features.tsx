@@ -36,6 +36,7 @@ function InstanceFeaturesForm({ data: instance }: { data: InstanceV1 }) {
 		accountsUseAccountDomainInAcct: useBoolInput("accounts_use_account_domain_in_acct", { source: instance }),
 		accountsHideLocalRoles: useBoolInput("accounts_hide_local_roles", { source: instance }),
 		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance }),
+		statusesHideQuoteFallback: useBoolInput("statuses_hide_quote_fallback", { source: instance }),
 	};
 	const [submitForm, result] = useFormSubmit(form, useUpdateInstanceMutation());
 
@@ -53,6 +54,7 @@ function InstanceFeaturesForm({ data: instance }: { data: InstanceV1 }) {
 			<fieldset>
 				<legend>Posts and media</legend>
 				<Checkbox field={form.statusesPreviewCards} label="Enable link preview cards, including preview images and supported video embeds." />
+				<Checkbox field={form.statusesHideQuoteFallback} label="Hide Mastodon's redundant RE: quote link when a matching preview card is visible." />
 			</fieldset>
 			<MutationButton disabled={false} label="Save instance features" result={result} />
 		</form>

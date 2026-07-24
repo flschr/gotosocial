@@ -23,6 +23,9 @@ func TestValidateInstanceUpdateAcceptsPlusSettings(t *testing.T) {
 		"preview cards": {
 			StatusesPreviewCards: util.Ptr(true),
 		},
+		"hide quote fallback": {
+			StatusesHideQuoteFallback: util.Ptr(true),
+		},
 		"automatic profile loading": {
 			ProfilesAutoLoadOlderPosts: util.Ptr(true),
 		},

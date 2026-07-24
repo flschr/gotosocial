@@ -963,6 +963,13 @@ statuses-media-max-files: 6
 # Default: false
 statuses-preview-cards: false
 
+# Bool. Hide Mastodon's leading `RE:` quote fallback in Mastodon API status content when the
+# same URL is represented by an available preview card. Ordinary links and unmatched quote
+# fallbacks are preserved.
+# Options: [true, false]
+# Default: false
+statuses-hide-quote-fallback: false
+
 # Cron expression (see https://crontab.guru/ for help).
 # 
 # Examples: ["0 0 * * *", "30 0 * * *", "0 0 * * 0"]

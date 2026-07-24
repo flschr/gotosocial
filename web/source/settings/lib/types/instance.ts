@@ -48,6 +48,7 @@ export interface InstanceV1 {
     accounts_use_account_domain_in_acct: boolean;
     accounts_hide_local_roles: boolean;
     statuses_preview_cards: boolean;
+    statuses_hide_quote_fallback: boolean;
     profiles_auto_load_older_posts: boolean;
     profiles_show_plus_info: boolean;
     profiles_show_remote_follow: boolean;
