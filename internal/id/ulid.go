@@ -19,6 +19,7 @@ package id
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"math/big"
 	"time"
 
@@ -27,6 +28,18 @@ import (
 	"codeberg.org/gruf/go-kv/v2"
 	"github.com/oklog/ulid/v2"
 )
+
+// ULIDFromString returns a stable, valid ULID for the given namespace and
+// value. It is intended for virtual records which need Mastodon-compatible
+// identifiers but must not be persisted as real local accounts.
+func ULIDFromString(namespace, value string) string {
+	sum := sha256.Sum256([]byte(namespace + "\x00" + value))
+	var derived ulid.ULID
+	copy(derived[:], sum[:len(derived)])
+	// Clear the two overflow bits so String always produces a canonical ULID.
+	derived[0] &= 0x3f
+	return derived.String()
+}
 
 const (
 	// Highest is the highest possible ULID

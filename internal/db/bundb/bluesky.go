@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"github.com/uptrace/bun"
 )
 
@@ -89,6 +90,21 @@ func (b *blueskyDB) GetBlueskyInteractionByStatusID(ctx context.Context, statusI
 	return getBlueskyModel[gtsmodel.BlueskyInteraction](ctx, b.db, "status_id", statusID)
 }
 
+func (b *blueskyDB) GetBlueskyInteractionByID(ctx context.Context, interactionID string) (*gtsmodel.BlueskyInteraction, error) {
+	return getBlueskyModel[gtsmodel.BlueskyInteraction](ctx, b.db, "id", interactionID)
+}
+
+func (b *blueskyDB) GetBlueskyInteractionByAuthorAccountID(ctx context.Context, authorAccountID, accountID string) (*gtsmodel.BlueskyInteraction, error) {
+	interaction := new(gtsmodel.BlueskyInteraction)
+	err := b.db.NewSelect().Model(interaction).
+		Where("author_account_id = ?", authorAccountID).
+		Where("account_id = ?", accountID).
+		Order("created_at DESC").
+		Limit(1).
+		Scan(ctx)
+	return interaction, err
+}
+
 func (b *blueskyDB) GetBlueskyInteractionByURI(ctx context.Context, uri string) (*gtsmodel.BlueskyInteraction, error) {
 	return getBlueskyModel[gtsmodel.BlueskyInteraction](ctx, b.db, "uri", uri)
 }
@@ -105,6 +121,7 @@ func (b *blueskyDB) GetBlueskyInteractionsForReconcile(ctx context.Context, acco
 }
 
 func (b *blueskyDB) PutBlueskyInteraction(ctx context.Context, interaction *gtsmodel.BlueskyInteraction) error {
+	prepareBlueskyInteraction(interaction)
 	_, err := b.db.NewInsert().Model(interaction).Exec(ctx)
 	return err
 }
@@ -115,6 +132,8 @@ func (b *blueskyDB) UpdateBlueskyInteraction(ctx context.Context, interaction *g
 }
 
 func (b *blueskyDB) PutBlueskyInteractionStatus(ctx context.Context, status *gtsmodel.Status, mention *gtsmodel.Mention, interaction *gtsmodel.BlueskyInteraction) error {
+	prepareBlueskyInteraction(interaction)
+	status.BlueskyInteractionID = interaction.ID
 	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if status.ThreadID == "" && status.InReplyToID != "" {
 			if err := tx.NewSelect().Table("statuses").Column("thread_id").Where("id = ?", status.InReplyToID).Scan(ctx, &status.ThreadID); err != nil {
@@ -135,6 +154,12 @@ func (b *blueskyDB) PutBlueskyInteractionStatus(ctx context.Context, status *gts
 		b.state.Caches.DB.Mention.InvalidateIDs("ID", []string{mention.ID})
 	}
 	return err
+}
+
+func prepareBlueskyInteraction(interaction *gtsmodel.BlueskyInteraction) {
+	if interaction.AuthorAccountID == "" && interaction.AuthorDID != "" {
+		interaction.AuthorAccountID = id.ULIDFromString("bluesky-author", interaction.AuthorDID)
+	}
 }
 
 func (b *blueskyDB) DeleteBlueskyInteraction(ctx context.Context, id string) error {

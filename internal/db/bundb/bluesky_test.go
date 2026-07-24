@@ -88,6 +88,10 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	storedInteraction, err := suite.db.GetBlueskyInteractionByURI(ctx, interaction.URI)
 	suite.Require().NoError(err)
 	suite.Equal(interaction.StatusID, storedInteraction.StatusID)
+	suite.NotEmpty(storedInteraction.AuthorAccountID)
+	storedByVirtualAccount, err := suite.db.GetBlueskyInteractionByAuthorAccountID(ctx, storedInteraction.AuthorAccountID, storedInteraction.AccountID)
+	suite.Require().NoError(err)
+	suite.Equal(interaction.ID, storedByVirtualAccount.ID)
 
 	queued := &gtsmodel.BlueskyDelivery{
 		ID: id.NewULID(), AccountID: account.ID, StatusID: suite.testStatuses["local_account_1_status_3"].ID,

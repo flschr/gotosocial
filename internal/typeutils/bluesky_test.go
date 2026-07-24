@@ -32,20 +32,25 @@ func TestBlueskyInteractionAccountLooksLikeNativeAuthor(t *testing.T) {
 	}
 	interaction := &gtsmodel.BlueskyInteraction{
 		AuthorDID:         "did:plc:author",
+		AuthorAccountID:   "01K00000000000000000000000",
 		AuthorHandle:      "finest.day",
 		AuthorDisplayName: "Sebastian",
-		AuthorAvatar:      "https://cdn.bsky.app/avatar.jpeg",
+		AuthorAvatarURL:   "https://social.example.org/files/avatar.jpeg",
 	}
 
-	account := blueskyInteractionAccount(interaction, fallback)
+	account := BlueskyInteractionAccount(interaction, fallback)
 
-	require.Equal(t, "bluesky:did:plc:author", account.ID)
+	require.Equal(t, "01K00000000000000000000000", account.ID)
 	require.Equal(t, "finest.day", account.Username)
 	require.Equal(t, "finest.day", account.Acct)
 	require.Equal(t, "Sebastian :bluesky:", account.DisplayName)
 	require.Equal(t, "https://bsky.app/profile/did:plc:author", account.URL)
-	require.Equal(t, "https://cdn.bsky.app/avatar.jpeg", account.Avatar)
+	require.Equal(t, "https://social.example.org/files/avatar.jpeg", account.Avatar)
 	require.Equal(t, account.Avatar, account.AvatarStatic)
+	require.True(t, account.Locked)
+	require.False(t, account.Discoverable)
+	require.False(t, account.Indexable)
+	require.True(t, account.NoIndex)
 	require.Equal(t, []apimodel.Emoji{{
 		Shortcode:       "bluesky",
 		URL:             "http://localhost:8080/assets/bluesky.png",

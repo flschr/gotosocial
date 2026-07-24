@@ -114,21 +114,24 @@ type BlueskyPost struct {
 // BlueskyInteraction links a private local proxy status to a Bluesky
 // interaction so replies can be routed without federating the proxy thread.
 type BlueskyInteraction struct {
-	bun.BaseModel     `bun:"table:bluesky_interactions"`
-	ID                string    `bun:"type:CHAR(26),pk,nullzero,notnull,unique"`
-	CreatedAt         time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
-	LastCheckedAt     time.Time `bun:"type:timestamptz,nullzero"`
-	AccountID         string    `bun:"type:CHAR(26),nullzero,notnull"`
-	StatusID          string    `bun:"type:CHAR(26),nullzero,notnull,unique"`
-	URI               string    `bun:",nullzero,notnull,unique"`
-	CID               string    `bun:",nullzero,notnull"`
-	RootURI           string    `bun:",nullzero,notnull"`
-	RootCID           string    `bun:",nullzero,notnull"`
-	ParentURI         string    `bun:",nullzero,notnull"`
-	ParentCID         string    `bun:",nullzero,notnull"`
-	AuthorDID         string    `bun:",nullzero,notnull"`
-	AuthorHandle      string    `bun:",nullzero,notnull"`
-	AuthorDisplayName string    `bun:",nullzero"`
-	AuthorAvatar      string    `bun:",nullzero"`
-	URL               string    `bun:",nullzero,notnull"`
+	bun.BaseModel         `bun:"table:bluesky_interactions"`
+	ID                    string    `bun:"type:CHAR(26),pk,nullzero,notnull,unique"`
+	CreatedAt             time.Time `bun:"type:timestamptz,nullzero,notnull,default:current_timestamp"`
+	LastCheckedAt         time.Time `bun:"type:timestamptz,nullzero"`
+	AccountID             string    `bun:"type:CHAR(26),nullzero,notnull"`
+	StatusID              string    `bun:"type:CHAR(26),nullzero,notnull,unique"`
+	URI                   string    `bun:",nullzero,notnull,unique"`
+	CID                   string    `bun:",nullzero,notnull"`
+	RootURI               string    `bun:",nullzero,notnull"`
+	RootCID               string    `bun:",nullzero,notnull"`
+	ParentURI             string    `bun:",nullzero,notnull"`
+	ParentCID             string    `bun:",nullzero,notnull"`
+	AuthorDID             string    `bun:",nullzero,notnull"`
+	AuthorAccountID       string    `bun:"type:CHAR(26),nullzero"`
+	AuthorHandle          string    `bun:",nullzero,notnull"`
+	AuthorDisplayName     string    `bun:",nullzero"`
+	AuthorAvatar          string    `bun:",nullzero"`
+	AuthorAvatarURL       string    `bun:",nullzero"`
+	AuthorAvatarStaticURL string    `bun:",nullzero"`
+	URL                   string    `bun:",nullzero,notnull"`
 }

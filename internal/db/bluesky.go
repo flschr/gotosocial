@@ -52,6 +52,8 @@ type Bluesky interface {
 	DeleteBlueskyPost(context.Context, string) error
 
 	GetBlueskyInteractionByStatusID(context.Context, string) (*gtsmodel.BlueskyInteraction, error)
+	GetBlueskyInteractionByID(context.Context, string) (*gtsmodel.BlueskyInteraction, error)
+	GetBlueskyInteractionByAuthorAccountID(context.Context, string, string) (*gtsmodel.BlueskyInteraction, error)
 	GetBlueskyInteractionByURI(context.Context, string) (*gtsmodel.BlueskyInteraction, error)
 	GetBlueskyInteractionsForReconcile(context.Context, string, int) ([]*gtsmodel.BlueskyInteraction, error)
 	PutBlueskyInteraction(context.Context, *gtsmodel.BlueskyInteraction) error

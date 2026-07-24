@@ -36,7 +36,11 @@ type previewCardCacheEntry struct {
 }
 
 func (c *Converter) previewCardForStatus(ctx context.Context, status *gtsmodel.Status, sensitive bool) *model.Card {
-	if !config.GetStatusesPreviewCards() || c.state.HTTPClient == nil || status.Content == "" || sensitive {
+	if status.BlueskyInteractionID != "" ||
+		!config.GetStatusesPreviewCards() ||
+		c.state.HTTPClient == nil ||
+		status.Content == "" ||
+		sensitive {
 		return nil
 	}
 

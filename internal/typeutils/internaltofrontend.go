@@ -957,11 +957,11 @@ func (c *Converter) statusToAPIStatus(
 	if err != nil {
 		return nil, gtserror.Newf("error converting status author: %w", err)
 	}
-	if status.Account.IsInstance() {
-		interaction, interactionErr := c.state.DB.GetBlueskyInteractionByStatusID(ctx, status.ID)
+	if status.BlueskyInteractionID != "" {
+		interaction, interactionErr := c.state.DB.GetBlueskyInteractionByID(ctx, status.BlueskyInteractionID)
 		switch {
 		case interactionErr == nil:
-			apiStatus.Account = blueskyInteractionAccount(interaction, apiStatus.Account)
+			apiStatus.Account = BlueskyInteractionAccount(interaction, apiStatus.Account)
 			// The original Bluesky link remains in the content, but its preview
 			// card would make these compact private replies visually dominate
 			// native Mastodon replies.
@@ -1012,43 +1012,6 @@ func (c *Converter) statusToAPIStatus(
 	}
 
 	return apiStatus, nil
-}
-
-func blueskyInteractionAccount(
-	interaction *gtsmodel.BlueskyInteraction,
-	fallback *apimodel.Account,
-) *apimodel.Account {
-	displayName := strings.TrimSpace(interaction.AuthorDisplayName)
-	if displayName == "" {
-		displayName = interaction.AuthorHandle
-	}
-	displayName += " :bluesky:"
-	emojiURL := config.GetProtocol() + "://" + config.GetHost() + "/assets/bluesky.png"
-	account := *fallback
-	account.ID = "bluesky:" + interaction.AuthorDID
-	account.Username = interaction.AuthorHandle
-	account.Acct = interaction.AuthorHandle
-	account.DisplayName = displayName
-	account.URL = "https://bsky.app/profile/" + interaction.AuthorDID
-	account.AvatarMediaID = ""
-	account.AvatarDescription = ""
-	if interaction.AuthorAvatar != "" {
-		account.Avatar = interaction.AuthorAvatar
-		account.AvatarStatic = interaction.AuthorAvatar
-	}
-	account.HeaderMediaID = ""
-	account.FollowersCount = 0
-	account.FollowingCount = 0
-	account.StatusesCount = 0
-	account.LastStatusAt = nil
-	account.Roles = make([]apimodel.AccountDisplayRole, 0)
-	account.Emojis = []apimodel.Emoji{{
-		Shortcode:       "bluesky",
-		URL:             emojiURL,
-		StaticURL:       emojiURL,
-		VisibleInPicker: false,
-	}}
-	return &account
 }
 
 // StatusToWebStatus converts a gts model status into an
