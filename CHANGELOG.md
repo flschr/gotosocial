@@ -4,6 +4,23 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
+## v0.22.1-plus.3 — 2026-07-24
+
+### More complete remote conversations
+
+- Refresh remote reply context when an authenticated user opens a thread.
+- Coalesce concurrent refreshes and cache successful lookups briefly so opening
+  the same conversation again remains fast.
+- Keep the existing locally cached conversation available when federation
+  refreshes fail.
+
+### Cleaner Mastodon quote posts
+
+- Add an optional instance setting that hides Mastodon's redundant `RE:` quote
+  fallback when the same post is already represented by a preview card.
+- Preserve normal links, user-written `RE:` text, unmatched quote links, and
+  fallbacks without a matching preview card.
+
 ## v0.22.1-plus.2 — 2026-07-20
 
 ### GoToSocial 0.22.1 bugfixes
