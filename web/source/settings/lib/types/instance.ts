@@ -47,6 +47,7 @@ export interface InstanceV1 {
     terms_text?:             string;
     accounts_use_account_domain_in_acct: boolean;
     accounts_hide_local_roles: boolean;
+    accounts_hide_name_emojis: boolean;
     statuses_preview_cards: boolean;
     statuses_hide_quote_fallback: boolean;
     profiles_auto_load_older_posts: boolean;

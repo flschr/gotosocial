@@ -531,6 +531,7 @@ func (a *adminDB) CreateInstanceSettings(ctx context.Context) error {
 		Title:                          config.GetHost(),
 		AccountsUseAccountDomainInAcct: config.GetAccountsUseAccountDomainInAcct(),
 		AccountsHideLocalRoles:         config.GetAccountsHideLocalRoles(),
+		AccountsHideNameEmojis:         config.GetAccountsHideNameEmojis(),
 		StatusesPreviewCards:           config.GetStatusesPreviewCards(),
 		StatusesHideQuoteFallback:      config.GetStatusesHideQuoteFallback(),
 		ProfilesAutoLoadOlderPosts:     false,

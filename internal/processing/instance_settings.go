@@ -14,6 +14,7 @@ import (
 func ApplyInstanceSettingsToConfig(settings *gtsmodel.InstanceSettings) {
 	config.SetAccountsUseAccountDomainInAcct(settings.AccountsUseAccountDomainInAcct)
 	config.SetAccountsHideLocalRoles(settings.AccountsHideLocalRoles)
+	config.SetAccountsHideNameEmojis(settings.AccountsHideNameEmojis)
 	config.SetStatusesPreviewCards(settings.StatusesPreviewCards)
 	config.SetStatusesHideQuoteFallback(settings.StatusesHideQuoteFallback)
 }

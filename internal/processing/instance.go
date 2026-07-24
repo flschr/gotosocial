@@ -312,6 +312,11 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 		columns = append(columns, "accounts_hide_local_roles")
 	}
 
+	if form.AccountsHideNameEmojis != nil {
+		settings.AccountsHideNameEmojis = *form.AccountsHideNameEmojis
+		columns = append(columns, "accounts_hide_name_emojis")
+	}
+
 	if form.StatusesPreviewCards != nil {
 		settings.StatusesPreviewCards = *form.StatusesPreviewCards
 		columns = append(columns, "statuses_preview_cards")

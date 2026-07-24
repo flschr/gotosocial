@@ -49,5 +49,6 @@ func BlueskyInteractionAccount(interaction *gtsmodel.BlueskyInteraction, fallbac
 	account.Emojis = []apimodel.Emoji{{
 		Shortcode: "bluesky", URL: emojiURL, StaticURL: emojiURL, VisibleInPicker: false,
 	}}
+	ApplyAccountNameEmojiPolicy(&account)
 	return &account
 }

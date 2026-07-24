@@ -112,6 +112,8 @@ type InstanceV1 struct {
 	AccountsUseAccountDomainInAcct bool `json:"accounts_use_account_domain_in_acct,omitempty"`
 	// Whether local administrator and moderator labels are hidden publicly (GoToSocial Plus).
 	AccountsHideLocalRoles bool `json:"accounts_hide_local_roles,omitempty"`
+	// Whether Unicode and custom emojis are hidden in account display names (GoToSocial Plus).
+	AccountsHideNameEmojis bool `json:"accounts_hide_name_emojis,omitempty"`
 	// Whether status link preview cards are enabled (GoToSocial Plus).
 	StatusesPreviewCards bool `json:"statuses_preview_cards,omitempty"`
 	// Whether redundant Mastodon quote fallbacks are hidden (GoToSocial Plus).

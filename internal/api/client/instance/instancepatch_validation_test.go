@@ -20,6 +20,9 @@ func TestValidateInstanceUpdateAcceptsPlusSettings(t *testing.T) {
 		"local role privacy": {
 			AccountsHideLocalRoles: util.Ptr(true),
 		},
+		"account name emoji privacy": {
+			AccountsHideNameEmojis: util.Ptr(true),
+		},
 		"preview cards": {
 			StatusesPreviewCards: util.Ptr(true),
 		},

@@ -435,6 +435,7 @@ func (c *Converter) accountToAPIAccountPublic(ctx context.Context, a *gtsmodel.A
 	// if we didn't have one already.
 	c.ensureAvatar(accountFrontend)
 	c.ensureHeader(accountFrontend)
+	ApplyAccountNameEmojiPolicy(accountFrontend)
 
 	return accountFrontend, nil
 }
@@ -1697,6 +1698,7 @@ func (c *Converter) InstanceSettingsToAPIV1Instance(
 		TermsRaw:                       settings.TermsText,
 		AccountsUseAccountDomainInAcct: settings.AccountsUseAccountDomainInAcct,
 		AccountsHideLocalRoles:         settings.AccountsHideLocalRoles,
+		AccountsHideNameEmojis:         settings.AccountsHideNameEmojis,
 		StatusesPreviewCards:           settings.StatusesPreviewCards,
 		StatusesHideQuoteFallback:      settings.StatusesHideQuoteFallback,
 		ProfilesAutoLoadOlderPosts:     settings.ProfilesAutoLoadOlderPosts,

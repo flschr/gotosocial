@@ -16,12 +16,15 @@ import (
 func TestBlueskyInteractionAccountLooksLikeNativeAuthor(t *testing.T) {
 	oldProtocol := config.GetProtocol()
 	oldHost := config.GetHost()
+	oldHideNameEmojis := config.GetAccountsHideNameEmojis()
 	t.Cleanup(func() {
 		config.SetProtocol(oldProtocol)
 		config.SetHost(oldHost)
+		config.SetAccountsHideNameEmojis(oldHideNameEmojis)
 	})
 	config.SetProtocol("http")
 	config.SetHost("localhost:8080")
+	config.SetAccountsHideNameEmojis(false)
 	fallback := &apimodel.Account{
 		ID:           "instance-account",
 		Username:     "social.example.org",
@@ -58,4 +61,21 @@ func TestBlueskyInteractionAccountLooksLikeNativeAuthor(t *testing.T) {
 		VisibleInPicker: false,
 	}}, account.Emojis)
 	require.Equal(t, "instance-account", fallback.ID)
+}
+
+func TestBlueskyInteractionAccountHidesNameEmoji(t *testing.T) {
+	oldHideNameEmojis := config.GetAccountsHideNameEmojis()
+	config.SetAccountsHideNameEmojis(true)
+	t.Cleanup(func() { config.SetAccountsHideNameEmojis(oldHideNameEmojis) })
+
+	account := BlueskyInteractionAccount(&gtsmodel.BlueskyInteraction{
+		AuthorAccountID:   "01K00000000000000000000000",
+		AuthorHandle:      "finest.day",
+		AuthorDisplayName: "Sebastian",
+	}, &apimodel.Account{})
+
+	require.Equal(t, "Sebastian", account.DisplayName)
+	require.Equal(t, "finest.day", account.Username)
+	require.Equal(t, "finest.day", account.Acct)
+	require.Len(t, account.Emojis, 1, "emoji metadata remains available outside the display name")
 }

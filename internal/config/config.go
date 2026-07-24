@@ -118,6 +118,7 @@ type Configuration struct {
 	AccountsRegistrationBacklogLimit int  `name:"accounts-registration-backlog-limit" usage:"Limit how big the 'accounts pending approval' queue can grow before registration is closed. 0 or less = no limit."`
 	AccountsAllowCustomCSS           bool `name:"accounts-allow-custom-css" usage:"Allow accounts to enable custom CSS for their profile pages and statuses."`
 	AccountsHideLocalRoles           bool `name:"accounts-hide-local-roles" usage:"Hide local admin and moderator role labels from public Mastodon API account responses."`
+	AccountsHideNameEmojis           bool `name:"accounts-hide-name-emojis" usage:"Remove Unicode and custom emojis from account display names in Mastodon API responses."`
 	AccountsCustomCSSLength          int  `name:"accounts-custom-css-length" usage:"Maximum permitted length (characters) of custom CSS for accounts."`
 	AccountsMaxProfileFields         int  `name:"accounts-max-profile-fields" usage:"Maximum number of profile fields allowed for each account."`
 

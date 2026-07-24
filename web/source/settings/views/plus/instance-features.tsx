@@ -35,6 +35,7 @@ function InstanceFeaturesForm({ data: instance }: { data: InstanceV1 }) {
 	const form = {
 		accountsUseAccountDomainInAcct: useBoolInput("accounts_use_account_domain_in_acct", { source: instance }),
 		accountsHideLocalRoles: useBoolInput("accounts_hide_local_roles", { source: instance }),
+		accountsHideNameEmojis: useBoolInput("accounts_hide_name_emojis", { source: instance }),
 		statusesPreviewCards: useBoolInput("statuses_preview_cards", { source: instance }),
 		statusesHideQuoteFallback: useBoolInput("statuses_hide_quote_fallback", { source: instance }),
 	};
@@ -50,6 +51,7 @@ function InstanceFeaturesForm({ data: instance }: { data: InstanceV1 }) {
 				<legend>Identity and privacy</legend>
 				<Checkbox field={form.accountsUseAccountDomainInAcct} label="Use the account domain in local handles (split-domain configuration)." />
 				<Checkbox field={form.accountsHideLocalRoles} label="Hide administrator and moderator labels on public profiles." />
+				<Checkbox field={form.accountsHideNameEmojis} label="Hide Unicode and custom emojis in account display names." />
 			</fieldset>
 			<fieldset>
 				<legend>Posts and media</legend>
