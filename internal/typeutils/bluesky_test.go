@@ -32,7 +32,7 @@ func TestBlueskyInteractionAccountLooksLikeNativeAuthor(t *testing.T) {
 
 	require.Equal(t, "bluesky:did:plc:author", account.ID)
 	require.Equal(t, "finest.day", account.Username)
-	require.Equal(t, "finest.day", account.Acct)
+	require.Equal(t, "finest.day (🦋)", account.Acct)
 	require.Equal(t, "Sebastian", account.DisplayName)
 	require.Equal(t, "https://bsky.app/profile/did:plc:author", account.URL)
 	require.Equal(t, "https://cdn.bsky.app/avatar.jpeg", account.Avatar)

@@ -962,6 +962,10 @@ func (c *Converter) statusToAPIStatus(
 		switch {
 		case interactionErr == nil:
 			apiStatus.Account = blueskyInteractionAccount(interaction, apiStatus.Account)
+			// The original Bluesky link remains in the content, but its preview
+			// card would make these compact private replies visually dominate
+			// native Mastodon replies.
+			apiStatus.Card = nil
 		case !errors.Is(interactionErr, db.ErrNoEntries):
 			return nil, gtserror.Newf("error getting Bluesky interaction author: %w", interactionErr)
 		}
@@ -1021,7 +1025,7 @@ func blueskyInteractionAccount(
 	account := *fallback
 	account.ID = "bluesky:" + interaction.AuthorDID
 	account.Username = interaction.AuthorHandle
-	account.Acct = interaction.AuthorHandle
+	account.Acct = interaction.AuthorHandle + " (🦋)"
 	account.DisplayName = displayName
 	account.URL = "https://bsky.app/profile/" + interaction.AuthorDID
 	account.AvatarMediaID = ""
