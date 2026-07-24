@@ -2,198 +2,78 @@
 
 GoToSocial Plus is a small, independently maintained fork of
 [GoToSocial](https://codeberg.org/superseriousbusiness/gotosocial). It stays
-close to upstream and adds targeted improvements including native Bluesky
-integration, better public profiles and media presentation, split-domain
-compatibility, privacy controls, rich link previews, and reliable feeds. See
-the concise [Plus feature catalog](GOTOSOCIAL_PLUS.md#included-features) for the
-current product-level overview and the [changelog](CHANGELOG.md) for features
-added by release line.
-
-GoToSocial remains the project behind this software. Read the
-[official documentation](https://docs.gotosocial.org/) for installation,
-operation, federation, client use, and general configuration.
+close to upstream while adding a focused set of compatibility, privacy, and
+publishing improvements used by
+[social.fischr.org](https://social.fischr.org/).
 
 > [!IMPORTANT]
-> GoToSocial Plus is not an official GoToSocial release. Report general
-> GoToSocial problems to the upstream project and Plus-specific problems to
-> this repository.
+> GoToSocial Plus is not an official GoToSocial release. Use the
+> [official documentation](https://docs.gotosocial.org/) for general
+> installation, operation, federation, and client guidance.
 
-## Why this fork exists
+## Included features
 
-The fork collects a small number of changes needed by
-[social.fischr.org](https://social.fischr.org/) in a public, reproducible source
-tree. Plus features are collected in the dedicated **GoToSocial Plus** section
-of the settings application. Bluesky, public-profile behavior, and other
-administrator-only instance controls each have a clear place there.
+- **Native Bluesky integration:** connect an existing Bluesky account,
+  crosspost eligible public posts, receive replies and mentions, and answer
+  them from Mastodon-compatible clients.
+- **Complete remote conversations:** refresh available ActivityPub context
+  when opening a thread so older and remote replies appear more reliably.
+- **Cleaner timelines:** optional link previews, redundant quote-fallback
+  removal, compact Bluesky replies, and suppression of profile cards created
+  only by mentions.
+- **Identity and privacy controls:** improve split-domain handles, hide local
+  roles, and optionally remove profile-supplied emojis from display names.
+- **Improved public profiles:** remote follow actions, configurable profile
+  presentation, and automatic loading of older posts.
+- **Better media presentation:** proportional profile images, sharper
+  thumbnails, and an accessible media viewer with descriptions.
+- **Reliable publishing and feeds:** duplicate-safe post creation and
+  dependable public RSS output.
 
-### Native Bluesky integration
-
-Each user can optionally connect an existing Bluesky account. When enabled,
-GoToSocial Plus publishes eligible original public posts to Bluesky with text,
-links, up to four images, and their alt text. Replies, mentions, boosts, polls,
-and non-public posts are not crossposted automatically.
-
-Bluesky replies and mentions are imported into GoToSocial so they can be read
-and answered from Mastodon-compatible clients. Replies sent from those clients
-are published as the connected Bluesky identity and retain the correct Bluesky
-conversation context. Supported images, animated GIFs, and videos from Bluesky
-replies appear as local media attachments with available descriptions.
-
-Crossposted posts retain a durable mapping to their Bluesky records. Deleting
-the original GoToSocial post also removes its Bluesky crosspost. GoToSocial
-sends later edits to Bluesky, but Bluesky clients may continue showing the
-earlier version. Existing mapped posts keep their lifecycle even when automatic
-crossposting is switched off for new posts.
-
-The public profile can optionally show a separate Bluesky follow action. The
-connection, automatic crossposting, and public follow action are managed under
-**GoToSocial Plus → Bluesky**. Bluesky access is optional and isolated from the
-ActivityPub federation core.
-
-### Split-domain client compatibility
-
-GoToSocial supports serving its API from a host such as `social.example.org`
-while publishing accounts as `@user@example.org`. Follow the official
-[split-domain deployment guide](https://docs.gotosocial.org/en/latest/advanced/host-account-domain/)
-to configure the host, account domain, WebFinger, and redirects correctly.
-
-That setup is necessary for federation, but it does not control how every
-Mastodon client displays a local account. Some clients receive the local value
-`user` from the Mastodon API and append the API host themselves, resulting in
-`@user@social.example.org`.
-
-When enabled, GoToSocial Plus returns `user@example.org` for local user accounts
-and mentions in Mastodon API `acct` fields. It does not change WebFinger,
-ActivityPub actor IDs, cryptographic keys, existing accounts, or federation
-data.
-
-This intentionally differs from the common Mastodon API convention that local
-`acct` values contain only the username. It improves compatibility with the
-observed clients, but cannot guarantee correct display in every client.
-
-### Local role privacy
-
-When enabled, public and blocked-account Mastodon API responses omit roles for
-local users. An authenticated user continues to receive their own role and
-permission information where GoToSocial needs it.
-
-This reduces unnecessary public metadata without changing moderation powers or
-stored account data.
-
-### Link preview cards
-
-When enabled, GoToSocial Plus creates preview cards for the first ordinary
-HTTP(S) link in a non-sensitive post and exposes them through the Mastodon API
-and GoToSocial's public web pages.
-
-The implementation:
-
-- skips mentions and hashtags;
-- uses GoToSocial's SSRF-protected HTTP client;
-- limits requests to four seconds and HTML responses to 1 MiB;
-- caches successful results for 24 hours and unsuccessful results for one hour;
-- avoids preview requests for sensitive posts;
-- builds previews for older and federated posts in the background; and
-- uses YouTube's small oEmbed response and `youtube-nocookie.com` for validated
-  YouTube links.
-
-External preview images are referenced rather than copied into local media
-storage. A remote site can therefore still observe a visitor requesting its
-image.
-
-### Reliable RSS feeds
-
-GoToSocial Plus includes a compatibility fix for the upstream bug where an
-enabled account RSS feed can remain empty even though the account has public
-posts. See
-[GoToSocial issue #4664](https://codeberg.org/superseriousbusiness/gotosocial/issues/4664)
-for the original report.
-
-Unlike the optional Plus behavior, the RSS correction restores expected feed
-behavior and is not an instance setting.
-
-### Public profile experience
-
-Three further settings control public profile pages:
-
-- **Automatically load older posts** progressively loads the next page as the
-  visitor approaches the end of the current one. It is disabled by default.
-  The regular **Show older** link remains in the page as a fallback when
-  JavaScript is unavailable or a request fails.
-- **Show GoToSocial Plus version and source information** displays a small
-  footnote after the profile content. It is enabled by default and can be hidden
-  without removing the instance-wide source links required by the AGPL.
-- **Show a remote Follow button** adds a prominent action to public profiles.
-  On first use, visitors enter their Fediverse server and continue to its
-  Mastodon-compatible `/authorize_interaction` flow. The server is remembered
-  only in that browser so later follows need just the profile action and the
-  confirmation on the visitor's server. Copying the account address remains a
-  fallback for other Fediverse software.
-
-Automatic loading does not rewrite browser history. Newly loaded posts are
-inserted before the version footnote, so the footnote remains at the actual end
-of the profile.
-
-## Configuration
-
-Administrators can manage instance-wide optional behavior under **GoToSocial
-Plus → Instance Features**:
-
-- **Use account domain in local API handles**
-- **Hide local account roles**
-- **Generate link preview cards**
-- **Hide redundant Mastodon quote fallback links** (off by default)
-- **Automatically load older posts on public profiles** (off by default)
-- **Show GoToSocial Plus information on public profiles** (on by default)
-- **Show a remote Follow button on public profiles** (off by default)
-
-Existing installations can initially seed these settings with the following
-configuration values:
-
-```yaml
-accounts-use-account-domain-in-acct: false
-accounts-hide-local-roles: false
-statuses-preview-cards: false
-statuses-hide-quote-fallback: false
-```
-
-After the Plus settings migration has run, the values stored in
-`instance_settings` are the source of truth and changes made in the settings UI
-take effect immediately.
+See the [Plus feature guide](GOTOSOCIAL_PLUS.md) for behavior, configuration,
+privacy notes, and limitations. See the [changelog](CHANGELOG.md) for changes
+in each release.
 
 ## Releases and installation
 
-Ready-to-run builds are published on the
-[GitHub Releases page](https://github.com/flschr/gotosocial-plus/releases). A release
-archive contains the GoToSocial binary, web assets, web templates, license,
-README, and example configuration.
+Ready-to-run Linux AMD64 archives are published on the
+[GitHub Releases page](https://github.com/flschr/gotosocial-plus/releases).
+Release names follow `v<GoToSocial version>-plus.<Plus release>`.
 
-Release names follow `v<GoToSocial version>-plus.<Plus release>`. For example,
-`v0.22.1-plus.2` is GoToSocial Plus 2 based on GoToSocial 0.22.1. Public pages
-show those two versions separately so the fork release and its upstream base
-remain clear.
+GoToSocial Plus currently tracks GoToSocial 0.22.1. Always read the upstream
+release and migration notes before upgrading.
 
-Always deploy the binary and web files from the same archive. Mixing a binary
-with templates or compiled frontend assets from another release can leave
-public pages unstyled or break the settings interface.
+A release archive contains the binary, compiled web assets, templates,
+license, documentation, and example configuration. Deploy the binary,
+`web/assets`, and `web/template` from the same archive; mixing files from
+different builds can break public pages or the settings interface.
 
-Before upgrading, follow the upstream release and migration notes and back up
-the database, configuration, binary, web files, and media storage. Plus changes
-are maintained as focused commits on top of an unmodified upstream release
-branch so that every upgrade can be reviewed feature by feature.
+Before upgrading, back up:
 
-GoToSocial Plus defaults new media thumbnails to a maximum dimension of 1024
-pixels for sharper public-web presentation. An existing explicit
-`media-thumb-max-pixels` configuration value continues to take precedence after
-an upgrade, and existing thumbnails are not regenerated automatically.
+- the database and media storage;
+- `config.yaml`;
+- the current binary; and
+- the matching web assets and templates.
 
-## Source, upstream, and license
+Database migrations run automatically when the new binary starts. Release
+notes document the defaults and activation requirements of newly added
+settings.
 
-- GoToSocial Plus source: <https://github.com/flschr/gotosocial-plus>
-- Plus releases: <https://github.com/flschr/gotosocial-plus/releases>
+## Support and source
+
+- Plus source and issues:
+  <https://github.com/flschr/gotosocial-plus>
+- Plus releases:
+  <https://github.com/flschr/gotosocial-plus/releases>
 - Official GoToSocial source:
   <https://codeberg.org/superseriousbusiness/gotosocial>
-- Official documentation: <https://docs.gotosocial.org/>
+- Official GoToSocial documentation:
+  <https://docs.gotosocial.org/>
+
+Report general GoToSocial problems to the upstream project and Plus-specific
+problems to this repository.
+
+## License
 
 GoToSocial Plus is free software licensed under the
 [GNU Affero General Public License v3 or later](LICENSE), unchanged from
