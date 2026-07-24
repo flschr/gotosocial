@@ -83,7 +83,8 @@ func importNotification(ctx context.Context, state *state.State, connection *gts
 		ID: id.NewULID(), AccountID: connection.AccountID, StatusID: statusID,
 		URI: notification.URI, CID: notification.CID, RootURI: root.URI, RootCID: root.CID,
 		ParentURI: parent.URI, ParentCID: parent.CID, AuthorDID: notification.Author.DID,
-		AuthorHandle: notification.Author.Handle, URL: postURL,
+		AuthorHandle: notification.Author.Handle, AuthorDisplayName: notification.Author.DisplayName,
+		AuthorAvatar: notification.Author.Avatar, URL: postURL,
 	}
 	if err := state.DB.PutBlueskyInteractionStatus(ctx, status, mention, interaction); err != nil {
 		return err
@@ -291,16 +292,11 @@ func interactionCreatedAt(indexedAt, recordCreatedAt time.Time) time.Time {
 
 func renderInteractionContent(record blueskyPostRecord, author blueskyAuthor, postURL string) string {
 	body := renderBlueskyRecord(record, author.DID)
-	displayName := strings.TrimSpace(author.DisplayName)
-	if displayName == "" {
-		displayName = author.Handle
-	}
-	header := stdhtml.EscapeString(displayName) + " (@" + stdhtml.EscapeString(author.Handle) + ") via Bluesky"
 	if body == "" {
-		return fmt.Sprintf(`<p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`, header, stdhtml.EscapeString(postURL))
+		return fmt.Sprintf(`<p><a href="%s">View reply on Bluesky</a></p>`, stdhtml.EscapeString(postURL))
 	}
-	return fmt.Sprintf(`<p>%s</p><p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`,
-		header, body, stdhtml.EscapeString(postURL))
+	return fmt.Sprintf(`<p>%s</p><p><a href="%s">View reply on Bluesky</a></p>`,
+		body, stdhtml.EscapeString(postURL))
 }
 
 func renderBlueskyRecord(record blueskyPostRecord, _ string) string {

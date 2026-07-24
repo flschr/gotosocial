@@ -122,10 +122,20 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 					}
 				}
 				interaction.CID = post.CID
-				interaction.AuthorHandle = post.Author.Handle
 			}
+			interaction.AuthorHandle = post.Author.Handle
+			interaction.AuthorDisplayName = post.Author.DisplayName
+			interaction.AuthorAvatar = post.Author.Avatar
 			interaction.LastCheckedAt = time.Now()
-			if err := state.DB.UpdateBlueskyInteraction(ctx, interaction, "cid", "author_handle", "last_checked_at"); err != nil {
+			if err := state.DB.UpdateBlueskyInteraction(
+				ctx,
+				interaction,
+				"cid",
+				"author_handle",
+				"author_display_name",
+				"author_avatar",
+				"last_checked_at",
+			); err != nil {
 				reconcileErrors = append(reconcileErrors, err)
 			}
 		}
