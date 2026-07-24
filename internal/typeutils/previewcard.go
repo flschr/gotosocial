@@ -44,7 +44,7 @@ func (c *Converter) previewCardForStatus(ctx context.Context, status *gtsmodel.S
 		return nil
 	}
 
-	cardURL := firstPreviewCardURL(status.Content)
+	cardURL := firstPreviewCardURL(status.Content, previewCardMentionURLs(status))
 	if cardURL == nil {
 		return nil
 	}
@@ -99,7 +99,7 @@ func (c *Converter) fetchAndCachePreviewCard(ctx context.Context, key string, ca
 	return card
 }
 
-func firstPreviewCardURL(content string) *url.URL {
+func firstPreviewCardURL(content string, excludedURLs map[string]struct{}) *url.URL {
 	doc, err := html.Parse(strings.NewReader(content))
 	if err != nil {
 		return nil
@@ -111,7 +111,9 @@ func firstPreviewCardURL(content string) *url.URL {
 			if href := attr(node, "href"); href != "" {
 				parsed, err := url.Parse(href)
 				if err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != "" {
-					return parsed
+					if _, excluded := excludedURLs[normalizePreviewCardURL(parsed)]; !excluded {
+						return parsed
+					}
 				}
 			}
 		}
@@ -123,6 +125,40 @@ func firstPreviewCardURL(content string) *url.URL {
 		return nil
 	}
 	return visit(doc)
+}
+
+func previewCardMentionURLs(status *gtsmodel.Status) map[string]struct{} {
+	excluded := make(map[string]struct{}, len(status.Mentions)*2)
+	add := func(rawURL string) {
+		parsed, err := url.Parse(rawURL)
+		if err == nil && parsed.Host != "" {
+			excluded[normalizePreviewCardURL(parsed)] = struct{}{}
+		}
+	}
+
+	for _, mention := range status.Mentions {
+		if mention == nil {
+			continue
+		}
+		add(mention.TargetAccountURI)
+		add(mention.TargetAccountURL)
+		if mention.TargetAccount != nil {
+			add(mention.TargetAccount.URI)
+			add(mention.TargetAccount.URL)
+		}
+	}
+	return excluded
+}
+
+func normalizePreviewCardURL(parsed *url.URL) string {
+	normalized := *parsed
+	normalized.Scheme = strings.ToLower(normalized.Scheme)
+	normalized.Host = strings.ToLower(normalized.Host)
+	normalized.Fragment = ""
+	if normalized.Path != "/" {
+		normalized.Path = strings.TrimSuffix(normalized.Path, "/")
+	}
+	return normalized.String()
 }
 
 func hasSocialLinkRel(node *html.Node) bool {
