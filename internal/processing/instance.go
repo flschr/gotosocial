@@ -27,7 +27,6 @@ import (
 	"code.superseriousbusiness.org/gopkg/log"
 	"code.superseriousbusiness.org/gopkg/xslices"
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
-	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
@@ -408,10 +407,7 @@ func (p *Processor) InstancePatch(ctx context.Context, form *apimodel.InstanceSe
 		}
 
 		// Apply database-backed GoToSocial Plus settings immediately.
-		config.SetAccountsUseAccountDomainInAcct(settings.AccountsUseAccountDomainInAcct)
-		config.SetAccountsHideLocalRoles(settings.AccountsHideLocalRoles)
-		config.SetStatusesPreviewCards(settings.StatusesPreviewCards)
-		config.SetStatusesHideQuoteFallback(settings.StatusesHideQuoteFallback)
+		ApplyInstanceSettingsToConfig(settings)
 	}
 
 	return p.InstanceGetV1(ctx)
