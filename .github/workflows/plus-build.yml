@@ -13,13 +13,29 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: gotosocial_test
+          POSTGRES_USER: gotosocial
+          POSTGRES_PASSWORD: gotosocial
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gotosocial -d gotosocial_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       CGO_ENABLED: "0"
       GOFLAGS: "-mod=vendor"
+      PLUS_BASE_VERSION: "0.22.1"
+      GTS_TEST_POSTGRES_DSN: "postgres://gotosocial:gotosocial@localhost:5432/gotosocial_test?sslmode=disable"
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -28,7 +44,7 @@ jobs:
           cache: true
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: 22
           cache: yarn
@@ -46,27 +62,52 @@ jobs:
           test -f web/assets/dist/base.css
           test -f web/assets/dist/settings.js
 
+      - name: Compute development version
+        shell: bash
+        run: |
+          short_sha="${GITHUB_SHA:0:9}"
+          dev_version="${PLUS_BASE_VERSION}-plus-dev+git-${short_sha}"
+          echo "DEV_VERSION=${dev_version}" >> "${GITHUB_ENV}"
+          echo "DEV_ARCHIVE=gotosocial_${dev_version}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"
+
       - name: Test Plus behavior
-        run: go test -tags="netgo osusergo static_build kvformat timetzdata" -timeout=20m ./internal/api/client/instance ./internal/config ./internal/db/bundb/migrations ./internal/middleware ./internal/processing ./internal/typeutils ./internal/web
+        shell: bash
+        run: |
+          test_log="$(mktemp)"
+          trap 'rm -f "${test_log}"' EXIT
+          if ! go test -tags="netgo osusergo static_build kvformat timetzdata" -timeout=20m \
+            ./internal/api/client/instance \
+            ./internal/config \
+            ./internal/db/bundb/migrations \
+            ./internal/middleware \
+            ./internal/processing \
+            ./internal/typeutils \
+            ./internal/web >"${test_log}" 2>&1
+          then
+            sed '/func=bundb.queryLogger/d' "${test_log}" |
+              cut -c1-2000 |
+              tail -n 500
+            exit 1
+          fi
+          tail -n 20 "${test_log}"
 
       - name: Build Linux AMD64 binary
         env:
           GOOS: linux
           GOARCH: amd64
-          VERSION: 0.22.1-plus-dev
-        run: ./scripts/build.sh
+        run: VERSION="${DEV_VERSION}" ./scripts/build.sh
 
       - name: Package deployable archive
         run: |
           mkdir -p dist/gotosocial
           cp gotosocial LICENSE README.md CHANGELOG.md GOTOSOCIAL_PLUS.md example/config.yaml example/gotosocial.service dist/gotosocial/
           cp -R web/assets web/template dist/gotosocial/
-          tar -C dist -czf dist/gotosocial_0.22.1-plus-dev_linux_amd64.tar.gz gotosocial
+          tar -C dist -czf "dist/${DEV_ARCHIVE}" gotosocial
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
-          name: gotosocial-0.22.1-plus-dev-linux-amd64
-          path: dist/gotosocial_0.22.1-plus-dev_linux_amd64.tar.gz
+          name: gotosocial-${{ env.DEV_VERSION }}-linux-amd64
+          path: dist/${{ env.DEV_ARCHIVE }}
           if-no-files-found: error
           retention-days: 30
