@@ -57,7 +57,7 @@ type InstanceSettings struct {
 	// Generate and expose link preview cards for statuses.
 	StatusesPreviewCards bool `bun:",notnull,default:false"`
 
-	// Hide Mastodon's quote fallback when a matching preview card is available.
+	// Hide Mastodon's redundant quote fallback in API responses.
 	StatusesHideQuoteFallback bool `bun:",notnull,default:false"`
 
 	// Automatically load older posts on public profile pages.

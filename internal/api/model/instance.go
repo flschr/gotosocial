@@ -46,7 +46,7 @@ type InstanceSettingsUpdateRequest struct {
 	AccountsHideNameEmojis *bool `form:"accounts_hide_name_emojis" json:"accounts_hide_name_emojis" xml:"accounts_hide_name_emojis"`
 	// Generate and expose status link preview cards (GoToSocial Plus).
 	StatusesPreviewCards *bool `form:"statuses_preview_cards" json:"statuses_preview_cards" xml:"statuses_preview_cards"`
-	// Hide Mastodon's quote fallback when a matching preview card is available (GoToSocial Plus).
+	// Hide Mastodon's redundant quote fallback in API responses (GoToSocial Plus).
 	StatusesHideQuoteFallback *bool `form:"statuses_hide_quote_fallback" json:"statuses_hide_quote_fallback" xml:"statuses_hide_quote_fallback"`
 	// Automatically load older posts on public profiles (GoToSocial Plus).
 	ProfilesAutoLoadOlderPosts *bool `form:"profiles_auto_load_older_posts" json:"profiles_auto_load_older_posts" xml:"profiles_auto_load_older_posts"`

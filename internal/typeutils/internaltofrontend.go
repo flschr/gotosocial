@@ -1355,7 +1355,7 @@ func (c *Converter) baseStatusToFrontend(
 	apiCard := c.previewCardForStatus(ctx, status, sensitive)
 	apiContent := status.Content
 	if config.GetStatusesHideQuoteFallback() {
-		apiContent = hideMatchingQuoteFallback(apiContent, apiCard)
+		apiContent = hideQuoteFallback(apiContent)
 	}
 
 	apiStatus := &apimodel.Status{

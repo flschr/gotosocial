@@ -4,6 +4,15 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
+## Unreleased
+
+### Reliable Mastodon quote cleanup
+
+- Remove Mastodon's redundant leading `RE:` quote fallback whenever the
+  structured `quote-inline` marker is present, including quotes without a
+  matching classic preview card.
+- Preserve ordinary links and user-authored `RE:` paragraphs.
+
 ## v0.22.1-plus.4 — 2026-07-25
 
 ### Reliable Bluesky author avatars
