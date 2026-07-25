@@ -499,6 +499,18 @@ func (m *Media) pruneUnused(ctx context.Context, media *gtsmodel.MediaAttachment
 	l := log.WithContext(ctx).
 		WithField("media", media.ID)
 
+	blueskyAvatarInUse, err := m.state.DB.IsBlueskyInteractionAvatar(
+		ctx,
+		media.URL,
+		media.Thumbnail.URL,
+	)
+	if err != nil {
+		return false, err
+	} else if blueskyAvatarInUse {
+		l.Debug("skipping as Bluesky interaction avatar in use")
+		return false, nil
+	}
+
 	// Check whether we have the account that owns the media.
 	account, missing, err := m.getOwningAccount(ctx, media)
 	if err != nil {
@@ -622,6 +634,18 @@ func (m *Media) uncacheRemote(ctx context.Context, after time.Time, media *gtsmo
 	// Start a log entry for media.
 	l := log.WithContext(ctx).
 		WithField("media", media.ID)
+
+	blueskyAvatarInUse, err := m.state.DB.IsBlueskyInteractionAvatar(
+		ctx,
+		media.URL,
+		media.Thumbnail.URL,
+	)
+	if err != nil {
+		return false, err
+	} else if blueskyAvatarInUse {
+		l.Debug("skipping as Bluesky interaction avatar in use")
+		return false, nil
+	}
 
 	// There are two possibilities here:
 	//

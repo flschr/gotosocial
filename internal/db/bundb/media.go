@@ -48,6 +48,15 @@ func (m *mediaDB) GetAttachmentByID(ctx context.Context, id string) (*gtsmodel.M
 	)
 }
 
+func (m *mediaDB) GetAttachmentByURL(ctx context.Context, url string) (*gtsmodel.MediaAttachment, error) {
+	var attachment gtsmodel.MediaAttachment
+	err := m.db.NewSelect().
+		Model(&attachment).
+		Where("? = ?", bun.Ident("media_attachment.url"), url).
+		Scan(ctx)
+	return &attachment, err
+}
+
 func (m *mediaDB) GetAttachmentsByIDs(ctx context.Context, ids []string) ([]*gtsmodel.MediaAttachment, error) {
 	// Load all media IDs via cache loader callbacks.
 	media, err := m.state.Caches.DB.Media.LoadIDs("ID",

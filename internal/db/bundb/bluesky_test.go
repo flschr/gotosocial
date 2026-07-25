@@ -70,18 +70,20 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	suite.Equal(post.URI, storedPost.URI)
 
 	interaction := &gtsmodel.BlueskyInteraction{
-		ID:           id.NewULID(),
-		AccountID:    account.ID,
-		StatusID:     suite.testStatuses["local_account_1_status_2"].ID,
-		URI:          "at://did:plc:other/app.bsky.feed.post/reply",
-		CID:          "bafytestreply",
-		RootURI:      post.URI,
-		RootCID:      post.CID,
-		ParentURI:    post.URI,
-		ParentCID:    post.CID,
-		AuthorDID:    "did:plc:other",
-		AuthorHandle: "other.test",
-		URL:          "https://bsky.app/profile/other.test/post/reply",
+		ID:                    id.NewULID(),
+		AccountID:             account.ID,
+		StatusID:              suite.testStatuses["local_account_1_status_2"].ID,
+		URI:                   "at://did:plc:other/app.bsky.feed.post/reply",
+		CID:                   "bafytestreply",
+		RootURI:               post.URI,
+		RootCID:               post.CID,
+		ParentURI:             post.URI,
+		ParentCID:             post.CID,
+		AuthorDID:             "did:plc:other",
+		AuthorHandle:          "other.test",
+		AuthorAvatarURL:       "https://example.org/files/avatar.webp",
+		AuthorAvatarStaticURL: "https://example.org/files/avatar-small.jpeg",
+		URL:                   "https://bsky.app/profile/other.test/post/reply",
 	}
 	suite.Require().NoError(suite.db.PutBlueskyInteraction(ctx, interaction))
 
@@ -92,6 +94,20 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	storedByVirtualAccount, err := suite.db.GetBlueskyInteractionByAuthorAccountID(ctx, storedInteraction.AuthorAccountID, storedInteraction.AccountID)
 	suite.Require().NoError(err)
 	suite.Equal(interaction.ID, storedByVirtualAccount.ID)
+	inUse, err := suite.db.IsBlueskyInteractionAvatar(
+		ctx,
+		interaction.AuthorAvatarURL,
+		interaction.AuthorAvatarStaticURL,
+	)
+	suite.Require().NoError(err)
+	suite.True(inUse)
+	inUse, err = suite.db.IsBlueskyInteractionAvatar(
+		ctx,
+		"https://example.org/files/unrelated.webp",
+		"",
+	)
+	suite.Require().NoError(err)
+	suite.False(inUse)
 
 	queued := &gtsmodel.BlueskyDelivery{
 		ID: id.NewULID(), AccountID: account.ID, StatusID: suite.testStatuses["local_account_1_status_3"].ID,

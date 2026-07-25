@@ -120,9 +120,15 @@ func cacheBlueskyAuthorAvatar(
 	if existing, err := state.DB.GetBlueskyInteractionByAuthorAccountID(ctx, interaction.AuthorAccountID, interaction.AccountID); err == nil &&
 		existing.AuthorAvatar == interaction.AuthorAvatar &&
 		existing.AuthorAvatarURL != "" {
-		interaction.AuthorAvatarURL = existing.AuthorAvatarURL
-		interaction.AuthorAvatarStaticURL = existing.AuthorAvatarStaticURL
-		return nil
+		cached, err := blueskyAuthorAvatarCached(ctx, state, existing.AuthorAvatarURL)
+		if err != nil {
+			return err
+		}
+		if cached {
+			interaction.AuthorAvatarURL = existing.AuthorAvatarURL
+			interaction.AuthorAvatarStaticURL = existing.AuthorAvatarStaticURL
+			return nil
+		}
 	} else if err != nil && !errors.Is(err, db.ErrNoEntries) {
 		return err
 	}
@@ -161,6 +167,26 @@ func cacheBlueskyAuthorAvatar(
 		interaction.AuthorAvatarStaticURL = attachment.URL
 	}
 	return nil
+}
+
+func blueskyAuthorAvatarCached(ctx context.Context, state *state.State, avatarURL string) (bool, error) {
+	attachment, err := state.DB.GetAttachmentByURL(ctx, avatarURL)
+	if errors.Is(err, db.ErrNoEntries) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else if !attachment.Cached() {
+		return false, nil
+	}
+
+	hasOriginal, err := state.Storage.Has(ctx, attachment.File.Path)
+	if err != nil || !hasOriginal {
+		return false, err
+	}
+	if !attachment.HasThumbnail() {
+		return true, nil
+	}
+	return state.Storage.Has(ctx, attachment.Thumbnail.Path)
 }
 
 type interactionMedia struct {
