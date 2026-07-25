@@ -111,6 +111,12 @@ type Status interface {
 	// CountStatusBoosts returns the number of stored boosts for status ID.
 	CountStatusBoosts(ctx context.Context, statusID string) (int, error)
 
+	// GetStatusQuotes returns all statuses whose quote_id column refers to the given status ID.
+	GetStatusQuotes(ctx context.Context, statusID string, page *paging.Page) ([]*gtsmodel.Status, error)
+
+	// CountStatusQuotes returns the number of stored statuses that quote the given status ID.
+	CountStatusQuotes(ctx context.Context, statusID string) (int, error)
+
 	// IsStatusBoostedBy checks whether the given status ID is boosted by account ID.
 	IsStatusBoostedBy(ctx context.Context, statusID string, accountID string) (bool, error)
 

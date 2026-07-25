@@ -72,6 +72,9 @@ type Status struct {
 	ReblogsCount int `json:"reblogs_count"`
 	// Number of favourites/likes this status has received, according to our instance.
 	FavouritesCount int `json:"favourites_count"`
+	// Number of times this status has been quoted, according to our instance.
+	// Omitted when zero, so statuses that aren't quoted keep their existing shape.
+	QuotesCount int `json:"quotes_count,omitempty"`
 	// This status has been favourited by the account viewing it.
 	Favourited bool `json:"favourited"`
 	// This status has been boosted/reblogged by the account viewing it.
@@ -88,6 +91,10 @@ type Status struct {
 	// The status that this status reblogs/boosts.
 	// nullable: true
 	Reblog *StatusReblogged `json:"reblog"`
+	// Information about the status being quoted, if any (Mastodon 4.4+ quote posts).
+	// Omitted for non-quote statuses; clients treat absent and null identically.
+	// nullable: true
+	Quote *Quote `json:"quote,omitempty"`
 	// The application used to post this status, if visible.
 	Application *Application `json:"application,omitempty"`
 	// The account that authored this status.
@@ -119,6 +126,38 @@ type Status struct {
 	// The interaction policy for this status, as set by the status author.
 	InteractionPolicy InteractionPolicy `json:"interaction_policy"`
 }
+
+// Quote models the relationship between a status and a status
+// that it quotes (Mastodon 4.4+ quote posts).
+//
+// See https://docs.joinmastodon.org/entities/Quote/
+//
+// swagger:model quote
+type Quote struct {
+	// The state of the quote.
+	// One of: "pending", "accepted", "rejected", "revoked", "deleted", "unauthorized".
+	// example: accepted
+	State string `json:"state"`
+	// The quoted status. Only set (non-null) when state is "accepted"
+	// and the quote is not nested too deeply to inline.
+	// nullable: true
+	QuotedStatus *Status `json:"quoted_status"`
+	// The ID of the quoted status. Set instead of quoted_status when the
+	// quote is nested too deeply to inline the full status (shallow quote).
+	// nullable: true
+	QuotedStatusID *string `json:"quoted_status_id,omitempty"`
+}
+
+// Quote state values. See
+// https://docs.joinmastodon.org/entities/Quote/#state
+const (
+	QuoteStatePending      = "pending"
+	QuoteStateAccepted     = "accepted"
+	QuoteStateRejected     = "rejected"
+	QuoteStateRevoked      = "revoked"
+	QuoteStateDeleted      = "deleted"
+	QuoteStateUnauthorized = "unauthorized"
+)
 
 // StatusVisibilityDebugResponse provides detailed
 // visibility information for a requested status.
@@ -340,6 +379,9 @@ type StatusCreateRequest struct {
 
 	// ID of the status being replied to, if status is a reply.
 	InReplyToID string `form:"in_reply_to_id" json:"in_reply_to_id"`
+
+	// ID of the status being quoted, if status is a quote (Mastodon 4.4+).
+	QuotedStatusID string `form:"quoted_status_id" json:"quoted_status_id"`
 
 	// Status and attached media should be marked as sensitive.
 	Sensitive bool `form:"sensitive" json:"sensitive"`

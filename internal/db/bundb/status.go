@@ -1409,6 +1409,39 @@ func (s *statusDB) CountStatusBoosts(ctx context.Context, statusID string) (int,
 	})
 }
 
+func (s *statusDB) GetStatusQuotes(ctx context.Context, statusID string, page *paging.Page) ([]*gtsmodel.Status, error) {
+	quoteIDs, err := s.state.Caches.DB.QuoteOfIDs.Load(statusID, func() ([]string, error) {
+		return getStatusQuoteIDs(ctx, s.db, statusID)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if page != nil {
+		quoteIDs = page.Page(quoteIDs)
+	}
+	return s.GetStatusesByIDs(ctx, quoteIDs)
+}
+
+func (s *statusDB) CountStatusQuotes(ctx context.Context, statusID string) (int, error) {
+	return s.state.Caches.DB.QuoteOfIDs.Count(statusID, func() ([]string, error) {
+		return getStatusQuoteIDs(ctx, s.db, statusID)
+	})
+}
+
+func getStatusQuoteIDs(ctx context.Context, bundb *bun.DB, statusID string) ([]string, error) {
+	var statusIDs []string
+	err := bundb.NewSelect().
+		Table("statuses").
+		Column("id").
+		Where("? = ?", bun.Ident("quote_id"), statusID).
+		Order("id DESC").
+		Scan(ctx, &statusIDs)
+	if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		return nil, err
+	}
+	return statusIDs, nil
+}
+
 func (s *statusDB) GetStatusBoostIDs(ctx context.Context, statusID string) ([]string, error) {
 	return s.state.Caches.DB.BoostOfIDs.Load(statusID, func() ([]string, error) {
 		return getStatusBoostIDs(ctx, s.db, statusID)

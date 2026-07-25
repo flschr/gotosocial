@@ -255,6 +255,58 @@ func (c *Converter) ASRepresentationToAccount(
 	return &acct, nil
 }
 
+// withUnknownProperties is implemented by go-fed vocab types (Note,
+// Question, ...) that retain JSON keys with no typed property in a map. We
+// use it to carry the quoted-status URI (FEP-044f `quote` / Mastodon
+// `quoteUri`), which the vendored vocab has no typed accessor for.
+type withUnknownProperties interface {
+	GetUnknownProperties() map[string]interface{}
+}
+
+// extractQuoteURI returns the quoted-status URI advertised by a remote
+// status via any of the common quote conventions, or "" if none present.
+func extractQuoteURI(statusable ap.Statusable) string {
+	wu, ok := statusable.(withUnknownProperties)
+	if !ok {
+		return ""
+	}
+	unknown := wu.GetUnknownProperties()
+	if unknown == nil {
+		return ""
+	}
+	// Order matters: prefer FEP-044f `quote`, then Mastodon, then Misskey.
+	for _, key := range []string{"quote", "quoteUri", "quoteUrl", "_misskey_quote"} {
+		if uri := quoteURIFromValue(unknown[key]); uri != "" {
+			return uri
+		}
+	}
+	return ""
+}
+
+// quoteURIFromValue coerces an unknown-property value into a URI string. The
+// value may be a bare URI string, or (per FEP-044f) an object/link carrying
+// an "id"/"href"/"url".
+func quoteURIFromValue(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case map[string]interface{}:
+		for _, k := range []string{"id", "href", "url"} {
+			if s, ok := val[k].(string); ok && s != "" {
+				return s
+			}
+		}
+	case []interface{}:
+		// e.g. a quote expressed as an array of links/objects.
+		for _, e := range val {
+			if uri := quoteURIFromValue(e); uri != "" {
+				return uri
+			}
+		}
+	}
+	return ""
+}
+
 // ASStatus converts a remote activitystreams 'status' representation into a gts model status.
 func (c *Converter) ASStatusToStatus(ctx context.Context, statusable ap.Statusable) (*gtsmodel.Status, error) {
 	var err error
@@ -421,6 +473,27 @@ func (c *Converter) ASStatusToStatus(ctx context.Context, statusable ap.Statusab
 			status.InReplyTo = inReplyTo
 			status.InReplyToAccountID = inReplyTo.AccountID
 			status.InReplyToAccount = inReplyTo.Account
+		}
+	}
+
+	// Status that this status quotes, if applicable. FEP-044f `quote` /
+	// Mastodon `quoteUri` / Misskey `_misskey_quote` have no typed vocab
+	// property, so they're read from the unknown-properties map. As with
+	// inReplyTo, if we don't have the target yet we just store the URI and
+	// resolve it lazily (serialization resolves it locally on read).
+	if quoteURI := extractQuoteURI(statusable); quoteURI != "" {
+		status.QuoteURI = quoteURI
+
+		quoted, err := c.state.DB.GetStatusByURI(ctx, quoteURI)
+		if err != nil && !errors.Is(err, db.ErrNoEntries) {
+			return nil, gtserror.Newf("error getting quoted %s from db: %w", quoteURI, err)
+		}
+
+		if quoted != nil {
+			status.QuoteID = quoted.ID
+			status.Quote = quoted
+			status.QuoteAccountID = quoted.AccountID
+			status.QuoteAccount = quoted.Account
 		}
 	}
 

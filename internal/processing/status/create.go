@@ -272,6 +272,16 @@ func (p *Processor) Create(
 		}
 	}
 
+	// Check + attach quoted status.
+	if errWithCode := p.processQuote(ctx,
+		requester,
+		status,
+		form.QuotedStatusID,
+		backfill,
+	); errWithCode != nil {
+		return nil, errWithCode
+	}
+
 	// Process the incoming created status visibility.
 	if errWithCode := processVisibility(form, requester.Settings.Privacy, status); errWithCode != nil {
 		return nil, errWithCode
@@ -508,6 +518,79 @@ func (p *Processor) processInReplyTo(
 	status.InReplyTo = inReplyTo
 	status.InReplyToURI = inReplyTo.URI
 	status.InReplyToAccountID = inReplyTo.AccountID
+
+	return nil
+}
+
+// processQuote resolves the quotedStatusID (if any) to a visible target
+// status and wires the quote relationship fields onto status. It mirrors
+// processInReplyTo: unknown or invisible targets are rejected rather than
+// silently dropped, and only self-quotes may be backfilled.
+func (p *Processor) processQuote(
+	ctx context.Context,
+	requester *gtsmodel.Account,
+	status *gtsmodel.Status,
+	quotedStatusID string,
+	backfill bool,
+) gtserror.WithCode {
+	if quotedStatusID == "" {
+		// Not a quote.
+		// Nothing to do.
+		return nil
+	}
+
+	// Fetch target quoted status (checking visibility).
+	quoted, errWithCode := p.c.GetVisibleTargetStatus(ctx,
+		requester,
+		quotedStatusID,
+		nil,
+	)
+	if errWithCode != nil {
+		return errWithCode
+	}
+
+	// If this is a boost, unwrap it to get source status.
+	quoted, errWithCode = p.c.UnwrapIfBoost(ctx,
+		requester,
+		quoted,
+	)
+	if errWithCode != nil {
+		return errWithCode
+	}
+
+	// Don't allow a status to quote itself.
+	if quoted.ID == status.ID {
+		const errText = "a status cannot quote itself"
+		err := gtserror.New(errText)
+		return gtserror.NewErrorUnprocessableEntity(err, errText)
+	}
+
+	// When backfilling, only self-quotes are allowed
+	// (mirrors the in-reply-to backfill restriction).
+	if backfill && requester.ID != quoted.AccountID {
+		const errText = "quotes of others can't be backfilled"
+		err := gtserror.New(errText)
+		return gtserror.NewErrorForbidden(err, errText)
+	}
+
+	// Only public or unlisted statuses may be quoted. A quote widens the
+	// audience of, and federates the URI of, the quoted status; permitting
+	// followers-only/direct targets would leak a non-public post's URI into
+	// a wider audience. (Matches Mastodon, which only allows quoting
+	// public/unlisted posts.) The full author-consent/approval handshake
+	// remains a follow-up; QuoteApprovalURI is reserved for it.
+	if quoted.Visibility != gtsmodel.VisibilityPublic &&
+		quoted.Visibility != gtsmodel.VisibilityUnlocked {
+		const errText = "only public or unlisted statuses may be quoted"
+		err := gtserror.New(errText)
+		return gtserror.NewErrorForbidden(err, errText)
+	}
+
+	// Set quote fields from target.
+	status.QuoteID = quoted.ID
+	status.Quote = quoted
+	status.QuoteURI = quoted.URI
+	status.QuoteAccountID = quoted.AccountID
 
 	return nil
 }

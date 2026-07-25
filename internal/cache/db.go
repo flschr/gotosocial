@@ -177,6 +177,9 @@ type DBCaches struct {
 	// InReplyToIDs provides access to the status in reply to IDs list database cache.
 	InReplyToIDs SliceCache[string]
 
+	// QuoteOfIDs provides access to the "IDs of statuses that quote status X" list database cache.
+	QuoteOfIDs SliceCache[string]
+
 	// List provides access to the gtsmodel List database cache.
 	List StructCache[*gtsmodel.List]
 
@@ -983,6 +986,18 @@ func (c *Caches) initHomeAccountIDs() {
 	log.Infof(nil, "cache size = %d", cap)
 
 	c.DB.HomeAccountIDs.Init(0, cap)
+}
+
+func (c *Caches) initQuoteOfIDs() {
+	// Calculate maximum cache size. Reuses the in-reply-to IDs mem ratio,
+	// as the "who quotes X" lists have the same shape and sizing profile.
+	cap := calculateSliceCacheMax(
+		config.GetCacheInReplyToIDsMemRatio(),
+	)
+
+	log.Infof(nil, "cache size = %d", cap)
+
+	c.DB.QuoteOfIDs.Init(0, cap)
 }
 
 func (c *Caches) initInReplyToIDs() {

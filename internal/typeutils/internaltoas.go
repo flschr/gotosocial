@@ -537,6 +537,23 @@ func (c *Converter) StatusToAS(ctx context.Context, s *gtsmodel.Status) (ap.Stat
 		ap.AppendInReplyTo(statusable, rURI)
 	}
 
+	// `quote` / `quoteUri` / `_misskey_quote` properties.
+	//
+	// GtS's vendored ActivityStreams vocab has no typed property to carry
+	// the quoted-status URI (FEP-044f), so we ride it on the Note/Question
+	// unknown-properties map, which go-fed re-emits verbatim on both the
+	// pull (GET) and push (deliver) serialize paths. We emit all three
+	// common aliases for maximum interop with Mastodon, Misskey/Fedibird.
+	if s.QuoteURI != "" {
+		if wu, ok := statusable.(withUnknownProperties); ok {
+			if unknown := wu.GetUnknownProperties(); unknown != nil {
+				unknown["quote"] = s.QuoteURI         // FEP-044f
+				unknown["quoteUri"] = s.QuoteURI       // Mastodon
+				unknown["_misskey_quote"] = s.QuoteURI // Misskey / Fedibird
+			}
+		}
+	}
+
 	// `published` and `updatedAt` properties.
 	ap.SetPublished(statusable, s.CreatedAt)
 	if at := s.EditedAt; !at.IsZero() {

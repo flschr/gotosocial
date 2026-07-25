@@ -1809,6 +1809,9 @@ func (suite *InternalToFrontendTestSuite) TestInstanceV2ToFrontend() {
   "account_domain": "localhost:8080",
   "title": "GoToSocial Testrig Instance",
   "version": "0.0.0-testrig",
+  "api_versions": {
+    "mastodon": 7
+  },
   "source_url": "https://github.com/flschr/gotosocial-plus",
   "description": "\u003cp\u003eHere's a fuller description of the GoToSocial testrig instance.\u003c/p\u003e\u003cp\u003eThis instance is for testing purposes only. It doesn't federate at all. Go check out \u003ca href=\"https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/testrig\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003ehttps://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/testrig\u003c/a\u003e and \u003ca href=\"https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/CONTRIBUTING.md#testing\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003ehttps://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/CONTRIBUTING.md#testing\u003c/a\u003e\u003c/p\u003e\u003cp\u003eUsers on this instance:\u003c/p\u003e\u003cul\u003e\u003cli\u003e\u003cspan class=\"h-card\"\u003e\u003ca href=\"http://localhost:8080/@admin\" class=\"u-url mention\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003e@\u003cspan\u003eadmin\u003c/span\u003e\u003c/a\u003e\u003c/span\u003e (admin!).\u003c/li\u003e\u003cli\u003e\u003cspan class=\"h-card\"\u003e\u003ca href=\"http://localhost:8080/@1happyturtle\" class=\"u-url mention\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003e@\u003cspan\u003e1happyturtle\u003c/span\u003e\u003c/a\u003e\u003c/span\u003e (posts about turtles, we don't know why).\u003c/li\u003e\u003cli\u003e\u003cspan class=\"h-card\"\u003e\u003ca href=\"http://localhost:8080/@the_mighty_zork\" class=\"u-url mention\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003e@\u003cspan\u003ethe_mighty_zork\u003c/span\u003e\u003c/a\u003e\u003c/span\u003e (who knows).\u003c/li\u003e\u003c/ul\u003e\u003cp\u003eIf you need to edit the models for the testrig, you can do so at \u003ccode\u003einternal/testmodels.go\u003c/code\u003e.\u003c/p\u003e",
   "description_text": "Here's a fuller description of the GoToSocial testrig instance.\n\nThis instance is for testing purposes only. It doesn't federate at all. Go check out https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/testrig and https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/CONTRIBUTING.md#testing\n\nUsers on this instance:\n\n- @admin (admin!).\n- @1happyturtle (posts about turtles, we don't know why).\n- @the_mighty_zork (who knows).\n\nIf you need to edit the models for the testrig, you can do so at `+"`"+`internal/testmodels.go`+"`"+`.",
@@ -3773,6 +3776,36 @@ func (suite *InternalToFrontendTestSuite) TestDomainLimitToAPIDomainLimit() {
     "created_by": "01F8MH17FWEB39HZJ76B6VXSKF",
     "created_at": "2025-10-30T11:30:32.868Z"
 }`, string(b))
+}
+
+func (suite *InternalToFrontendTestSuite) TestStatusToFrontendNativeQuote() {
+	ctx := suite.T().Context()
+
+	quoted := suite.testStatuses["admin_account_status_1"]
+
+	// Copy a status and turn it into a native quote of `quoted`,
+	// without mutating the shared fixture.
+	quoter := new(gtsmodel.Status)
+	*quoter = *suite.testStatuses["local_account_1_status_1"]
+	quoter.QuoteID = quoted.ID
+	quoter.QuoteURI = quoted.URI
+	quoter.QuoteAccountID = quoted.AccountID
+
+	requestingAccount := suite.testAccounts["local_account_1"]
+	apiStatus, err := suite.typeconverter.StatusToAPIStatus(ctx, quoter, requestingAccount)
+	suite.NoError(err)
+
+	// Quote object must be present and accepted.
+	if suite.NotNil(apiStatus.Quote) {
+		suite.Equal("accepted", apiStatus.Quote.State)
+
+		// Regression guard: the inlined quoted status must carry its
+		// account, otherwise clients render a blank quote card.
+		if suite.NotNil(apiStatus.Quote.QuotedStatus) {
+			suite.Equal(quoted.ID, apiStatus.Quote.QuotedStatus.ID)
+			suite.NotNil(apiStatus.Quote.QuotedStatus.Account)
+		}
+	}
 }
 
 func TestInternalToFrontendTestSuite(t *testing.T) {

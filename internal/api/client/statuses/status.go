@@ -70,6 +70,9 @@ const (
 
 	// SourcePath is used for fetching source of a post.
 	SourcePath = BasePathWithID + "/source"
+
+	// QuotesPath is used for fetching statuses that quote a given status.
+	QuotesPath = BasePathWithID + "/quotes"
 )
 
 type Module struct {
@@ -107,6 +110,7 @@ func (m *Module) Route(attachHandler func(method string, path string, f ...gin.H
 	attachHandler(http.MethodPost, ReblogPath, m.StatusBoostPOSTHandler)
 	attachHandler(http.MethodPost, UnreblogPath, m.StatusUnboostPOSTHandler)
 	attachHandler(http.MethodGet, RebloggedPath, m.StatusBoostedByGETHandler)
+	attachHandler(http.MethodGet, QuotesPath, m.StatusQuotesGETHandler)
 	attachHandler(http.MethodPost, BookmarkPath, m.StatusBookmarkPOSTHandler)
 	attachHandler(http.MethodPost, UnbookmarkPath, m.StatusUnbookmarkPOSTHandler)
 
