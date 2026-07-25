@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"code.superseriousbusiness.org/gopkg/log"
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
@@ -157,6 +158,76 @@ func (p *Processor) NotificationsGet(
 		Prev:  page.Prev(lo, hi),
 		Query: query,
 	}), nil
+}
+
+// NotificationsGetGrouped is like NotificationsGet but returns the grouped
+// (Mastodon 4.3+) response shape for GET /api/v2/notifications. GoToSocial
+// doesn't actually group notifications yet, so each notification is returned
+// as its own single-item group. Returns the grouped payload plus the Link
+// header (rewritten to point at the v2 endpoint) for paging.
+func (p *Processor) NotificationsGetGrouped(
+	ctx context.Context,
+	requester *gtsmodel.Account,
+	page *paging.Page,
+	types []gtsmodel.NotificationType,
+	excludeTypes []gtsmodel.NotificationType,
+) (*apimodel.GroupedNotificationsResponse, string, gtserror.WithCode) {
+	// Reuse the v1 fetch (visibility, mutes, filters, paging) unchanged.
+	resp, errWithCode := p.NotificationsGet(ctx, requester, page, types, excludeTypes)
+	if errWithCode != nil {
+		return nil, "", errWithCode
+	}
+
+	grouped := &apimodel.GroupedNotificationsResponse{
+		NotificationGroups: make([]apimodel.NotificationGroup, 0, len(resp.Items)),
+		Accounts:           make([]*apimodel.Account, 0, len(resp.Items)),
+		Statuses:           make([]*apimodel.Status, 0),
+	}
+
+	accountsSeen := make(map[string]struct{})
+	statusesSeen := make(map[string]struct{})
+
+	for _, item := range resp.Items {
+		n, ok := item.(*apimodel.Notification)
+		if !ok {
+			continue
+		}
+
+		group := apimodel.NotificationGroup{
+			GroupKey:                 n.ID,
+			NotificationsCount:       1,
+			Type:                     n.Type,
+			MostRecentNotificationID: n.ID,
+			PageMinID:                n.ID,
+			PageMaxID:                n.ID,
+			LatestPageNotificationAt: n.CreatedAt,
+			SampleAccountIDs:         make([]string, 0, 1),
+		}
+
+		if n.Account != nil {
+			group.SampleAccountIDs = append(group.SampleAccountIDs, n.Account.ID)
+			if _, seen := accountsSeen[n.Account.ID]; !seen {
+				accountsSeen[n.Account.ID] = struct{}{}
+				grouped.Accounts = append(grouped.Accounts, n.Account)
+			}
+		}
+
+		if n.Status != nil {
+			id := n.Status.ID
+			group.StatusID = &id
+			if _, seen := statusesSeen[id]; !seen {
+				statusesSeen[id] = struct{}{}
+				grouped.Statuses = append(grouped.Statuses, n.Status)
+			}
+		}
+
+		grouped.NotificationGroups = append(grouped.NotificationGroups, group)
+	}
+
+	// Point paging links at the v2 endpoint.
+	linkHeader := strings.ReplaceAll(resp.LinkHeader, "/api/v1/notifications", "/api/v2/notifications")
+
+	return grouped, linkHeader, nil
 }
 
 func (p *Processor) NotificationGet(ctx context.Context, account *gtsmodel.Account, targetNotifID string) (*apimodel.Notification, gtserror.WithCode) {

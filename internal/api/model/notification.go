@@ -46,6 +46,44 @@ type Notification struct {
 	Status *Status `json:"status,omitempty"`
 }
 
+// GroupedNotificationsResponse is the response for GET /api/v2/notifications
+// (grouped notifications, Mastodon 4.3+). GoToSocial doesn't group
+// notifications yet, so each notification is returned as its own group.
+//
+// swagger:model groupedNotificationsResults
+type GroupedNotificationsResponse struct {
+	// The grouped notifications themselves.
+	NotificationGroups []NotificationGroup `json:"notification_groups"`
+	// Accounts referenced by the notification groups.
+	Accounts []*Account `json:"accounts"`
+	// Statuses referenced by the notification groups.
+	Statuses []*Status `json:"statuses"`
+}
+
+// NotificationGroup represents a group of related notifications (Mastodon 4.3+).
+//
+// swagger:model notificationGroup
+type NotificationGroup struct {
+	// Group key identifying this group of notifications.
+	GroupKey string `json:"group_key"`
+	// Total number of notifications in this group.
+	NotificationsCount int `json:"notifications_count"`
+	// The type of event that resulted in the notifications.
+	Type string `json:"type"`
+	// ID of the most recent notification in the group.
+	MostRecentNotificationID string `json:"most_recent_notification_id"`
+	// ID of the oldest notification from this group in the returned page.
+	PageMinID string `json:"page_min_id,omitempty"`
+	// ID of the newest notification from this group in the returned page.
+	PageMaxID string `json:"page_max_id,omitempty"`
+	// Timestamp of the most recent notification in the returned page (ISO 8601).
+	LatestPageNotificationAt string `json:"latest_page_notification_at,omitempty"`
+	// IDs of some of the accounts that triggered notifications in this group.
+	SampleAccountIDs []string `json:"sample_account_ids"`
+	// ID of the status the notifications refer to, if applicable.
+	StatusID *string `json:"status_id,omitempty"`
+}
+
 /*
 	The below functions are added onto the apimodel notification so that it satisfies
 	the Timelineable interface in internal/timeline.
