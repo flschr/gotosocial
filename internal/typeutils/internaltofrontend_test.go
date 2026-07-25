@@ -36,7 +36,7 @@ type InternalToFrontendTestSuite struct {
 	TypeUtilsTestSuite
 }
 
-func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusHidesUnmarkedStoredQuoteFallback() {
+func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPreservesQuoteFallbackWithoutCard() {
 	originalSetting := config.GetStatusesHideQuoteFallback()
 	config.SetStatusesHideQuoteFallback(true)
 	defer config.SetStatusesHideQuoteFallback(originalSetting)
@@ -54,7 +54,7 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusHidesUnmarkedStor
 		requestingAccount,
 	)
 	suite.NoError(err)
-	suite.Equal(`<p>Useful commentary.</p>`, apiStatus.Content)
+	suite.Equal(testStatus.Content, apiStatus.Content)
 }
 
 func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPreservesUnmarkedUnknownRELink() {
