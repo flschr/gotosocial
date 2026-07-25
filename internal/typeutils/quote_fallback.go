@@ -12,23 +12,24 @@ import (
 	"golang.org/x/net/html"
 )
 
-// hideQuoteFallback removes Mastodon's backward-compatibility quote-inline
-// paragraph. The quote-inline class is Mastodon's semantic marker for this
-// fallback; a preview card is not guaranteed even when clients can render the
-// quoted status through Mastodon's quote API.
-func hideQuoteFallback(content string) string {
+// extractQuoteFallback identifies Mastodon's backward-compatibility RE
+// paragraph and returns the content without it, its link target, and whether
+// Mastodon supplied the semantic quote-inline marker. Some Mastodon versions
+// federate the same exact wrapper without that class; callers must verify
+// those unmarked targets against a stored status before using cleaned.
+func extractQuoteFallback(content string) (cleaned string, target string, marked bool) {
 	if content == "" {
-		return content
+		return content, "", false
 	}
 
 	doc, err := html.Parse(strings.NewReader(content))
 	if err != nil {
-		return content
+		return content, "", false
 	}
 
 	body := findHTMLElement(doc, "body")
 	if body == nil {
-		return content
+		return content, "", false
 	}
 
 	first := body.FirstChild
@@ -37,23 +38,23 @@ func hideQuoteFallback(content string) string {
 	}
 	if first == nil ||
 		first.Type != html.ElementNode ||
-		first.Data != "p" ||
-		!hasHTMLClass(first, "quote-inline") {
-		return content
+		first.Data != "p" {
+		return content, "", false
 	}
 
-	if firstHTTPLink(first) == nil {
-		return content
+	quoteURL := firstHTTPLink(first)
+	if quoteURL == nil || strings.TrimSpace(elementText(first)) != "RE: "+quoteURL.String() {
+		return content, "", false
 	}
 
 	body.RemoveChild(first)
 	var rendered bytes.Buffer
 	for child := body.FirstChild; child != nil; child = child.NextSibling {
 		if err := html.Render(&rendered, child); err != nil {
-			return content
+			return content, "", false
 		}
 	}
-	return rendered.String()
+	return rendered.String(), quoteURL.String(), hasHTMLClass(first, "quote-inline")
 }
 
 func findHTMLElement(node *html.Node, name string) *html.Node {
@@ -90,4 +91,19 @@ func firstHTTPLink(node *html.Node) *url.URL {
 		}
 	}
 	return nil
+}
+
+func elementText(node *html.Node) string {
+	var text strings.Builder
+	var walk func(*html.Node)
+	walk = func(current *html.Node) {
+		if current.Type == html.TextNode {
+			text.WriteString(current.Data)
+		}
+		for child := current.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(node)
+	return text.String()
 }

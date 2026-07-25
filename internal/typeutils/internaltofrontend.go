@@ -1355,7 +1355,10 @@ func (c *Converter) baseStatusToFrontend(
 	apiCard := c.previewCardForStatus(ctx, status, sensitive)
 	apiContent := status.Content
 	if config.GetStatusesHideQuoteFallback() {
-		apiContent = hideQuoteFallback(apiContent)
+		cleanedContent, quoteTarget, marked := extractQuoteFallback(apiContent)
+		if marked || (quoteTarget != "" && c.hasStoredStatusTarget(ctx, quoteTarget)) {
+			apiContent = cleanedContent
+		}
 	}
 
 	apiStatus := &apimodel.Status{
@@ -1457,6 +1460,21 @@ func (c *Converter) baseStatusToFrontend(
 	}
 
 	return apiStatus, nil
+}
+
+// hasStoredStatusTarget checks whether a leading Mastodon-style RE link points
+// to a status GoToSocial already knows. This covers Mastodon quote fallbacks
+// that arrive without the quote-inline class while avoiding broad removal of
+// ordinary user-authored RE paragraphs.
+func (c *Converter) hasStoredStatusTarget(ctx context.Context, target string) bool {
+	if _, err := c.state.DB.GetStatusByURL(ctx, target); err == nil {
+		return true
+	} else if !errors.Is(err, db.ErrNoEntries) {
+		return false
+	}
+
+	_, err := c.state.DB.GetStatusByURI(ctx, target)
+	return err == nil
 }
 
 // StatusToEditHistory converts a status and its historical edits
