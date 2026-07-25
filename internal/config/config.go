@@ -140,7 +140,7 @@ type Configuration struct {
 	StatusesPollOptionMaxChars     int              `name:"statuses-poll-option-max-chars" usage:"Max amount of characters for a poll option"`
 	StatusesMediaMaxFiles          int              `name:"statuses-media-max-files" usage:"Maximum number of media files/attachments per status"`
 	StatusesPreviewCards           bool             `name:"statuses-preview-cards" usage:"Fetch linked pages and include preview cards in Mastodon API status responses."`
-	StatusesHideQuoteFallback      bool             `name:"statuses-hide-quote-fallback" usage:"Hide Mastodon's quote-inline fallback when a matching preview card is available."`
+	StatusesHideQuoteFallback      bool             `name:"statuses-hide-quote-fallback" usage:"Hide Mastodon's redundant quote-inline fallback in API responses."`
 	StatusesCleanupCron            CronExpression   `name:"statuses-cleanup-cron" usage:"Cron expression defining statuses cleanup task scheduling"`
 	StatusesCleanupRemoteOlderThan longdur.Duration `name:"statuses-cleanup-remote-older-than" usage:"Duration defining status age beyond which to clean"`
 

@@ -56,7 +56,7 @@ function InstanceFeaturesForm({ data: instance }: { data: InstanceV1 }) {
 			<fieldset>
 				<legend>Posts and media</legend>
 				<Checkbox field={form.statusesPreviewCards} label="Enable link preview cards, including preview images and supported video embeds." />
-				<Checkbox field={form.statusesHideQuoteFallback} label="Hide Mastodon's redundant RE: quote link when a matching preview card is visible." />
+				<Checkbox field={form.statusesHideQuoteFallback} label="Hide Mastodon's redundant RE: quote link." />
 			</fieldset>
 			<MutationButton disabled={false} label="Save instance features" result={result} />
 		</form>

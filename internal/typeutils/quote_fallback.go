@@ -9,19 +9,15 @@ import (
 	"net/url"
 	"strings"
 
-	"code.superseriousbusiness.org/gotosocial/internal/api/model"
 	"golang.org/x/net/html"
 )
 
-// hideMatchingQuoteFallback removes Mastodon's backward-compatibility
-// quote-inline paragraph only when the same leading link produced a card.
-func hideMatchingQuoteFallback(content string, card *model.Card) string {
-	if content == "" || card == nil {
-		return content
-	}
-
-	cardTarget, err := url.Parse(card.URL)
-	if err != nil || (cardTarget.Scheme != "http" && cardTarget.Scheme != "https") || cardTarget.Host == "" {
+// hideQuoteFallback removes Mastodon's backward-compatibility quote-inline
+// paragraph. The quote-inline class is Mastodon's semantic marker for this
+// fallback; a preview card is not guaranteed even when clients can render the
+// quoted status through Mastodon's quote API.
+func hideQuoteFallback(content string) string {
+	if content == "" {
 		return content
 	}
 
@@ -46,8 +42,7 @@ func hideMatchingQuoteFallback(content string, card *model.Card) string {
 		return content
 	}
 
-	quoteURL := firstHTTPLink(first)
-	if quoteURL == nil || quoteURL.String() != cardTarget.String() {
+	if firstHTTPLink(first) == nil {
 		return content
 	}
 

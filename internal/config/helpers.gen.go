@@ -361,7 +361,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.Int("statuses-poll-option-max-chars", cfg.StatusesPollOptionMaxChars, "Max amount of characters for a poll option")
 	flags.Int("statuses-media-max-files", cfg.StatusesMediaMaxFiles, "Maximum number of media files/attachments per status")
 	flags.Bool("statuses-preview-cards", cfg.StatusesPreviewCards, "Fetch linked pages and include preview cards in Mastodon API status responses.")
-	flags.Bool("statuses-hide-quote-fallback", cfg.StatusesHideQuoteFallback, "Hide Mastodon's quote-inline fallback when a matching preview card is available.")
+	flags.Bool("statuses-hide-quote-fallback", cfg.StatusesHideQuoteFallback, "Hide Mastodon's redundant quote-inline fallback in API responses.")
 	flags.String("statuses-cleanup-cron", cfg.StatusesCleanupCron.String(), "Cron expression defining statuses cleanup task scheduling")
 	flags.String("statuses-cleanup-remote-older-than", cfg.StatusesCleanupRemoteOlderThan.String(), "Duration defining status age beyond which to clean")
 	flags.Int("scheduled-statuses-max-total", cfg.ScheduledStatusesMaxTotal, "Maximum number of scheduled statuses per user")
