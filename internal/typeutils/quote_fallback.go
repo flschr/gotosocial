@@ -9,14 +9,30 @@ import (
 	"net/url"
 	"strings"
 
+	"code.superseriousbusiness.org/gotosocial/internal/api/model"
 	"golang.org/x/net/html"
 )
 
+// hideMatchingQuoteFallback removes Mastodon's exact backward-compatibility
+// RE wrapper only when the API response also contains a card for the same URL.
+// Keeping the wrapper while the card cache is cold lets clients derive and
+// display the quote themselves instead of losing it.
+func hideMatchingQuoteFallback(content string, card *model.Card) string {
+	if card == nil {
+		return content
+	}
+
+	cleaned, target, _ := extractQuoteFallback(content)
+	if target == "" || target != card.URL {
+		return content
+	}
+
+	return cleaned
+}
+
 // extractQuoteFallback identifies Mastodon's backward-compatibility RE
 // paragraph and returns the content without it, its link target, and whether
-// Mastodon supplied the semantic quote-inline marker. Some Mastodon versions
-// federate the same exact wrapper without that class; callers must verify
-// those unmarked targets against a stored status before using cleaned.
+// Mastodon supplied the semantic quote-inline marker.
 func extractQuoteFallback(content string) (cleaned string, target string, marked bool) {
 	if content == "" {
 		return content, "", false
