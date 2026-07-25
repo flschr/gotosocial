@@ -316,6 +316,13 @@ func (suite *StatusCreateTestSuite) TestPostNewStatusIntPolicy() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -413,6 +420,13 @@ func (suite *StatusCreateTestSuite) TestPostNewStatusIntPolicyJSON() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -684,6 +698,13 @@ func (suite *StatusCreateTestSuite) TestPostNewStatusMarkdown() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -776,6 +797,13 @@ func (suite *StatusCreateTestSuite) TestMentionUnknownAccount() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -848,6 +876,13 @@ func (suite *StatusCreateTestSuite) TestPostStatusWithLinksAndTags() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -941,6 +976,13 @@ func (suite *StatusCreateTestSuite) TestPostNewStatusWithEmoji() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -1039,6 +1081,13 @@ func (suite *StatusCreateTestSuite) TestReplyToLocalStatus() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -1146,6 +1195,13 @@ func (suite *StatusCreateTestSuite) TestAttachNewMediaSuccess() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -1222,6 +1278,13 @@ func (suite *StatusCreateTestSuite) TestPostNewStatusWithNoncanonicalLanguageTag
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -1317,6 +1380,13 @@ func (suite *StatusCreateTestSuite) TestPostNewStatusWithPollForm() {
     "voted": true,
     "voters_count": 0,
     "votes_count": 0
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
   },
   "reblog": null,
   "reblogged": false,
@@ -1415,6 +1485,13 @@ func (suite *StatusCreateTestSuite) TestPostNewStatusWithPollJSON() {
     "voted": true,
     "voters_count": 0,
     "votes_count": 0
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
   },
   "reblog": null,
   "reblogged": false,

@@ -1556,6 +1556,21 @@ func (c *Converter) baseStatusToFrontend(
 		apiStatus.Content = text.MarkQuoteInline(apiStatus.Content)
 	}
 
+	// Advertise quote-approval so clients can offer a native quote action.
+	// Public/unlisted statuses are quotable (matching the create-time guard),
+	// and an authenticated requester is auto-approved. This mirrors Mastodon's
+	// quote_approval field, which clients gate their quote button on. Left
+	// unset for unauthenticated requests (no quoting possible anyway).
+	if requester != nil &&
+		(status.Visibility == gtsmodel.VisibilityPublic ||
+			status.Visibility == gtsmodel.VisibilityUnlocked) {
+		apiStatus.QuoteApproval = &apimodel.QuoteApproval{
+			Automatic:   []string{"public"},
+			Manual:      []string{},
+			CurrentUser: "automatic",
+		}
+	}
+
 	switch {
 	case status.CreatedWithApplication != nil:
 		// App exists for this status and is set.

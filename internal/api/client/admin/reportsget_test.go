@@ -612,6 +612,13 @@ func (suite *ReportsGetTestSuite) TestReportsGetAll() {
             ],
             "manual_approval": []
           }
+        },
+        "quote_approval": {
+          "automatic": [
+            "public"
+          ],
+          "manual": [],
+          "current_user": "automatic"
         }
       }
     ],
@@ -875,6 +882,13 @@ func (suite *ReportsGetTestSuite) TestReportsGetCreatedByAccount() {
             ],
             "manual_approval": []
           }
+        },
+        "quote_approval": {
+          "automatic": [
+            "public"
+          ],
+          "manual": [],
+          "current_user": "automatic"
         }
       }
     ],
@@ -1138,6 +1152,13 @@ func (suite *ReportsGetTestSuite) TestReportsGetTargetAccount() {
             ],
             "manual_approval": []
           }
+        },
+        "quote_approval": {
+          "automatic": [
+            "public"
+          ],
+          "manual": [],
+          "current_user": "automatic"
         }
       }
     ],

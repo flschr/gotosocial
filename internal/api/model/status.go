@@ -125,6 +125,25 @@ type Status struct {
 	Filtered []FilterResult `json:"filtered,omitempty"`
 	// The interaction policy for this status, as set by the status author.
 	InteractionPolicy InteractionPolicy `json:"interaction_policy"`
+	// Quote approval info: whom this status may be quoted by, and whether the
+	// requesting account may quote it (Mastodon 4.5+). Omitted when quoting
+	// doesn't apply to this status.
+	QuoteApproval *QuoteApproval `json:"quote_approval,omitempty"`
+}
+
+// QuoteApproval describes who may quote a status and whether the requesting
+// account's quote would be approved (Mastodon 4.5+). Clients use current_user
+// to decide whether to offer a "quote" action.
+//
+// swagger:model quoteApproval
+type QuoteApproval struct {
+	// Policy values for whom quotes are automatically approved, e.g. ["public"].
+	Automatic []string `json:"automatic"`
+	// Policy values for whom quotes require manual approval by the author.
+	Manual []string `json:"manual"`
+	// The requesting account's quote ability for this status.
+	// One of: "automatic", "manual", "denied", "unsupported".
+	CurrentUser string `json:"current_user"`
 }
 
 // Quote models the relationship between a status and a status

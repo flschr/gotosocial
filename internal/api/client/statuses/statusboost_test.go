@@ -135,6 +135,13 @@ func (suite *StatusBoostTestSuite) TestPostBoost() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": {
     "account": "yeah this is my account, what about it punk",
     "application": {
@@ -220,6 +227,13 @@ func (suite *StatusBoostTestSuite) TestPostBoost() {
     "muted": false,
     "pinned": false,
     "poll": null,
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "current_user": "automatic",
+      "manual": []
+    },
     "reblog": null,
     "reblogged": true,
     "reblogs_count": 1,
@@ -535,6 +549,13 @@ func (suite *StatusBoostTestSuite) TestPostBoostImplicitAccept() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": {
     "account": "yeah this is my account, what about it punk",
     "application": {
@@ -589,6 +610,13 @@ func (suite *StatusBoostTestSuite) TestPostBoostImplicitAccept() {
     "muted": false,
     "pinned": false,
     "poll": null,
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "current_user": "automatic",
+      "manual": []
+    },
     "reblog": null,
     "reblogged": true,
     "reblogs_count": 1,

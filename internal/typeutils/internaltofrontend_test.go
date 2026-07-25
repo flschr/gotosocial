@@ -627,6 +627,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontend() {
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -770,6 +777,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendHTMLContentWarning
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -915,6 +929,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendApplicationDeleted
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -1042,6 +1063,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownAttachments
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -1361,6 +1389,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownLanguage() 
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -1592,6 +1627,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPendingApproval()
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }
 `, out.String())
@@ -2592,6 +2634,13 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend2() {
           ],
           "manual_approval": []
         }
+      },
+      "quote_approval": {
+        "automatic": [
+          "public"
+        ],
+        "manual": [],
+        "current_user": "automatic"
       }
     }
   ],
@@ -3087,6 +3136,13 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
         ],
         "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   },
   "reply": {
@@ -3179,6 +3235,13 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
         ],
         "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   }
 }`, string(b))
@@ -3339,6 +3402,13 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPISelfConvo() {
         ],
         "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   }
 }`, string(b))
@@ -3509,6 +3579,13 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPI() {
         ],
         "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   }
 }`, string(b))
