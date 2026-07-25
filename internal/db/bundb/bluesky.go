@@ -105,6 +105,20 @@ func (b *blueskyDB) GetBlueskyInteractionByAuthorAccountID(ctx context.Context, 
 	return interaction, err
 }
 
+func (b *blueskyDB) IsBlueskyInteractionAvatar(ctx context.Context, url, thumbnailURL string) (bool, error) {
+	if url == "" && thumbnailURL == "" {
+		return false, nil
+	}
+	return b.db.NewSelect().
+		Model((*gtsmodel.BlueskyInteraction)(nil)).
+		Where(
+			"author_avatar_url IN (?) OR author_avatar_static_url IN (?)",
+			bun.In([]string{url, thumbnailURL}),
+			bun.In([]string{url, thumbnailURL}),
+		).
+		Exists(ctx)
+}
+
 func (b *blueskyDB) GetBlueskyInteractionByURI(ctx context.Context, uri string) (*gtsmodel.BlueskyInteraction, error) {
 	return getBlueskyModel[gtsmodel.BlueskyInteraction](ctx, b.db, "uri", uri)
 }

@@ -29,6 +29,9 @@ type Media interface {
 	// GetAttachmentByID gets a single attachment by its ID.
 	GetAttachmentByID(ctx context.Context, id string) (*gtsmodel.MediaAttachment, error)
 
+	// GetAttachmentByURL gets a single attachment by its local public URL.
+	GetAttachmentByURL(ctx context.Context, url string) (*gtsmodel.MediaAttachment, error)
+
 	// GetAttachmentsByIDs fetches a list of media attachments for given IDs.
 	GetAttachmentsByIDs(ctx context.Context, ids []string) ([]*gtsmodel.MediaAttachment, error)
 

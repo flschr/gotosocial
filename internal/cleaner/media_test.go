@@ -29,6 +29,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/cleaner"
 	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/media"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"code.superseriousbusiness.org/gotosocial/internal/storage"
@@ -102,6 +103,51 @@ func (suite *MediaTestSuite) TestUncacheRemote() {
 	uncachedAttachment, err = suite.state.DB.GetAttachmentByID(ctx, testHeader.ID)
 	suite.NoError(err)
 	suite.False(uncachedAttachment.Cached())
+}
+
+func (suite *MediaTestSuite) TestBlueskyInteractionAvatarIsRetained() {
+	ctx := suite.T().Context()
+	attachment := suite.testAttachments["remote_account_1_status_1_attachment_1"]
+	attachment.StatusID = ""
+	suite.Require().NoError(
+		suite.state.DB.UpdateAttachment(ctx, attachment, "status_id"),
+	)
+
+	account := suite.testAccounts["local_account_1"]
+	interaction := &gtsmodel.BlueskyInteraction{
+		ID:                    id.NewULID(),
+		AccountID:             account.ID,
+		StatusID:              testrig.NewTestStatuses()["local_account_1_status_1"].ID,
+		URI:                   "at://did:plc:avatar/app.bsky.feed.post/reply",
+		CID:                   "bafyavatar",
+		RootURI:               "at://did:plc:avatar/app.bsky.feed.post/root",
+		RootCID:               "bafyroot",
+		ParentURI:             "at://did:plc:avatar/app.bsky.feed.post/root",
+		ParentCID:             "bafyroot",
+		AuthorDID:             "did:plc:avatar",
+		AuthorHandle:          "avatar.test",
+		AuthorAvatarURL:       attachment.URL,
+		AuthorAvatarStaticURL: attachment.Thumbnail.URL,
+		URL:                   "https://bsky.app/profile/avatar.test/post/reply",
+	}
+	suite.Require().NoError(
+		suite.state.DB.PutBlueskyInteraction(ctx, interaction),
+	)
+
+	_, err := suite.cleaner.Media().PruneUnused(ctx)
+	suite.Require().NoError(err)
+	retained, err := suite.state.DB.GetAttachmentByID(ctx, attachment.ID)
+	suite.Require().NoError(err)
+	suite.True(retained.Cached())
+
+	_, err = suite.cleaner.Media().UncacheRemote(
+		ctx,
+		time.Now().Add(24*time.Hour),
+	)
+	suite.Require().NoError(err)
+	retained, err = suite.state.DB.GetAttachmentByID(ctx, attachment.ID)
+	suite.Require().NoError(err)
+	suite.True(retained.Cached())
 }
 
 func (suite *MediaTestSuite) TestPurgeRemote() {

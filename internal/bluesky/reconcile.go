@@ -101,7 +101,14 @@ func reconcileInteractions(ctx context.Context, state *state.State, connection *
 			authorChanged := post.Author.Handle != interaction.AuthorHandle ||
 				post.Author.DisplayName != interaction.AuthorDisplayName ||
 				post.Author.Avatar != interaction.AuthorAvatar
-			if post.Author.Avatar != interaction.AuthorAvatar || interaction.AuthorAvatarURL == "" {
+			avatarCached := false
+			if interaction.AuthorAvatarURL != "" {
+				avatarCached, err = blueskyAuthorAvatarCached(ctx, state, interaction.AuthorAvatarURL)
+				if err != nil {
+					reconcileErrors = append(reconcileErrors, err)
+				}
+			}
+			if post.Author.Avatar != interaction.AuthorAvatar || !avatarCached {
 				if post.Author.Avatar != interaction.AuthorAvatar {
 					// Do not keep serving the previous author's bytes under new
 					// metadata. Empty local URLs also make the next pass retry.
