@@ -65,6 +65,12 @@ ActivityPub conversation context. This can recover older ancestors and remote
 replies that were not present in the local database when the original status
 arrived.
 
+Micro.blog-hosted replies may omit the ActivityPub `inReplyTo` property while
+still publishing the parent relationship as `u-in-reply-to` on the public
+status page. For status URLs on `micro.blog`, Plus uses that public
+microformat as a compatibility fallback so available replies retain their
+normal parent and thread relationship.
+
 The refresh uses normal federation and visibility rules. It does not provide
 access to private or otherwise unavailable posts, and a remote server can
 still return an incomplete conversation.

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: "Exact release version, for example 0.22.1-plus.3 (leave empty for a development build)"
+        description: "Exact release version, for example 0.22.1-plus.4 (leave empty for a development build)"
         required: false
         type: string
 
@@ -36,6 +36,7 @@ jobs:
       CGO_ENABLED: "0"
       GOFLAGS: "-mod=vendor"
       PLUS_BASE_VERSION: "0.22.1"
+      PLUS_DEV_RELEASE: "4"
       GTS_TEST_POSTGRES_DSN: "postgres://gotosocial:gotosocial@localhost:5432/gotosocial_test?sslmode=disable"
 
     steps:
@@ -85,8 +86,7 @@ jobs:
             fi
             build_version="${requested_version}"
           else
-            short_sha="${GITHUB_SHA:0:9}"
-            build_version="${PLUS_BASE_VERSION}-plus-dev+git-${short_sha}"
+            build_version="${PLUS_BASE_VERSION}-plus.${PLUS_DEV_RELEASE}-dev"
           fi
           echo "BUILD_VERSION=${build_version}" >> "${GITHUB_ENV}"
           echo "BUILD_ARCHIVE=gotosocial_${build_version}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"
@@ -98,8 +98,12 @@ jobs:
           trap 'rm -f "${test_log}"' EXIT
           if ! go test -tags="netgo osusergo static_build kvformat timetzdata" -timeout=20m \
             ./internal/api/client/instance \
+            ./internal/bluesky \
+            ./internal/cleaner \
             ./internal/config \
+            ./internal/db/bundb \
             ./internal/db/bundb/migrations \
+            ./internal/federation/dereferencing \
             ./internal/middleware \
             ./internal/processing \
             ./internal/typeutils \

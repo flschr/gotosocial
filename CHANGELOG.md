@@ -4,6 +4,38 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
+## v0.22.1-plus.4 — 2026-07-25
+
+### Reliable Bluesky author avatars
+
+- Keep locally cached avatars for private Bluesky interaction authors reachable
+  during regular media cleanup.
+- Detect and replace stale local avatar references during reconciliation.
+- Preserve the native-looking Bluesky reply presentation introduced in Plus 3
+  without leaving broken images after cleanup.
+
+### Better Micro.blog reply threading
+
+- Recover missing reply relationships for Micro.blog-hosted replies from the
+  public `u-in-reply-to` microformat when ActivityPub omits `inReplyTo`.
+- Reuse an existing local parent status immediately so Mastodon-compatible
+  clients receive normal parent, account, and thread identifiers.
+- Keep the compatibility fallback restricted to `micro.blog`; retrieval or
+  parsing failures remain non-fatal.
+
+### Clear development version labels
+
+- Identify development builds as `plus.4-dev` so public version information
+  continues to show the Plus release line they are testing.
+- Extend the release build checks to cover the Bluesky, media-cleaner,
+  database, and federation packages touched by these fixes.
+
+### Upgrade notes
+
+- This release remains based on GoToSocial 0.22.1.
+- No database migration or new configuration is required.
+- Deploy the binary, web assets, and templates from the same release archive.
+
 ## v0.22.1-plus.3 — 2026-07-24
 
 ### More complete remote conversations
