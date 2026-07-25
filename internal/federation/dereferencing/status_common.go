@@ -210,6 +210,14 @@ func (d *Dereferencer) convertStatusable(
 		return nil, gtserror.Newf("error converting statusable to gts model for status %s: %w", statusURI, err)
 	}
 
+	// Micro.blog omits ActivityPub inReplyTo on hosted replies, but exposes
+	// the relationship as u-in-reply-to on the public status page.
+	if status.InReplyToURI == "" {
+		if err := d.enrichMicroblogInReplyTo(ctx, requestUser, status); err != nil {
+			log.Warnf(ctx, "error enriching Micro.blog reply %s: %v", status.URI, err)
+		}
+	}
+
 	// Ensure final status isn't attempting
 	// to claim being authored by local user.
 	if status.Account.IsLocal() {
