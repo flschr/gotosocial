@@ -36,6 +36,47 @@ type InternalToFrontendTestSuite struct {
 	TypeUtilsTestSuite
 }
 
+func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusHidesUnmarkedStoredQuoteFallback() {
+	originalSetting := config.GetStatusesHideQuoteFallback()
+	config.SetStatusesHideQuoteFallback(true)
+	defer config.SetStatusesHideQuoteFallback(originalSetting)
+
+	targetStatus := suite.testStatuses["remote_account_1_status_1"]
+	testStatus := new(gtsmodel.Status)
+	*testStatus = *suite.testStatuses["admin_account_status_1"]
+	testStatus.Content = `<p>RE: <a href="` + targetStatus.URL + `">` +
+		targetStatus.URL + `</a></p><p>Useful commentary.</p>`
+
+	requestingAccount := suite.testAccounts["local_account_1"]
+	apiStatus, err := suite.typeconverter.StatusToAPIStatus(
+		suite.T().Context(),
+		testStatus,
+		requestingAccount,
+	)
+	suite.NoError(err)
+	suite.Equal(`<p>Useful commentary.</p>`, apiStatus.Content)
+}
+
+func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPreservesUnmarkedUnknownRELink() {
+	originalSetting := config.GetStatusesHideQuoteFallback()
+	config.SetStatusesHideQuoteFallback(true)
+	defer config.SetStatusesHideQuoteFallback(originalSetting)
+
+	testStatus := new(gtsmodel.Status)
+	*testStatus = *suite.testStatuses["admin_account_status_1"]
+	testStatus.Content = `<p>RE: <a href="https://example.org/not-a-stored-status">` +
+		`https://example.org/not-a-stored-status</a></p><p>Useful commentary.</p>`
+
+	requestingAccount := suite.testAccounts["local_account_1"]
+	apiStatus, err := suite.typeconverter.StatusToAPIStatus(
+		suite.T().Context(),
+		testStatus,
+		requestingAccount,
+	)
+	suite.NoError(err)
+	suite.Equal(testStatus.Content, apiStatus.Content)
+}
+
 func (suite *InternalToFrontendTestSuite) TestCompatibilitySettingsDisabled() {
 	config.SetAccountsUseAccountDomainInAcct(false)
 	config.SetAccountsHideLocalRoles(false)
