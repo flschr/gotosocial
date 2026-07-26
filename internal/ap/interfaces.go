@@ -149,7 +149,8 @@ func IsAuthorizationable(typeName string) bool {
 	switch typeName {
 	case ObjectLikeAuthorization,
 		ObjectReplyAuthorization,
-		ObjectAnnounceAuthorization:
+		ObjectAnnounceAuthorization,
+		ObjectQuoteAuthorization:
 		return true
 	default:
 		return false
