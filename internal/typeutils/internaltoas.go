@@ -731,6 +731,19 @@ func (c *Converter) StatusToAS(ctx context.Context, s *gtsmodel.Status) (ap.Stat
 		}
 	}
 
+	// `quoteAuthorization` property (FEP-044f), for an approved quote.
+	if s.QuoteApprovalURI != "" {
+		err := c.appendASInteractionAuthorization(
+			ctx,
+			s.QuoteApprovalURI,
+			statusable,
+		)
+
+		if err != nil {
+			return nil, gtserror.Newf("error setting quote authorization field: %w", err)
+		}
+	}
+
 	return statusable, nil
 }
 
@@ -2385,6 +2398,10 @@ func (c *Converter) appendASInteractionAuthorization(
 	case gtsmodel.InteractionAnnounce:
 		if waa, ok := t.(ap.WithAnnounceAuthorization); ok {
 			ap.SetAnnounceAuthorization(waa, approvedByURI)
+		}
+	case gtsmodel.InteractionQuote:
+		if wqa, ok := t.(ap.WithQuoteAuthorization); ok {
+			ap.SetQuoteAuthorization(wqa, approvedByURI)
 		}
 	}
 

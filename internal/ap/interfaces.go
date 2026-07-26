@@ -850,6 +850,12 @@ type WithAnnounceAuthorization interface {
 	SetGoToSocialAnnounceAuthorization(vocab.GoToSocialAnnounceAuthorizationProperty)
 }
 
+// WithQuoteAuthorization represents a statusable with the quoteAuthorization property.
+type WithQuoteAuthorization interface {
+	GetGoToSocialQuoteAuthorization() vocab.GoToSocialQuoteAuthorizationProperty
+	SetGoToSocialQuoteAuthorization(vocab.GoToSocialQuoteAuthorizationProperty)
+}
+
 // WithResult represents an activity or object with the result property.
 type WithResult interface {
 	GetActivityStreamsResult() vocab.ActivityStreamsResultProperty

@@ -837,6 +837,23 @@ func SetReplyAuthorization(with WithReplyAuthorization, replyAuthorization *url.
 	raProp.Set(replyAuthorization)
 }
 
+func GetQuoteAuthorization(with WithQuoteAuthorization) *url.URL {
+	qaProp := with.GetGoToSocialQuoteAuthorization()
+	if qaProp == nil || !qaProp.IsIRI() {
+		return nil
+	}
+	return qaProp.Get()
+}
+
+func SetQuoteAuthorization(with WithQuoteAuthorization, quoteAuthorization *url.URL) {
+	qaProp := with.GetGoToSocialQuoteAuthorization()
+	if qaProp == nil {
+		qaProp = streams.NewGoToSocialQuoteAuthorizationProperty()
+		with.SetGoToSocialQuoteAuthorization(qaProp)
+	}
+	qaProp.Set(quoteAuthorization)
+}
+
 // GetAnnounceAuthorization returns the URL contained in
 // the announceAuthorization property of 'with', if set.
 func GetAnnounceAuthorization(with WithAnnounceAuthorization) *url.URL {
