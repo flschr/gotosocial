@@ -2030,6 +2030,10 @@ func (c *Converter) InteractionReqToASAccept(
 			v := streams.NewGoToSocialAnnounceRequest()
 			objProp.AppendGoToSocialAnnounceRequest(v)
 			ir = v
+		case gtsmodel.InteractionQuote:
+			v := streams.NewGoToSocialQuoteRequest()
+			objProp.AppendGoToSocialQuoteRequest(v)
+			ir = v
 		}
 
 		// URI of the interaction request.
@@ -2284,6 +2288,8 @@ func (c *Converter) InteractionReqToASAuthorization(
 		auth = streams.NewGoToSocialReplyAuthorization()
 	case gtsmodel.InteractionAnnounce:
 		auth = streams.NewGoToSocialAnnounceAuthorization()
+	case gtsmodel.InteractionQuote:
+		auth = streams.NewGoToSocialQuoteAuthorization()
 	}
 
 	// Set the ID.
