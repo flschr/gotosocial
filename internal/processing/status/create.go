@@ -573,18 +573,23 @@ func (p *Processor) processQuote(
 		return gtserror.NewErrorForbidden(err, errText)
 	}
 
-	// Only public or unlisted statuses may be quoted. A quote widens the
-	// audience of, and federates the URI of, the quoted status; permitting
-	// followers-only/direct targets would leak a non-public post's URI into
-	// a wider audience. (Matches Mastodon, which only allows quoting
-	// public/unlisted posts.) The full author-consent/approval handshake
-	// remains a follow-up; QuoteApprovalURI is reserved for it.
-	if quoted.Visibility != gtsmodel.VisibilityPublic &&
-		quoted.Visibility != gtsmodel.VisibilityUnlocked {
-		const errText = "only public or unlisted statuses may be quoted"
+	// Check the quoted status's canQuote interaction policy: the requester
+	// must be permitted to quote it. This forbids quoting followers-only/
+	// direct posts of others (which would leak a non-public post's URI),
+	// while allowing public/unlisted and self-quotes.
+	policyResult, err := p.intFilter.StatusQuoteable(ctx, requester, quoted)
+	if err != nil {
+		err := gtserror.Newf("error seeing if status %s is quoteable: %w", quoted.ID, err)
+		return gtserror.NewErrorInternalError(err)
+	}
+
+	if policyResult.Forbidden() {
+		const errText = "you do not have permission to quote this status"
 		err := gtserror.New(errText)
 		return gtserror.NewErrorForbidden(err, errText)
 	}
+	// NOTE: pending-approval handling for quotes that require the remote
+	// author's authorization (FEP-044f handshake) is added in a later phase.
 
 	// Set quote fields from target.
 	status.QuoteID = quoted.ID

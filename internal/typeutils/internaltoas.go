@@ -1904,18 +1904,46 @@ func (c *Converter) InteractionPolicyToASInteractionPolicy(
 
 	/*
 		CAN QUOTE
-		todo: GtS doesn't support quote posts yet so
-		just set restrictive quote policy (self only).
 	*/
 
+	// Older stored policies may lack a canQuote sub-policy;
+	// fall back to the default for the status's visibility.
+	canQuoteRules := interactionPolicy.CanQuote
+	if canQuoteRules == nil {
+		canQuoteRules = gtsmodel.DefaultCanQuoteFor(status.Visibility)
+	}
+
+	// Build canQuote.
 	canQuote := streams.NewGoToSocialCanQuote()
+
+	// Build canQuote.automaticApproval.
 	canQuoteAutomaticApprovalProp := streams.NewGoToSocialAutomaticApprovalProperty()
-	authorIRI, err := url.Parse(status.Account.URI)
-	if err != nil {
+	if err := populateValuesForProp(
+		canQuoteAutomaticApprovalProp,
+		status,
+		canQuoteRules.AutomaticApproval,
+	); err != nil {
 		return nil, gtserror.Newf("error setting canQuote.automaticApproval: %w", err)
 	}
-	canQuoteAutomaticApprovalProp.AppendIRI(authorIRI)
+
+	// Set canQuote.automaticApproval.
 	canQuote.SetGoToSocialAutomaticApproval(canQuoteAutomaticApprovalProp)
+
+	// Only bother building manualApproval if it has entries.
+	if len(canQuoteRules.ManualApproval) != 0 {
+		canQuoteManualApprovalProp := streams.NewGoToSocialManualApprovalProperty()
+		if err := populateValuesForProp(
+			canQuoteManualApprovalProp,
+			status,
+			canQuoteRules.ManualApproval,
+		); err != nil {
+			return nil, gtserror.Newf("error setting canQuote.manualApproval: %w", err)
+		}
+
+		canQuote.SetGoToSocialManualApproval(canQuoteManualApprovalProp)
+	}
+
+	// Set canQuote on the policy.
 	canQuoteProp := streams.NewGoToSocialCanQuoteProperty()
 	canQuoteProp.AppendGoToSocialCanQuote(canQuote)
 	policy.SetGoToSocialCanQuote(canQuoteProp)

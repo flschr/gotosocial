@@ -586,7 +586,7 @@ func (suite *InternalToASTestSuite) TestStatusToAS() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/the_mighty_zork"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -676,7 +676,7 @@ func (suite *InternalToASTestSuite) TestStatusWithTagsToASWithIDs() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -783,7 +783,7 @@ func (suite *InternalToASTestSuite) TestStatusWithTagsToASFromDB() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -877,7 +877,7 @@ func (suite *InternalToASTestSuite) TestStatusToASWithMentions() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -994,7 +994,7 @@ func (suite *InternalToASTestSuite) TestStatusToASPoliteApproved() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -1104,7 +1104,7 @@ func (suite *InternalToASTestSuite) TestStatusToASPImpoliteApproved() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -1691,7 +1691,7 @@ func (suite *InternalToASTestSuite) TestInteractionReqToASInteractionRequestable
       },
       "canQuote": {
         "automaticApproval": [
-          "http://fossbros-anonymous.io/users/foss_satan"
+          "https://www.w3.org/ns/activitystreams#Public"
         ]
       },
       "canReply": {
