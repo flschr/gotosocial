@@ -112,6 +112,10 @@ func (p *Processor) ProcessFromFediAPI(ctx context.Context, fMsg *messages.FromF
 		case ap.ActivityAnnounceRequest:
 			return p.fediAPI.CreateAnnounceRequest(ctx, fMsg)
 
+		// REQUEST TO QUOTE A STATUS
+		case ap.ActivityQuoteRequest:
+			return p.fediAPI.CreateQuoteRequest(ctx, fMsg)
+
 		// CREATE BLOCK
 		case ap.ActivityBlock:
 			return p.fediAPI.CreateBlock(ctx, fMsg)
@@ -1234,6 +1238,39 @@ func (p *fediAPI) CreateAnnounceRequest(ctx context.Context, fMsg *messages.From
 	// status dereferencer stage will cause it to skip typical surfacing logic.
 	if err := p.surfacer.TimelineAndNotifyStatus(ctx, boost); err != nil {
 		log.Errorf(ctx, "error timelining and notifying status: %v", err)
+	}
+
+	return nil
+}
+
+func (p *fediAPI) CreateQuoteRequest(ctx context.Context, fMsg *messages.FromFediAPI) error {
+	req, ok := fMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
+	}
+
+	// The quote target (our local status) was already permission-checked
+	// when the QuoteRequest arrived, and our local statuses use automatic
+	// quote approval, so accept the request and issue the authorization.
+	req.AcceptedAt = time.Now()
+	req.ResponseURI = uris.GenerateURIForAccept(
+		req.TargetAccount.Username, req.ID)
+	req.AuthorizationURI = uris.GenerateURIForAuthorization(
+		req.TargetAccount.Username, req.ID)
+
+	if err := p.state.DB.UpdateInteractionRequest(ctx,
+		req,
+		"accepted_at",
+		"response_uri",
+		"authorization_uri",
+	); err != nil {
+		return gtserror.Newf("db error updating interaction request: %w", err)
+	}
+
+	// Send out the Accept; its `result` points at the QuoteAuthorization,
+	// which we serve at the authorization URI for the quoter to attach.
+	if err := p.federate.AcceptInteraction(ctx, req); err != nil {
+		log.Errorf(ctx, "error federating quote accept: %v", err)
 	}
 
 	return nil
