@@ -263,6 +263,21 @@ type withUnknownProperties interface {
 	GetUnknownProperties() map[string]interface{}
 }
 
+// extractUnknownURI reads a single URI value for the given key from a
+// statusable's unknown-properties map (used for FEP-044f terms that have no
+// typed vocab accessor, e.g. "quoteAuthorization"), or "" if absent.
+func extractUnknownURI(statusable ap.Statusable, key string) string {
+	wu, ok := statusable.(withUnknownProperties)
+	if !ok {
+		return ""
+	}
+	unknown := wu.GetUnknownProperties()
+	if unknown == nil {
+		return ""
+	}
+	return quoteURIFromValue(unknown[key])
+}
+
 // extractQuoteURI returns the quoted-status URI advertised by a remote
 // status via any of the common quote conventions, or "" if none present.
 func extractQuoteURI(statusable ap.Statusable) string {
@@ -483,6 +498,12 @@ func (c *Converter) ASStatusToStatus(ctx context.Context, statusable ap.Statusab
 	// resolve it lazily (serialization resolves it locally on read).
 	if quoteURI := extractQuoteURI(statusable); quoteURI != "" {
 		status.QuoteURI = quoteURI
+
+		// FEP-044f quoteAuthorization (the approval stamp), if the
+		// remote attached one. Stored for later verification.
+		if authURI := extractUnknownURI(statusable, "quoteAuthorization"); authURI != "" {
+			status.QuoteApprovalURI = authURI
+		}
 
 		quoted, err := c.state.DB.GetStatusByURI(ctx, quoteURI)
 		if err != nil && !errors.Is(err, db.ErrNoEntries) {

@@ -93,6 +93,16 @@ func (d *Dereferencer) isPermittedStatus(
 			return false, gtserror.Newf("error checking boost permissivity: %w", err)
 		}
 
+	case status.QuoteURI != "":
+		// Status is a quote, check permissivity.
+		permitted, err = d.isPermittedQuote(ctx,
+			requestUser,
+			status,
+		)
+		if err != nil {
+			return false, gtserror.Newf("error checking quote permissivity: %w", err)
+		}
+
 	default:
 		// In all other cases
 		// permit this status.
@@ -640,6 +650,107 @@ func (d *Dereferencer) isPermittedBoost(
 	return true, nil
 }
 
+// isPermittedQuote checks whether the given status is a permitted quote of
+// the status referenced by its QuoteURI, per that status's canQuote policy,
+// mirroring isPermittedBoost. Dereferences the quoted status if not already
+// resolved.
+func (d *Dereferencer) isPermittedQuote(
+	ctx context.Context,
+	requestUser string,
+	status *gtsmodel.Status,
+) (bool, error) {
+
+	// Resolve the quoted status. It may already be set (local target found
+	// during conversion); otherwise dereference it by URI.
+	quoted := status.Quote
+	if quoted == nil {
+		quoteURI, err := url.Parse(status.QuoteURI)
+		if err != nil {
+			return false, gtserror.Newf("error parsing quoteURI: %w", err)
+		}
+
+		quoted, _, err = d.GetStatusByURI(ctx, requestUser, quoteURI)
+		if err != nil {
+			// Couldn't get the quoted status right now, so we
+			// can't verify the quote; don't store it as permitted.
+			return false, gtserror.Newf("error dereferencing quoted status %s: %w", status.QuoteURI, err)
+		}
+
+		// Wire it onto the status.
+		status.Quote = quoted
+		status.QuoteID = quoted.ID
+		status.QuoteAccountID = quoted.AccountID
+	}
+
+	// Check visibility of local
+	// quoted status to quoting account.
+	if quoted.Flags.Local() {
+		visible, err := d.visFilter.StatusVisible(ctx, status.Account, quoted)
+		if err != nil {
+			return false, gtserror.Newf("error checking quoted status visibility: %w", err)
+		}
+
+		if !visible {
+			return false, nil
+		}
+	}
+
+	// Check the quoted status's canQuote interaction policy.
+	quoteable, err := d.intFilter.StatusQuoteable(ctx, status.Account, quoted)
+	if err != nil {
+		return false, gtserror.Newf("error checking status quoteability: %w", err)
+	}
+
+	if quoteable.Forbidden() {
+		// Quoter is not permitted to do this interaction.
+		return false, nil
+	}
+
+	if quoteable.AutomaticApproval() &&
+		!quoteable.MatchedOnCollection() {
+		// Permitted outright, no further checking needed.
+		return true, nil
+	}
+
+	// Permitted pending approval, or matched on a collection.
+	// Check for a dereferenceable authorization.
+	if status.QuoteApprovalURI == "" {
+		// No authorization claimed. For quotes of local statuses,
+		// store pending (pre-approve if matched on a collection so
+		// an Accept goes out); for remote statuses, drop.
+		if quoted.Flags.Local() {
+			status.Flags.SetPendingApproval(true)
+			status.PreApproved = quoteable.MatchedOnCollection()
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	// Quote claims to be approved; verify by dereferencing
+	// the quoteAuthorization and inspecting the return value.
+	permitted, err := d.isValidAuthURI(
+		ctx,
+		gtsmodel.InteractionQuote,
+		requestUser,
+		status.QuoteApprovalURI, // authorization uri
+		quoted.AccountURI,       // actor (author of quoted status)
+		status.URI,              // object (the quoting status)
+		status.QuoteURI,         // target (the quoted status)
+	)
+	if err != nil {
+		return false, gtserror.Newf("undereferencable QuoteApprovalURI: %w", err)
+	}
+
+	if !permitted {
+		return false, nil
+	}
+
+	// Quote has been approved.
+	status.Flags.SetPendingApproval(false)
+	return true, nil
+}
+
 // isValidAuthURI dereferences the activitystreams Accept or authorization
 // at the specified IRI, and checks it for validity against the provided
 // expectedActor, expectedObject, and expectedTarget.
@@ -864,7 +975,8 @@ func isValidAuthorization(
 	switch tn := auth.GetTypeName(); {
 	case (tn == ap.ObjectLikeAuthorization && interactionType == gtsmodel.InteractionLike),
 		(tn == ap.ObjectReplyAuthorization && interactionType == gtsmodel.InteractionReply),
-		(tn == ap.ObjectAnnounceAuthorization && interactionType == gtsmodel.InteractionAnnounce):
+		(tn == ap.ObjectAnnounceAuthorization && interactionType == gtsmodel.InteractionAnnounce),
+		(tn == ap.ObjectQuoteAuthorization && interactionType == gtsmodel.InteractionQuote):
 		// All good baby!
 	default:
 		// There's a mismatch.
