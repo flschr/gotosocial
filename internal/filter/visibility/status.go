@@ -236,6 +236,13 @@ func isPendingStatusVisible(requester *gtsmodel.Account, status *gtsmodel.Status
 		return true
 	}
 
+	if status.QuoteAccountID == requester.ID {
+		// This status quotes requester,
+		// so they can always see it (else
+		// they can't approve it).
+		return true
+	}
+
 	// Nobody else
 	// can see this.
 	return false
