@@ -3887,6 +3887,44 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendNativeQuote() {
 	}
 }
 
+func (suite *InternalToFrontendTestSuite) TestQuoteIntReqToAPIIncludesQuote() {
+	var (
+		ctx           = suite.T().Context()
+		targetAccount = suite.testAccounts["local_account_1"]
+		quoterAccount = suite.testAccounts["remote_account_1"]
+		targetStatus  = suite.testStatuses["local_account_1_status_1"]
+		quoteStatus   = suite.testStatuses["remote_account_1_status_1"]
+	)
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K1FAVQQQQQQQQQQQQQQQQQQQ",
+		TargetStatusID:        targetStatus.ID,
+		TargetStatus:          targetStatus,
+		TargetAccountID:       targetAccount.ID,
+		TargetAccount:         targetAccount,
+		InteractingAccountID:  quoterAccount.ID,
+		InteractingAccount:    quoterAccount,
+		InteractionRequestURI: quoterAccount.URI + "/interaction_requests/01K1FAVQQQQQQQQQQQQQQQQQQQ",
+		InteractionURI:        quoteStatus.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Quote:                 quoteStatus,
+	}
+
+	apiReq, err := suite.typeconverter.InteractionReqToAPIInteractionReq(
+		ctx,
+		req,
+		targetAccount,
+	)
+	suite.NoError(err)
+	suite.Equal("quote", apiReq.Type)
+	if suite.NotNil(apiReq.Status) {
+		suite.Equal(targetStatus.ID, apiReq.Status.ID)
+	}
+	if suite.NotNil(apiReq.Quote) {
+		suite.Equal(quoteStatus.ID, apiReq.Quote.ID)
+	}
+	suite.Nil(apiReq.Reply)
+}
+
 func (suite *InternalToFrontendTestSuite) TestStatusToFrontendQuoteHandshakeStates() {
 	ctx := suite.T().Context()
 	quoter := suite.testStatuses["local_account_1_status_1"]

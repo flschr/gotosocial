@@ -3121,6 +3121,18 @@ func (c *Converter) InteractionReqToAPIInteractionReq(
 		}
 	}
 
+	var quote *apimodel.Status
+	if req.InteractionType == gtsmodel.InteractionQuote && req.Quote != nil {
+		quote, err = c.statusToAPIStatus(ctx,
+			req.Quote,
+			requestingAcct,
+			false,
+		)
+		if err != nil {
+			return nil, gtserror.Newf("error converting quote: %w", err)
+		}
+	}
+
 	var acceptedAt string
 	if req.IsAccepted() {
 		acceptedAt = util.FormatISO8601(req.AcceptedAt)
@@ -3145,6 +3157,7 @@ func (c *Converter) InteractionReqToAPIInteractionReq(
 		Account:    interactingAcct,
 		Status:     interactedStatus,
 		Reply:      reply,
+		Quote:      quote,
 		AcceptedAt: acceptedAt,
 		RejectedAt: rejectedAt,
 	}, nil

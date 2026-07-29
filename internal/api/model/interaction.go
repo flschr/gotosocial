@@ -17,7 +17,7 @@
 
 package model
 
-// InteractionRequest represents a pending, approved, or rejected interaction of type favourite, reply, or reblog.
+// InteractionRequest represents a pending, approved, or rejected interaction of type favourite, reply, reblog, or quote.
 //
 // swagger:model interactionRequest
 type InteractionRequest struct {
@@ -28,6 +28,7 @@ type InteractionRequest struct {
 	//	`favourite` - Someone favourited a status.
 	//	`reply` - Someone replied to a status.
 	//	`reblog` - Someone reblogged / boosted a status.
+	//	`quote` - Someone quoted a status.
 	Type string `json:"type"`
 	// The timestamp of the interaction request (ISO 8601 Datetime)
 	CreatedAt string `json:"created_at"`
@@ -35,8 +36,10 @@ type InteractionRequest struct {
 	Account *Account `json:"account"`
 	// Status targeted by the requested interaction.
 	Status *Status `json:"status"`
-	// If type=reply, this field will be set to the reply that is awaiting approval. If type=favourite, or type=reblog, the field will be omitted.
+	// If type=reply, this field will be set to the reply that is awaiting approval.
 	Reply *Status `json:"reply,omitempty"`
+	// If type=quote, this field will be set to the quote post that is awaiting approval.
+	Quote *Status `json:"quote,omitempty"`
 	// The timestamp that the interaction request was accepted (ISO 8601 Datetime). Field omitted if request not accepted (yet).
 	AcceptedAt string `json:"accepted_at,omitempty"`
 	// The timestamp that the interaction request was rejected (ISO 8601 Datetime). Field omitted if request not rejected (yet).
