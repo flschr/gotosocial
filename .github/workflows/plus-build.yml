@@ -104,8 +104,11 @@ jobs:
             ./internal/db/bundb \
             ./internal/db/bundb/migrations \
             ./internal/federation/dereferencing \
+            ./internal/federation/federatingdb \
             ./internal/middleware \
             ./internal/processing \
+            ./internal/processing/interactionrequests \
+            ./internal/processing/workers \
             ./internal/typeutils \
             ./internal/web >"${test_log}" 2>&1
           then
