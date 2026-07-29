@@ -166,6 +166,10 @@ func (p *Processor) ProcessFromFediAPI(ctx context.Context, fMsg *messages.FromF
 		case ap.ActivityReplyRequest:
 			return p.fediAPI.AcceptPoliteReplyRequest(ctx, fMsg)
 
+		// ACCEPT (pending) POLITE QUOTE REQUEST
+		case ap.ActivityQuoteRequest:
+			return p.fediAPI.AcceptPoliteQuoteRequest(ctx, fMsg)
+
 		// ACCEPT (pending) ANNOUNCE
 		case ap.ActivityAnnounce:
 			return p.fediAPI.AcceptAnnounce(ctx, fMsg)
@@ -1271,6 +1275,26 @@ func (p *fediAPI) CreateQuoteRequest(ctx context.Context, fMsg *messages.FromFed
 	// which we serve at the authorization URI for the quoter to attach.
 	if err := p.federate.AcceptInteraction(ctx, req); err != nil {
 		log.Errorf(ctx, "error federating quote accept: %v", err)
+	}
+
+	return nil
+}
+
+func (p *fediAPI) AcceptPoliteQuoteRequest(ctx context.Context, fMsg *messages.FromFediAPI) error {
+	req, ok := fMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
+	}
+	if err := p.state.DB.PopulateInteractionRequest(ctx, req); err != nil {
+		return gtserror.Newf("error populating accepted quote request: %w", err)
+	}
+	if req.Quote == nil || req.Quote.QuoteApprovalURI == "" {
+		return gtserror.New("accepted quote request has no quote authorization")
+	}
+
+	// Now that the authorization is attached, federate the quote status.
+	if err := p.federate.CreateStatus(ctx, req.Quote); err != nil {
+		return gtserror.Newf("error federating authorized quote status: %w", err)
 	}
 
 	return nil

@@ -243,6 +243,12 @@ func (i *interactionDB) PopulateInteractionRequest(ctx context.Context, req *gts
 		if err != nil && !errors.Is(err, db.ErrNoEntries) {
 			errs.Appendf("error populating interactionRequest Announce: %w", err)
 		}
+
+	case gtsmodel.InteractionQuote:
+		req.Quote, err = i.state.DB.GetStatusByURI(ctx, req.InteractionURI)
+		if err != nil && !errors.Is(err, db.ErrNoEntries) {
+			errs.Appendf("error populating interactionRequest Quote: %w", err)
+		}
 	}
 
 	return errs.Combine()

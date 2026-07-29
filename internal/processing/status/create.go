@@ -376,6 +376,19 @@ func (p *Processor) Create(
 			Origin:         requester,
 		})
 
+	case status.Quote != nil &&
+		status.Quote.Account != nil &&
+		status.Quote.Account.IsRemote():
+		// Remote quote targets must authorize the quote before the
+		// status is federated. Keep it visible locally while the
+		// QuoteRequest/QuoteAuthorization handshake is pending.
+		p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
+			APObjectType:   ap.ActivityQuoteRequest,
+			APActivityType: ap.ActivityCreate,
+			GTSModel:       status,
+			Origin:         requester,
+		})
+
 	default:
 		// "Normal" status with no explicit approval
 		// required, queue Create Status side effects.

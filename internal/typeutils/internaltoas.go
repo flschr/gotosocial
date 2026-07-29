@@ -547,7 +547,7 @@ func (c *Converter) StatusToAS(ctx context.Context, s *gtsmodel.Status) (ap.Stat
 	if s.QuoteURI != "" {
 		if wu, ok := statusable.(withUnknownProperties); ok {
 			if unknown := wu.GetUnknownProperties(); unknown != nil {
-				unknown["quote"] = s.QuoteURI         // FEP-044f
+				unknown["quote"] = s.QuoteURI          // FEP-044f
 				unknown["quoteUri"] = s.QuoteURI       // Mastodon
 				unknown["_misskey_quote"] = s.QuoteURI // Misskey / Fedibird
 			}
@@ -2491,6 +2491,26 @@ func (c *Converter) InteractionReqToASInteractionRequestable(
 			return nil, gtserror.Newf("error converting announce: %w", err)
 		}
 		instrumentProp.AppendActivityStreamsAnnounce(announce)
+
+	// QuoteRequest
+	case gtsmodel.InteractionQuote:
+		v = streams.NewGoToSocialQuoteRequest()
+		statusable, err := c.StatusToAS(ctx, req.Quote)
+		if err != nil {
+			return nil, gtserror.Newf("error converting quote: %w", err)
+		}
+
+		switch t := statusable.(type) {
+		case vocab.ActivityStreamsNote:
+			instrumentProp.AppendActivityStreamsNote(t)
+		case vocab.ActivityStreamsQuestion:
+			instrumentProp.AppendActivityStreamsQuestion(t)
+		default:
+			return nil, gtserror.Newf("type %T not supported as instrument of QuoteRequest", t)
+		}
+
+	default:
+		return nil, gtserror.Newf("unsupported interaction request type %v", req.InteractionType)
 	}
 
 	// Set ID.

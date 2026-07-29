@@ -113,6 +113,10 @@ func (p *Processor) ProcessFromClientAPI(ctx context.Context, cMsg *messages.Fro
 		case ap.ActivityAnnounceRequest:
 			return p.clientAPI.CreateAnnounceRequest(ctx, cMsg)
 
+		// CREATE QUOTE REQUEST
+		case ap.ActivityQuoteRequest:
+			return p.clientAPI.CreateQuoteRequest(ctx, cMsg)
+
 		// CREATE BLOCK
 		case ap.ActivityBlock:
 			return p.clientAPI.CreateBlock(ctx, cMsg)
@@ -295,6 +299,45 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 		log.Errorf(ctx, "error checking Bluesky crosspost settings: %v", err)
 	} else if replyErr != nil {
 		log.Errorf(ctx, "error checking Bluesky reply mapping: %v", replyErr)
+	}
+
+	return nil
+}
+
+func (p *clientAPI) CreateQuoteRequest(ctx context.Context, cMsg *messages.FromClientAPI) error {
+	quote, ok := cMsg.GTSModel.(*gtsmodel.Status)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.Status", cMsg.GTSModel)
+	}
+
+	intReqID := id.NewULIDFromTime(quote.CreatedAt)
+	intReq := &gtsmodel.InteractionRequest{
+		ID:                    intReqID,
+		TargetStatusID:        quote.QuoteID,
+		TargetStatus:          quote.Quote,
+		TargetAccountID:       quote.QuoteAccountID,
+		TargetAccount:         quote.Quote.Account,
+		InteractingAccountID:  quote.AccountID,
+		InteractingAccount:    quote.Account,
+		InteractionRequestURI: uris.GenerateURIForQuoteRequest(quote.Account.Username, intReqID),
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 quote,
+	}
+
+	if err := p.utils.storeInteractionRequest(ctx, intReq); err != nil {
+		return gtserror.Newf("error storing quote interaction request: %w", err)
+	}
+
+	// The author should see their status immediately, but it must not leave
+	// this instance until the remote target has authorized the quote.
+	if err := p.surfacer.TimelineAndNotifyStatus(ctx, quote); err != nil {
+		log.Errorf(ctx, "error timelining pending quote status: %v", err)
+	}
+
+	if err := p.federate.InteractionRequest(ctx, intReq); err != nil {
+		return gtserror.Newf("error federating quote interaction request: %w", err)
 	}
 
 	return nil
