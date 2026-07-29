@@ -1257,8 +1257,47 @@ func (p *fediAPI) CreateQuoteRequest(ctx context.Context, fMsg *messages.FromFed
 		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
 	}
 
+	// Persist the quoting status through the normal dereferencing path. This
+	// stores pending quotes without surfacing them, and makes the instrument
+	// available when the interaction request is loaded again after this
+	// worker message and its in-memory Quote pointer are gone.
+	statusable, ok := fMsg.APObject.(ap.Statusable)
+	if !ok {
+		return gtserror.Newf("cannot cast %T -> ap.Statusable", fMsg.APObject)
+	}
+
+	quoteURI := ap.GetJSONLDId(statusable).String()
+	if quoteURI != req.InteractionURI {
+		return gtserror.Newf(
+			"quote request instrument URI %s does not match interaction URI %s",
+			quoteURI,
+			req.InteractionURI,
+		)
+	}
+
+	// Mark the bare status pending before dereferencing so the dereferencer's
+	// surfacing hook never exposes a QuoteRequest instrument. RefreshStatus
+	// deliberately carries this flag across its policy checks.
+	bareQuote := &gtsmodel.Status{URI: quoteURI}
+	bareQuote.Flags.SetPendingApproval(true)
+	quote, _, err := p.federate.RefreshStatus(ctx,
+		fMsg.Receiving.Username,
+		bareQuote,
+		statusable,
+		&dereferencing.Fresh,
+	)
+	if err != nil {
+		return gtserror.Newf(
+			"error processing QuoteRequest instrument %s: %w",
+			quoteURI,
+			err,
+		)
+	}
+	automaticallyApproved := req.Quote != nil && req.Quote.PreApproved
+	req.Quote = quote
+
 	// Manual quote policies leave the request pending for the target account.
-	if !req.Quote.PreApproved {
+	if !automaticallyApproved {
 		return nil
 	}
 

@@ -1396,6 +1396,30 @@ func (p *clientAPI) RejectQuote(ctx context.Context, cMsg *messages.FromClientAP
 	if err := p.federate.RejectInteraction(ctx, req); err != nil {
 		return gtserror.Newf("error federating quote rejection: %w", err)
 	}
+
+	// A remote quote was stored only so the target account could inspect the
+	// QuoteRequest instrument. Once rejected it must not linger indefinitely
+	// as a hidden pending status.
+	if req.InteractingAccount.IsRemote() && req.Quote != nil {
+		const (
+			attachments = true
+			sinBin      = true
+			wipe        = true
+		)
+		if err := p.utils.deleteStatus(
+			ctx,
+			req.Quote,
+			attachments,
+			sinBin,
+			wipe,
+		); err != nil {
+			return gtserror.Newf(
+				"error deleting rejected quote %s: %w",
+				req.Quote.URI,
+				err,
+			)
+		}
+	}
 	return nil
 }
 

@@ -677,6 +677,7 @@ func (f *DB) QuoteRequest(ctx context.Context, quoteReq vocab.GoToSocialQuoteReq
 	f.state.Workers.Federator.Queue.Push(&messages.FromFediAPI{
 		APActivityType: ap.ActivityCreate,
 		APObjectType:   ap.ActivityQuoteRequest,
+		APObject:       statusable,
 		GTSModel:       intReq,
 		Receiving:      partial.receiving,
 		Requesting:     partial.requesting,
