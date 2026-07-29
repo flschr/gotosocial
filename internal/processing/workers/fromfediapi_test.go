@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"testing"
 	"time"
 
@@ -1152,6 +1153,90 @@ func (suite *FromFediAPITestSuite) TestCreateReplyRequest() {
 	//   "to": "http://fossbros-anonymous.io/users/foss_satan",
 	//   "type": "Accept"
 	// }
+}
+
+func (suite *FromFediAPITestSuite) TestForwardQuoteAuthorizationDelete() {
+	testStructs := testrig.SetupTestStructs(rMediaPath, rTemplatePath)
+	defer testrig.TearDownTestStructs(testStructs)
+
+	var (
+		ctx              = suite.T().Context()
+		quote            = suite.testStatuses["local_account_1_status_1"]
+		quoter           = suite.testAccounts["local_account_1"]
+		authorizationBy  = suite.testAccounts["remote_account_1"]
+		authorizationURI = "http://fossbros-anonymous.io/users/foss_satan/authorizations/quote-1"
+		deleteURI        = "http://fossbros-anonymous.io/users/foss_satan/deletes/quote-1"
+	)
+	remoteFollower := suite.testAccounts["remote_account_2"]
+	follow := &gtsmodel.Follow{
+		ID:              "01K1FASQQQQQQQQQQQQQQQQQQQ",
+		AccountID:       remoteFollower.ID,
+		Account:         remoteFollower,
+		TargetAccountID: quoter.ID,
+		TargetAccount:   quoter,
+		URI:             remoteFollower.URI + "/follows/01K1FASQQQQQQQQQQQQQQQQQQQ",
+		ShowReblogs:     util.Ptr(true),
+		Notify:          util.Ptr(false),
+	}
+	if err := testStructs.State.DB.Put(ctx, follow); err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K1FARQQQQQQQQQQQQQQQQQQQ",
+		TargetStatusID:        quote.ID,
+		TargetStatus:          quote,
+		TargetAccountID:       authorizationBy.ID,
+		TargetAccount:         authorizationBy,
+		InteractingAccountID:  quoter.ID,
+		InteractingAccount:    quoter,
+		InteractionRequestURI: quoter.URI + "/interaction_requests/01K1FARQQQQQQQQQQQQQQQQQQQ",
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		AuthorizationURI:      authorizationURI,
+		Quote:                 quote,
+	}
+
+	authorizationIRI, err := url.Parse(authorizationURI)
+	if err != nil {
+		suite.FailNow(err.Error())
+	}
+	if err := testStructs.Processor.Workers().ProcessFromFediAPI(
+		ctx,
+		&messages.FromFediAPI{
+			APObjectType:   ap.ObjectQuoteAuthorization,
+			APActivityType: ap.ActivityDelete,
+			APIRI:          authorizationIRI,
+			TargetURI:      deleteURI,
+			GTSModel:       req,
+			Receiving:      quoter,
+			Requesting:     authorizationBy,
+		},
+	); err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	if !testrig.WaitFor(func() bool {
+		delivery, ok := testStructs.State.Workers.Delivery.Queue.Pop()
+		if !ok {
+			return false
+		}
+		body, err := io.ReadAll(delivery.Request.Body)
+		if err != nil {
+			panic(err)
+		}
+		raw := make(map[string]any)
+		if err := json.Unmarshal(body, &raw); err != nil {
+			panic(err)
+		}
+		suite.Equal("Delete", raw["type"])
+		suite.Equal(deleteURI, raw["id"])
+		suite.Equal(authorizationURI, raw["object"])
+		suite.Equal(authorizationBy.URI, raw["actor"])
+		return true
+	}) {
+		suite.FailNow("timed out waiting for forwarded authorization Delete")
+	}
 }
 
 func TestFromFederatorTestSuite(t *testing.T) {

@@ -3948,6 +3948,15 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendQuoteHandshakeStat
 	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
 	suite.NoError(err)
 	suite.Equal("accepted", apiStatus.Quote.State)
+
+	suite.NoError(suite.state.DB.PutTombstone(ctx, &gtsmodel.Tombstone{
+		ID:     "01K1FATQQQQQQQQQQQQQQQQQQQ",
+		Domain: "remote.example",
+		URI:    quoter.QuoteApprovalURI,
+	}))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("revoked", apiStatus.Quote.State)
 }
 
 func TestInternalToFrontendTestSuite(t *testing.T) {

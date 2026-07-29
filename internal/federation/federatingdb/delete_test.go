@@ -77,6 +77,9 @@ func (suite *DeleteTestSuite) TestDeleteQuoteAuthorization() {
 	storedQuote, err := suite.state.DB.GetStatusByID(ctx, quote.ID)
 	suite.NoError(err)
 	suite.Empty(storedQuote.QuoteApprovalURI)
+	revoked, err := suite.state.DB.TombstoneExistsWithURI(ctx, authURI)
+	suite.NoError(err)
+	suite.True(revoked)
 
 	msg, ok := suite.state.Workers.Federator.Queue.PopCtx(ctx)
 	suite.True(ok)
@@ -112,7 +115,10 @@ func (suite *DeleteTestSuite) TestDeleteThirdPartyQuoteAuthorization() {
 
 	storedQuote, err := suite.state.DB.GetStatusByID(ctx, quote.ID)
 	suite.NoError(err)
-	suite.Empty(storedQuote.QuoteApprovalURI)
+	suite.Equal(authURI, storedQuote.QuoteApprovalURI)
+	revoked, err := suite.state.DB.TombstoneExistsWithURI(ctx, authURI)
+	suite.NoError(err)
+	suite.True(revoked)
 
 	_, ok := suite.state.Workers.Federator.Queue.Pop()
 	suite.False(ok)

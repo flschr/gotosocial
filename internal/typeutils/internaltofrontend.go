@@ -994,6 +994,22 @@ func (c *Converter) quoteToAPIQuote(
 		return &apimodel.Quote{State: apimodel.QuoteStateDeleted}, nil
 	}
 
+	// A Delete of a QuoteAuthorization revokes the quote for every
+	// recipient. Keep the original approval URI on remote quote posts so
+	// the tombstone provides durable, unambiguous revocation evidence.
+	if status.QuoteApprovalURI != "" {
+		revoked, err := c.state.DB.TombstoneExistsWithURI(
+			ctx,
+			status.QuoteApprovalURI,
+		)
+		if err != nil {
+			return nil, gtserror.Newf("db error checking quote authorization tombstone: %w", err)
+		}
+		if revoked {
+			return &apimodel.Quote{State: apimodel.QuoteStateRevoked}, nil
+		}
+	}
+
 	// For local quotes of remote posts, expose the FEP-044f handshake state
 	// to Mastodon API clients. Quotes created before handshake support have
 	// no InteractionRequest and retain their historical accepted behavior.

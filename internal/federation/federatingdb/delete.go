@@ -28,6 +28,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/messages"
 )
 
@@ -125,9 +126,8 @@ func (f *DB) deleteQuoteAuthorization(
 			const text = "quote authorization issuer and requesting account differ"
 			return true, gtserror.NewErrorForbidden(errors.New(text), text)
 		}
-		status.QuoteApprovalURI = ""
-		if err := f.state.DB.UpdateStatus(ctx, status, "quote_approval_uri"); err != nil {
-			return true, gtserror.Newf("error clearing remote quote approval: %w", err)
+		if err := f.tombstoneQuoteAuthorization(ctx, id); err != nil {
+			return true, err
 		}
 		return true, nil
 	}
@@ -151,6 +151,10 @@ func (f *DB) deleteQuoteAuthorization(
 
 	unlock := f.state.FedLocks.Lock(req.InteractionURI)
 	defer unlock()
+
+	if err := f.tombstoneQuoteAuthorization(ctx, id); err != nil {
+		return true, err
+	}
 
 	req.AuthorizationURI = ""
 	if err := f.state.DB.UpdateInteractionRequest(
@@ -186,6 +190,19 @@ func (f *DB) deleteQuoteAuthorization(
 	})
 
 	return true, nil
+}
+
+func (f *DB) tombstoneQuoteAuthorization(ctx context.Context, uri *url.URL) error {
+	tombstone := &gtsmodel.Tombstone{
+		ID:     id.NewULID(),
+		Domain: uri.Host,
+		URI:    uri.String(),
+	}
+	if err := f.state.DB.PutTombstone(ctx, tombstone); err != nil &&
+		!errors.Is(err, db.ErrAlreadyExists) {
+		return gtserror.Newf("error tombstoning quote authorization: %w", err)
+	}
+	return nil
 }
 
 func (f *DB) deleteAccount(
