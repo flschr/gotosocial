@@ -45,7 +45,19 @@ const (
 	dryRunKey
 	httpClientSignFnKey
 	workerKey
+	activityIDKey
 )
+
+// ActivityID returns the ID of the incoming ActivityPub activity, if known.
+func ActivityID(ctx context.Context) *url.URL {
+	activityID, _ := ctx.Value(activityIDKey).(*url.URL)
+	return activityID
+}
+
+// SetActivityID stores the ID of the incoming ActivityPub activity.
+func SetActivityID(ctx context.Context, activityID *url.URL) context.Context {
+	return context.WithValue(ctx, activityIDKey, activityID)
+}
 
 // IsWorker returns whether the "worker" context key has been set. This can
 // be used to indicate to functions whether it is being executed by a background

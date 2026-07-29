@@ -147,6 +147,26 @@ func (s *statusDB) GetStatusByURL(ctx context.Context, url string) (*gtsmodel.St
 	)
 }
 
+func (s *statusDB) GetStatusByQuoteApprovalURI(
+	ctx context.Context,
+	uri string,
+) (*gtsmodel.Status, error) {
+	status := new(gtsmodel.Status)
+	if err := s.db.NewSelect().
+		Model(status).
+		Where("? = ?", bun.Ident("status.quote_approval_uri"), uri).
+		Scan(ctx); err != nil {
+		return nil, err
+	}
+	if gtscontext.Barebones(ctx) {
+		return status, nil
+	}
+	if err := s.PopulateStatus(ctx, status); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
 func (s *statusDB) GetStatusByPollID(ctx context.Context, pollID string) (*gtsmodel.Status, error) {
 	return s.getStatus(
 		ctx,
@@ -268,6 +288,28 @@ func (s *statusDB) PopulateStatus(ctx context.Context, status *gtsmodel.Status) 
 			)
 			if err != nil {
 				errs.Appendf("error populating status boost author: %w", err)
+			}
+		}
+	}
+
+	if status.QuoteID != "" {
+		if status.Quote == nil {
+			status.Quote, err = s.GetStatusByID(
+				gtscontext.SetBarebones(ctx),
+				status.QuoteID,
+			)
+			if err != nil && !errors.Is(err, db.ErrNoEntries) {
+				errs.Appendf("error populating quoted status: %w", err)
+			}
+		}
+
+		if status.QuoteAccount == nil {
+			status.QuoteAccount, err = s.state.DB.GetAccountByID(
+				gtscontext.SetBarebones(ctx),
+				status.QuoteAccountID,
+			)
+			if err != nil {
+				errs.Appendf("error populating quoted status author: %w", err)
 			}
 		}
 	}

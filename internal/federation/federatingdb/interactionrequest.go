@@ -638,6 +638,7 @@ func (f *DB) QuoteRequest(ctx context.Context, quoteReq vocab.GoToSocialQuoteReq
 			"requester does not have permission to quote status",
 		)
 	}
+	quote.PreApproved = policyResult.AutomaticApproval()
 
 	// Policy result is either automatic or manual approval,
 	// so store the interaction request. Further processing

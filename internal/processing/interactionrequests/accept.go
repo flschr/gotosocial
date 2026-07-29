@@ -97,6 +97,11 @@ func (p *Processor) Accept(
 			return nil, errWithCode
 		}
 
+	case gtsmodel.InteractionQuote:
+		if errWithCode := p.acceptQuote(ctx, req); errWithCode != nil {
+			return nil, errWithCode
+		}
+
 	default:
 		err := gtserror.Newf("unknown interaction type for interaction request %s", reqID)
 		return nil, gtserror.NewErrorInternalError(err)
@@ -228,6 +233,41 @@ func (p *Processor) acceptAnnounce(
 	// client API processor to handle side effects.
 	p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
 		APObjectType:   ap.ActivityAnnounce,
+		APActivityType: ap.ActivityAccept,
+		GTSModel:       req,
+		Origin:         req.TargetAccount,
+		Target:         req.InteractingAccount,
+	})
+
+	return nil
+}
+
+func (p *Processor) acceptQuote(
+	ctx context.Context,
+	req *gtsmodel.InteractionRequest,
+) gtserror.WithCode {
+	if req.Quote == nil {
+		err := gtserror.Newf("no Quote found for interaction request %s", req.ID)
+		return gtserror.NewErrorNotFound(err)
+	}
+
+	// A locally-owned quote needs the stamp persisted before federation.
+	// For a remote quote request, the stamp is served to the remote actor
+	// through the Accept and will arrive on its eventual quote post.
+	if req.InteractingAccount.IsLocal() {
+		req.Quote.QuoteApprovalURI = req.AuthorizationURI
+		if err := p.state.DB.UpdateStatus(
+			ctx,
+			req.Quote,
+			"quote_approval_uri",
+		); err != nil {
+			err := gtserror.Newf("db error updating quote authorization: %w", err)
+			return gtserror.NewErrorInternalError(err)
+		}
+	}
+
+	p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
+		APObjectType:   ap.ActivityQuoteRequest,
 		APActivityType: ap.ActivityAccept,
 		GTSModel:       req,
 		Origin:         req.TargetAccount,

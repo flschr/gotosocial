@@ -377,11 +377,10 @@ func (p *Processor) Create(
 		})
 
 	case status.Quote != nil &&
-		status.Quote.Account != nil &&
-		status.Quote.Account.IsRemote():
-		// Remote quote targets must authorize the quote before the
-		// status is federated. Keep it visible locally while the
-		// QuoteRequest/QuoteAuthorization handshake is pending.
+		status.QuoteAccountID != status.AccountID:
+		// Quotes of another account require a FEP-044f authorization.
+		// The worker handles local automatic/manual approval and remote
+		// QuoteRequest delivery before the status may federate.
 		p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
 			APObjectType:   ap.ActivityQuoteRequest,
 			APActivityType: ap.ActivityCreate,
@@ -601,14 +600,14 @@ func (p *Processor) processQuote(
 		err := gtserror.New(errText)
 		return gtserror.NewErrorForbidden(err, errText)
 	}
-	// NOTE: pending-approval handling for quotes that require the remote
-	// author's authorization (FEP-044f handshake) is added in a later phase.
+	status.PreApproved = policyResult.AutomaticApproval()
 
 	// Set quote fields from target.
 	status.QuoteID = quoted.ID
 	status.Quote = quoted
 	status.QuoteURI = quoted.URI
 	status.QuoteAccountID = quoted.AccountID
+	status.QuoteAccount = quoted.Account
 
 	return nil
 }

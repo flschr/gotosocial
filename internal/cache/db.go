@@ -1589,6 +1589,8 @@ func (c *Caches) initStatus() {
 		s2.InReplyToAccount = nil
 		s2.BoostOf = nil
 		s2.BoostOfAccount = nil
+		s2.Quote = nil
+		s2.QuoteAccount = nil
 		s2.Poll = nil
 		s2.Attachments = nil
 		s2.Tags = nil

@@ -372,6 +372,96 @@ func (f *federate) DeleteStatus(ctx context.Context, status *gtsmodel.Status) er
 	return nil
 }
 
+// ForwardQuoteAuthorizationDelete forwards a remote authorization revocation
+// to the audience of the locally-owned quote, as required by FEP-044f.
+func (f *federate) ForwardQuoteAuthorizationDelete(
+	ctx context.Context,
+	req *gtsmodel.InteractionRequest,
+	deleteID string,
+	authorizationIRI *url.URL,
+) error {
+	if err := f.state.DB.PopulateInteractionRequest(ctx, req); err != nil {
+		return gtserror.Newf("error populating quote interaction request: %w", err)
+	}
+	if req.InteractionType != gtsmodel.InteractionQuote ||
+		req.Quote == nil ||
+		!req.Quote.Flags.Local() {
+		return nil
+	}
+	if deleteID == "" {
+		return gtserror.New("incoming authorization Delete had no activity ID")
+	}
+
+	statusable, err := f.converter.StatusToAS(ctx, req.Quote)
+	if err != nil {
+		return gtserror.Newf("error converting quote status: %w", err)
+	}
+
+	delete := streams.NewActivityStreamsDelete()
+	if err := ap.SetJSONLDIdStr(delete, deleteID); err != nil {
+		return gtserror.Newf("error setting Delete ID: %w", err)
+	}
+	actorIRI, err := parseURI(req.TargetAccount.URI)
+	if err != nil {
+		return err
+	}
+	ap.AppendActorIRIs(delete, actorIRI)
+	ap.AppendObjectIRIs(delete, authorizationIRI)
+
+	recipients := make([]*url.URL, 0)
+	publicURI := ap.PublicIRI().String()
+	for _, iri := range ap.GetTo(statusable) {
+		ap.AppendTo(delete, iri)
+		if iri.String() != publicURI {
+			recipients = append(recipients, iri)
+		}
+	}
+	for _, iri := range ap.GetCc(statusable) {
+		ap.AppendCc(delete, iri)
+		if iri.String() != publicURI {
+			recipients = append(recipients, iri)
+		}
+	}
+	recipients = xslices.Deduplicate(recipients)
+
+	inboxes := make([]*url.URL, 0, len(recipients))
+	for _, recipient := range recipients {
+		resolved, err := f.FederatingDB().InboxesForIRI(ctx, recipient)
+		if err != nil {
+			log.Errorf(ctx, "error resolving revocation recipient %s: %v", recipient, err)
+			continue
+		}
+		inboxes = append(inboxes, resolved...)
+	}
+	inboxes = xslices.Deduplicate(inboxes)
+	if len(inboxes) == 0 {
+		return nil
+	}
+
+	instanceAcct, err := f.state.DB.GetInstanceAccount(
+		gtscontext.SetBarebones(ctx), "",
+	)
+	if err != nil {
+		return gtserror.Newf("db error getting instance account: %w", err)
+	}
+	tsport, err := f.TransportController().NewTransport(
+		instanceAcct.PublicKeyURI,
+		instanceAcct.PrivateKey,
+	)
+	if err != nil {
+		return gtserror.Newf("couldn't create transport: %w", err)
+	}
+	serialized, err := ap.Serialize(delete)
+	if err != nil {
+		return gtserror.Newf("error serializing authorization Delete: %w", err)
+	}
+	if err := tsport.BatchDeliver(ctx, serialized, inboxes); err != nil {
+		return gtserror.Newf("error preparing revocation deliveries: %w", err)
+	}
+
+	return nil
+}
+
 func (f *federate) UpdateStatus(ctx context.Context, status *gtsmodel.Status) error {
 	// Do nothing if the status
 	// shouldn't be federated.

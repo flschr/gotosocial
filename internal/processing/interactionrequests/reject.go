@@ -112,6 +112,15 @@ func (p *Processor) Reject(
 			Target:         req.InteractingAccount,
 		})
 
+	case gtsmodel.InteractionQuote:
+		p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
+			APObjectType:   ap.ActivityQuoteRequest,
+			APActivityType: ap.ActivityReject,
+			GTSModel:       req,
+			Origin:         req.TargetAccount,
+			Target:         req.InteractingAccount,
+		})
+
 	default:
 		err := gtserror.Newf("unknown interaction type for interaction request %s", reqID)
 		return nil, gtserror.NewErrorInternalError(err)

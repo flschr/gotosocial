@@ -971,6 +971,14 @@ func (f *DB) acceptPoliteQuoteRequest(
 	defer unlock()
 
 	authURIStr := partial.authURI.String()
+	quote.QuoteApprovalURI = authURIStr
+	if err := f.state.DB.UpdateStatus(ctx,
+		quote,
+		"quote_approval_uri",
+	); err != nil {
+		return gtserror.Newf("db error updating quote authorization: %w", err)
+	}
+
 	partial.intReq.AcceptedAt = time.Now()
 	partial.intReq.AuthorizationURI = authURIStr
 	partial.intReq.ResponseURI = acceptID.String()
@@ -981,14 +989,6 @@ func (f *DB) acceptPoliteQuoteRequest(
 		"response_uri",
 	); err != nil {
 		return gtserror.Newf("db error updating quote interaction request: %w", err)
-	}
-
-	quote.QuoteApprovalURI = authURIStr
-	if err := f.state.DB.UpdateStatus(ctx,
-		quote,
-		"quote_approval_uri",
-	); err != nil {
-		return gtserror.Newf("db error updating quote authorization: %w", err)
 	}
 
 	f.state.Workers.Federator.Queue.Push(&messages.FromFediAPI{

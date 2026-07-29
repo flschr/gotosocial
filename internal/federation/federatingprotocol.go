@@ -71,6 +71,7 @@ func (f *Federator) PostInboxRequestBodyHook(ctx context.Context, r *http.Reques
 	activityID, _ := pub.GetId(activity)
 	if activityID != nil {
 		otherIRIs = append(otherIRIs, activityID)
+		ctx = gtscontext.SetActivityID(ctx, activityID)
 	}
 
 	// Check if the Activity has an 'inReplyTo'.

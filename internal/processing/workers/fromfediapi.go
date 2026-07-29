@@ -200,6 +200,10 @@ func (p *Processor) ProcessFromFediAPI(ctx context.Context, fMsg *messages.FromF
 	case ap.ActivityDelete:
 		switch fMsg.APObjectType {
 
+		// DELETE / REVOKE QUOTE AUTHORIZATION
+		case ap.ObjectQuoteAuthorization:
+			return p.fediAPI.DeleteQuoteAuthorization(ctx, fMsg)
+
 		// DELETE NOTE/STATUS
 		case ap.ObjectNote:
 			return p.fediAPI.DeleteStatus(ctx, fMsg)
@@ -1253,9 +1257,13 @@ func (p *fediAPI) CreateQuoteRequest(ctx context.Context, fMsg *messages.FromFed
 		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
 	}
 
-	// The quote target (our local status) was already permission-checked
-	// when the QuoteRequest arrived, and our local statuses use automatic
-	// quote approval, so accept the request and issue the authorization.
+	// Manual quote policies leave the request pending for the target account.
+	if !req.Quote.PreApproved {
+		return nil
+	}
+
+	// The quote target was permission-checked when the QuoteRequest arrived
+	// and policy grants automatic approval, so issue the authorization.
 	req.AcceptedAt = time.Now()
 	req.ResponseURI = uris.GenerateURIForAccept(
 		req.TargetAccount.Username, req.ID)
@@ -1295,6 +1303,27 @@ func (p *fediAPI) AcceptPoliteQuoteRequest(ctx context.Context, fMsg *messages.F
 	// Now that the authorization is attached, federate the quote status.
 	if err := p.federate.CreateStatus(ctx, req.Quote); err != nil {
 		return gtserror.Newf("error federating authorized quote status: %w", err)
+	}
+
+	return nil
+}
+
+func (p *fediAPI) DeleteQuoteAuthorization(ctx context.Context, fMsg *messages.FromFediAPI) error {
+	req, ok := fMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
+	}
+	if fMsg.APIRI == nil {
+		return gtserror.New("deleted quote authorization has no object URI")
+	}
+
+	if err := p.federate.ForwardQuoteAuthorizationDelete(
+		ctx,
+		req,
+		fMsg.TargetURI,
+		fMsg.APIRI,
+	); err != nil {
+		return gtserror.Newf("error forwarding quote authorization revocation: %w", err)
 	}
 
 	return nil

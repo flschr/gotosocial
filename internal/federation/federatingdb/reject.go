@@ -68,6 +68,23 @@ func (f *DB) Reject(ctx context.Context, reject vocab.ActivityStreamsReject) err
 					return err
 				}
 
+			// REJECT POLITE INLINED QUOTE REQUEST
+			case ap.ActivityQuoteRequest:
+				quoteReq, ok := asType.(vocab.GoToSocialQuoteRequest)
+				if !ok {
+					const text = "malformed QuoteRequest as object of Reject"
+					return gtserror.NewErrorBadRequest(errors.New(text), text)
+				}
+				if err := f.rejectPoliteQuoteRequest(
+					ctx,
+					activityID.String(),
+					quoteReq,
+					receivingAcct,
+					requestingAcct,
+				); err != nil {
+					return err
+				}
+
 			// UNHANDLED
 			default:
 				log.Debugf(ctx, "unhandled object type: %s", name)
@@ -118,6 +135,103 @@ func (f *DB) Reject(ctx context.Context, reject vocab.ActivityStreamsReject) err
 				log.Debugf(ctx, "unhandled iri type: %s", objIRI)
 			}
 		}
+	}
+
+	return nil
+}
+
+func (f *DB) rejectPoliteQuoteRequest(
+	ctx context.Context,
+	activityID string,
+	quoteRequest vocab.GoToSocialQuoteRequest,
+	receivingAcct *gtsmodel.Account,
+	requestingAcct *gtsmodel.Account,
+) error {
+	reqURI := ap.GetJSONLDId(quoteRequest)
+	if reqURI == nil {
+		const text = "no id set on embedded QuoteRequest"
+		return gtserror.NewErrorBadRequest(errors.New(text), text)
+	}
+	actorURI, err := ap.GetOneActorIRI(quoteRequest)
+	if err != nil {
+		const text = "invalid or missing actor on embedded QuoteRequest"
+		return gtserror.NewErrorBadRequest(err, text)
+	}
+	targetURI, err := ap.GetOneObjectIRI(quoteRequest)
+	if err != nil {
+		const text = "invalid or missing object on embedded QuoteRequest"
+		return gtserror.NewErrorBadRequest(err, text)
+	}
+	instruments := ap.ExtractInstruments(quoteRequest)
+	if len(instruments) != 1 {
+		const text = "invalid or missing instrument on embedded QuoteRequest"
+		return gtserror.NewErrorBadRequest(errors.New(text), text)
+	}
+	instrumentURI := instruments[0].GetIRI()
+	if !instruments[0].IsIRI() {
+		instrumentURI = ap.GetJSONLDId(instruments[0].GetType())
+	}
+	if instrumentURI == nil {
+		const text = "invalid instrument on embedded QuoteRequest"
+		return gtserror.NewErrorBadRequest(errors.New(text), text)
+	}
+
+	req, err := f.state.DB.GetInteractionRequestByInteractionURI(ctx, instrumentURI.String())
+	if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		return gtserror.NewErrorInternalError(
+			gtserror.Newf("db error getting quote interaction request: %w", err),
+		)
+	}
+	if req == nil {
+		return nil
+	}
+	if err := f.state.DB.PopulateInteractionRequest(ctx, req); err != nil {
+		return gtserror.NewErrorInternalError(
+			gtserror.Newf("error populating quote interaction request: %w", err),
+		)
+	}
+
+	switch {
+	case req.InteractionType != gtsmodel.InteractionQuote:
+		const text = "Reject QuoteRequest targets interaction request that isn't of type Quote"
+		return gtserror.NewErrorBadRequest(errors.New(text), text)
+	case req.InteractingAccountID != receivingAcct.ID:
+		const text = "Reject QuoteRequest interaction owner and inbox account differ"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	case req.TargetAccountID != requestingAcct.ID:
+		const text = "Reject QuoteRequest target and requesting account differ"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	case req.InteractionRequestURI != reqURI.String():
+		const text = "Reject QuoteRequest mismatched id"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	case req.TargetStatus.URI != targetURI.String():
+		const text = "Reject QuoteRequest mismatched object URI"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	case req.Quote == nil || req.Quote.URI != instrumentURI.String():
+		const text = "Reject QuoteRequest mismatched instrument URI"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	case req.Quote.AccountURI != actorURI.String():
+		const text = "Reject QuoteRequest mismatched actor URI"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	case req.IsAccepted():
+		// FEP-044f revokes an accepted authorization by Delete, not Reject.
+		return nil
+	}
+
+	unlock := f.state.FedLocks.Lock(req.InteractionURI)
+	defer unlock()
+
+	req.RejectedAt = time.Now()
+	req.ResponseURI = activityID
+	if err := f.state.DB.UpdateInteractionRequest(
+		ctx,
+		req,
+		"rejected_at",
+		"response_uri",
+	); err != nil {
+		return gtserror.NewErrorInternalError(
+			gtserror.Newf("db error rejecting quote interaction request: %w", err),
+		)
 	}
 
 	return nil

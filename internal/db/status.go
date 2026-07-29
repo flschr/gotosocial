@@ -36,6 +36,10 @@ type Status interface {
 	// GetStatusByURL fetches the status from the database with matching url column.
 	GetStatusByURL(ctx context.Context, uri string) (*gtsmodel.Status, error)
 
+	// GetStatusByQuoteApprovalURI fetches the status carrying the given
+	// FEP-044f quote authorization URI.
+	GetStatusByQuoteApprovalURI(ctx context.Context, uri string) (*gtsmodel.Status, error)
+
 	// GetStatusByIdempotencyKey fetches a local status previously created with
 	// the given account-, application-, and client-scoped idempotency key.
 	GetStatusByIdempotencyKey(ctx context.Context, accountID string, applicationID string, key string) (*gtsmodel.Status, error)

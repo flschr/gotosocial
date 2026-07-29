@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"code.superseriousbusiness.org/activity/streams"
+	"code.superseriousbusiness.org/activity/streams/vocab"
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
@@ -88,6 +89,65 @@ func (suite *RejectTestSuite) TestRejectFollowRequest() {
 	// the follow request should not be in the database anymore -- it's been rejected
 	err = suite.db.GetByID(ctx, fr.ID, &gtsmodel.FollowRequest{})
 	suite.ErrorIs(err, db.ErrNoEntries)
+}
+
+func (suite *RejectTestSuite) TestRejectQuoteRequest() {
+	quotingAccount := suite.testAccounts["local_account_1"]
+	targetAccount := suite.testAccounts["remote_account_1"]
+	ctx := createTestContext(suite.T(), quotingAccount, targetAccount)
+
+	quote := suite.testStatuses["local_account_1_status_1"]
+	target := suite.testStatuses["remote_account_1_status_1"]
+	quote.QuoteID = target.ID
+	quote.Quote = target
+	quote.QuoteURI = target.URI
+	quote.QuoteAccountID = target.AccountID
+	quote.QuoteAccount = target.Account
+	suite.NoError(suite.state.DB.UpdateStatus(
+		ctx,
+		quote,
+		"quote_id",
+		"quote_uri",
+		"quote_account_id",
+	))
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K4STEH5NWAXBZ4TFNGQQQ986",
+		TargetStatusID:        target.ID,
+		TargetStatus:          target,
+		TargetAccountID:       target.AccountID,
+		TargetAccount:         targetAccount,
+		InteractingAccountID:  quote.AccountID,
+		InteractingAccount:    quotingAccount,
+		InteractionRequestURI: uris.GenerateURIForQuoteRequest(quotingAccount.Username, "01K4STEH5NWAXBZ4TFNGQQQ986"),
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                new(bool),
+		Quote:                 quote,
+	}
+	*req.Polite = true
+	suite.NoError(suite.state.DB.PutInteractionRequest(ctx, req))
+
+	requestable, err := suite.tc.InteractionReqToASInteractionRequestable(ctx, req)
+	suite.NoError(err)
+	quoteRequest := requestable.(vocab.GoToSocialQuoteRequest)
+
+	reject := streams.NewActivityStreamsReject()
+	rejectID := "http://fossbros-anonymous.io/users/foss_satan/rejects/quote-1"
+	ap.SetJSONLDId(reject, testrig.URLMustParse(rejectID))
+	ap.AppendActorIRIs(reject, testrig.URLMustParse(targetAccount.URI))
+	object := streams.NewActivityStreamsObjectProperty()
+	object.AppendGoToSocialQuoteRequest(quoteRequest)
+	reject.SetActivityStreamsObject(object)
+	ap.AppendTo(reject, testrig.URLMustParse(quotingAccount.URI))
+
+	suite.NoError(suite.federatingDB.Reject(ctx, reject))
+
+	stored, err := suite.state.DB.GetInteractionRequestByID(ctx, req.ID)
+	suite.NoError(err)
+	suite.WithinDuration(time.Now(), stored.RejectedAt, time.Second)
+	suite.Equal(rejectID, stored.ResponseURI)
+	suite.True(stored.AuthorizationURI == "")
 }
 
 func TestRejectTestSuite(t *testing.T) {

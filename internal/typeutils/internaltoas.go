@@ -2191,6 +2191,12 @@ func (c *Converter) InteractionReqToASReject(
 			v := streams.NewGoToSocialAnnounceRequest()
 			objProp.AppendGoToSocialAnnounceRequest(v)
 			ir = v
+		case gtsmodel.InteractionQuote:
+			v := streams.NewGoToSocialQuoteRequest()
+			objProp.AppendGoToSocialQuoteRequest(v)
+			ir = v
+		default:
+			return nil, gtserror.Newf("unsupported interaction request type %v", req.InteractionType)
 		}
 
 		// URI of the interaction request.
@@ -2427,7 +2433,6 @@ func (c *Converter) InteractionReqToASInteractionRequestable(
 	ctx context.Context,
 	req *gtsmodel.InteractionRequest,
 ) (ap.InteractionRequestable, error) {
-
 	// Actor of the interaction aka the interacting account.
 	actorIRI, err := url.Parse(req.InteractingAccount.URI)
 	if err != nil {

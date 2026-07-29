@@ -994,6 +994,29 @@ func (c *Converter) quoteToAPIQuote(
 		return &apimodel.Quote{State: apimodel.QuoteStateDeleted}, nil
 	}
 
+	// For local quotes of remote posts, expose the FEP-044f handshake state
+	// to Mastodon API clients. Quotes created before handshake support have
+	// no InteractionRequest and retain their historical accepted behavior.
+	if status.Flags.Local() &&
+		!quoted.Flags.Local() {
+		req, err := c.state.DB.GetInteractionRequestByInteractionURI(ctx, status.URI)
+		if err != nil && !errors.Is(err, db.ErrNoEntries) {
+			return nil, gtserror.Newf("db error getting quote interaction request: %w", err)
+		}
+		if req != nil {
+			switch {
+			case req.IsRejected():
+				return &apimodel.Quote{State: apimodel.QuoteStateRejected}, nil
+			case req.IsPending():
+				return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+			case req.IsAccepted() && status.QuoteApprovalURI == "":
+				return &apimodel.Quote{State: apimodel.QuoteStateRevoked}, nil
+			}
+		} else if status.QuoteApprovalURI == "" {
+			return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+		}
+	}
+
 	// Never let a status quote itself (e.g. a self-referential RE: link);
 	// combined with maxQuoteDepth this bounds recursion.
 	if quoted.ID == status.ID {

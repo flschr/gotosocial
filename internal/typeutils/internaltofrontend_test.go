@@ -23,10 +23,12 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
+	"code.superseriousbusiness.org/gotosocial/internal/uris"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
 	"code.superseriousbusiness.org/gotosocial/testrig"
 	"github.com/stretchr/testify/suite"
@@ -3883,6 +3885,69 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendNativeQuote() {
 			suite.NotNil(apiStatus.Quote.QuotedStatus.Account)
 		}
 	}
+}
+
+func (suite *InternalToFrontendTestSuite) TestStatusToFrontendQuoteHandshakeStates() {
+	ctx := suite.T().Context()
+	quoter := suite.testStatuses["local_account_1_status_1"]
+	quoted := suite.testStatuses["remote_account_1_status_1"]
+	quoter.QuoteID = quoted.ID
+	quoter.Quote = quoted
+	quoter.QuoteURI = quoted.URI
+	quoter.QuoteAccountID = quoted.AccountID
+	quoter.QuoteAccount = suite.testAccounts["remote_account_1"]
+	suite.NoError(suite.state.DB.UpdateStatus(
+		ctx,
+		quoter,
+		"quote_id",
+		"quote_uri",
+		"quote_account_id",
+	))
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K4STEH5NWAXBZ4TFNGQQQ988",
+		TargetStatusID:        quoted.ID,
+		TargetStatus:          quoted,
+		TargetAccountID:       quoted.AccountID,
+		TargetAccount:         suite.testAccounts["remote_account_1"],
+		InteractingAccountID:  quoter.AccountID,
+		InteractingAccount:    suite.testAccounts["local_account_1"],
+		InteractionRequestURI: uris.GenerateURIForQuoteRequest(suite.testAccounts["local_account_1"].Username, "01K4STEH5NWAXBZ4TFNGQQQ988"),
+		InteractionURI:        quoter.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 quoter,
+	}
+	suite.NoError(suite.state.DB.PutInteractionRequest(ctx, req))
+
+	requester := suite.testAccounts["local_account_1"]
+	apiStatus, err := suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("pending", apiStatus.Quote.State)
+
+	req.RejectedAt = time.Now()
+	suite.NoError(suite.state.DB.UpdateInteractionRequest(ctx, req, "rejected_at"))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("rejected", apiStatus.Quote.State)
+
+	req.RejectedAt = time.Time{}
+	req.AcceptedAt = time.Now()
+	suite.NoError(suite.state.DB.UpdateInteractionRequest(
+		ctx,
+		req,
+		"rejected_at",
+		"accepted_at",
+	))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("revoked", apiStatus.Quote.State)
+
+	quoter.QuoteApprovalURI = "https://remote.example/authorizations/quote-1"
+	suite.NoError(suite.state.DB.UpdateStatus(ctx, quoter, "quote_approval_uri"))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("accepted", apiStatus.Quote.State)
 }
 
 func TestInternalToFrontendTestSuite(t *testing.T) {
