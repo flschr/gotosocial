@@ -1294,6 +1294,10 @@ func (p *fediAPI) CreateQuoteRequest(ctx context.Context, fMsg *messages.FromFed
 		)
 	}
 	automaticallyApproved := req.Quote != nil && req.Quote.PreApproved
+	// Carry the policy decision onto the persisted-model instance held by the
+	// worker message. If a later operation fails and the message is retried,
+	// replacing req.Quote must not turn an automatic decision into manual.
+	quote.PreApproved = automaticallyApproved
 	req.Quote = quote
 
 	// Manual quote policies leave the request pending for the target account.
