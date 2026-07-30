@@ -174,6 +174,13 @@ func (suite *StatusMuteTestSuite) TestMuteUnmuteStatus() {
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, muted)
 
@@ -266,6 +273,13 @@ func (suite *StatusMuteTestSuite) TestMuteUnmuteStatus() {
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, unmuted)
 }

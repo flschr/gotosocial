@@ -272,6 +272,16 @@ func (p *Processor) Create(
 		}
 	}
 
+	// Check + attach quoted status.
+	if errWithCode := p.processQuote(ctx,
+		requester,
+		status,
+		form.QuotedStatusID,
+		backfill,
+	); errWithCode != nil {
+		return nil, errWithCode
+	}
+
 	// Process the incoming created status visibility.
 	if errWithCode := processVisibility(form, requester.Settings.Privacy, status); errWithCode != nil {
 		return nil, errWithCode
@@ -361,6 +371,18 @@ func (p *Processor) Create(
 		// Queue up Create ReplyRequest side effects.
 		p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
 			APObjectType:   ap.ActivityReplyRequest,
+			APActivityType: ap.ActivityCreate,
+			GTSModel:       status,
+			Origin:         requester,
+		})
+
+	case status.Quote != nil &&
+		status.QuoteAccountID != status.AccountID:
+		// Quotes of another account require a FEP-044f authorization.
+		// The worker handles local automatic/manual approval and remote
+		// QuoteRequest delivery before the status may federate.
+		p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
+			APObjectType:   ap.ActivityQuoteRequest,
 			APActivityType: ap.ActivityCreate,
 			GTSModel:       status,
 			Origin:         requester,
@@ -508,6 +530,84 @@ func (p *Processor) processInReplyTo(
 	status.InReplyTo = inReplyTo
 	status.InReplyToURI = inReplyTo.URI
 	status.InReplyToAccountID = inReplyTo.AccountID
+
+	return nil
+}
+
+// processQuote resolves the quotedStatusID (if any) to a visible target
+// status and wires the quote relationship fields onto status. It mirrors
+// processInReplyTo: unknown or invisible targets are rejected rather than
+// silently dropped, and only self-quotes may be backfilled.
+func (p *Processor) processQuote(
+	ctx context.Context,
+	requester *gtsmodel.Account,
+	status *gtsmodel.Status,
+	quotedStatusID string,
+	backfill bool,
+) gtserror.WithCode {
+	if quotedStatusID == "" {
+		// Not a quote.
+		// Nothing to do.
+		return nil
+	}
+
+	// Fetch target quoted status (checking visibility).
+	quoted, errWithCode := p.c.GetVisibleTargetStatus(ctx,
+		requester,
+		quotedStatusID,
+		nil,
+	)
+	if errWithCode != nil {
+		return errWithCode
+	}
+
+	// If this is a boost, unwrap it to get source status.
+	quoted, errWithCode = p.c.UnwrapIfBoost(ctx,
+		requester,
+		quoted,
+	)
+	if errWithCode != nil {
+		return errWithCode
+	}
+
+	// Don't allow a status to quote itself.
+	if quoted.ID == status.ID {
+		const errText = "a status cannot quote itself"
+		err := gtserror.New(errText)
+		return gtserror.NewErrorUnprocessableEntity(err, errText)
+	}
+
+	// When backfilling, only self-quotes are allowed
+	// (mirrors the in-reply-to backfill restriction).
+	if backfill && requester.ID != quoted.AccountID {
+		const errText = "quotes of others can't be backfilled"
+		err := gtserror.New(errText)
+		return gtserror.NewErrorForbidden(err, errText)
+	}
+
+	// Check the quoted status's canQuote interaction policy: the requester
+	// must be permitted to quote it. This forbids quoting followers-only/
+	// direct posts of others (which would leak a non-public post's URI),
+	// while allowing public/unlisted and self-quotes.
+	policyResult, err := p.intFilter.StatusQuoteable(ctx, requester, quoted)
+	if err != nil {
+		err := gtserror.Newf("error seeing if status %s is quoteable: %w", quoted.ID, err)
+		return gtserror.NewErrorInternalError(err)
+	}
+
+	if policyResult.Forbidden() {
+		const errText = "you do not have permission to quote this status"
+		err := gtserror.New(errText)
+		return gtserror.NewErrorForbidden(err, errText)
+	}
+	status.PreApproved = policyResult.AutomaticApproval()
+
+	// Set quote fields from target.
+	status.QuoteID = quoted.ID
+	status.Quote = quoted
+	status.QuoteURI = quoted.URI
+	status.QuoteAccountID = quoted.AccountID
+	status.QuoteAccount = quoted.Account
 
 	return nil
 }

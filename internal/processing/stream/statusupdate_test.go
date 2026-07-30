@@ -155,6 +155,13 @@ func (suite *StatusUpdateTestSuite) TestStreamNotification() {
       ],
       "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, dst.String())
 	suite.Equal(msg.Event, "status.update")

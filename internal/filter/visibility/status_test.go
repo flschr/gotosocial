@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -200,7 +201,35 @@ func (suite *StatusVisibleTestSuite) TestVisiblePending() {
 		suite.Equal(testCase.visible, visible)
 	}
 
+	// Pending quotes are visible to the author of the quoted status, so they
+	// can inspect the instrument before accepting or rejecting it.
+	originalID := testStatus.ID
+	originalURI := testStatus.URI
+	testStatus.ID = id.NewULID()
+	testStatus.URI += "/quote-visibility-test"
+	testStatus.InReplyToAccountID = ""
+	testStatus.QuoteAccountID = suite.testAccounts["local_account_2"].ID
+	visible, err := suite.filter.StatusVisible(
+		ctx,
+		suite.testAccounts["local_account_2"],
+		testStatus,
+	)
+	suite.NoError(err)
+	suite.True(visible)
+
+	visible, err = suite.filter.StatusVisible(
+		ctx,
+		suite.testAccounts["local_account_1"],
+		testStatus,
+	)
+	suite.NoError(err)
+	suite.False(visible)
+
 	// Update the status to mark it as approved.
+	testStatus.ID = originalID
+	testStatus.URI = originalURI
+	testStatus.InReplyToAccountID = suite.testAccounts["local_account_1"].ID
+	testStatus.QuoteAccountID = ""
 	testStatus.Flags.SetPendingApproval(false)
 	testStatus.ApprovedByURI = "http://localhost:8080/some/accept/uri"
 	if err := suite.state.DB.UpdateStatus(ctx, testStatus); err != nil {

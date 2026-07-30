@@ -141,6 +141,13 @@ func (suite *StatusFaveTestSuite) TestPostFave() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,
@@ -273,6 +280,13 @@ func (suite *StatusFaveTestSuite) TestPostFaveImplicitAccept() {
   "muted": false,
   "pinned": false,
   "poll": null,
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "current_user": "automatic",
+    "manual": []
+  },
   "reblog": null,
   "reblogged": false,
   "reblogs_count": 0,

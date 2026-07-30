@@ -210,6 +210,10 @@ type InteractionPolicy struct {
 	// interaction will be accepted
 	// for an item with this policy.
 	CanAnnounce *PolicyRules
+	// Conditions in which a Quote
+	// interaction will be accepted
+	// for an item with this policy.
+	CanQuote *PolicyRules
 }
 
 // PolicyRules represents the rules according
@@ -412,10 +416,41 @@ func DefaultCanAnnounceFor(v Visibility) *PolicyRules {
 	}
 }
 
+// DefaultCanQuoteFor returns the default
+// policy rules for the canQuote sub-policy.
+// Mirrors canAnnounce: anyone may quote public/unlisted
+// posts; only the author may quote more private ones.
+func DefaultCanQuoteFor(v Visibility) *PolicyRules {
+	switch v {
+
+	// Anyone can quote.
+	case VisibilityPublic, VisibilityUnlocked:
+		return &PolicyRules{
+			AutomaticApproval: PolicyValues{
+				PolicyValuePublic,
+			},
+			ManualApproval: make(PolicyValues, 0),
+		}
+
+	// Only self can quote.
+	case VisibilityFollowersOnly, VisibilityMutualsOnly, VisibilityDirect:
+		return &PolicyRules{
+			AutomaticApproval: PolicyValues{
+				PolicyValueAuthor,
+			},
+			ManualApproval: make(PolicyValues, 0),
+		}
+
+	default:
+		panic("invalid visibility")
+	}
+}
+
 var defaultPolicyPublic = &InteractionPolicy{
 	CanLike:     DefaultCanLikeFor(VisibilityPublic),
 	CanReply:    DefaultCanReplyFor(VisibilityPublic),
 	CanAnnounce: DefaultCanAnnounceFor(VisibilityPublic),
+	CanQuote:    DefaultCanQuoteFor(VisibilityPublic),
 }
 
 // Returns a default interaction policy
@@ -436,6 +471,7 @@ var defaultPolicyFollowersOnly = &InteractionPolicy{
 	CanLike:     DefaultCanLikeFor(VisibilityFollowersOnly),
 	CanReply:    DefaultCanReplyFor(VisibilityFollowersOnly),
 	CanAnnounce: DefaultCanAnnounceFor(VisibilityFollowersOnly),
+	CanQuote:    DefaultCanQuoteFor(VisibilityFollowersOnly),
 }
 
 // Returns a default interaction policy for
@@ -449,6 +485,7 @@ var defaultPolicyDirect = &InteractionPolicy{
 	CanLike:     DefaultCanLikeFor(VisibilityDirect),
 	CanReply:    DefaultCanReplyFor(VisibilityDirect),
 	CanAnnounce: DefaultCanAnnounceFor(VisibilityDirect),
+	CanQuote:    DefaultCanQuoteFor(VisibilityDirect),
 }
 
 // Returns a default interaction policy
@@ -476,6 +513,11 @@ func copyPolicy(src *InteractionPolicy) *InteractionPolicy {
 		CanAnnounce: &PolicyRules{
 			AutomaticApproval: slices.Clone(src.CanAnnounce.AutomaticApproval),
 			ManualApproval:    slices.Clone(src.CanAnnounce.ManualApproval),
+		},
+		// Copy CanQuote.
+		CanQuote: &PolicyRules{
+			AutomaticApproval: slices.Clone(src.CanQuote.AutomaticApproval),
+			ManualApproval:    slices.Clone(src.CanQuote.ManualApproval),
 		},
 	}
 }
@@ -510,6 +552,12 @@ func (ip1 *InteractionPolicy) DifferentFrom(ip2 *InteractionPolicy) bool {
 	// If CanAnnounce differs from one policy
 	// to the next, they're different.
 	if ip1.CanAnnounce.DifferentFrom(ip2.CanAnnounce) {
+		return true
+	}
+
+	// If CanQuote differs from one policy
+	// to the next, they're different.
+	if ip1.CanQuote.DifferentFrom(ip2.CanQuote) {
 		return true
 	}
 

@@ -108,9 +108,11 @@ const (
 	ActivityLikeRequest         = "LikeRequest"
 	ActivityReplyRequest        = "ReplyRequest"
 	ActivityAnnounceRequest     = "AnnounceRequest"
+	ActivityQuoteRequest        = "QuoteRequest"
 	ObjectLikeAuthorization     = "LikeAuthorization"
 	ObjectReplyAuthorization    = "ReplyAuthorization"
 	ObjectAnnounceAuthorization = "AnnounceAuthorization"
+	ObjectQuoteAuthorization    = "QuoteAuthorization"
 
 	/* Funkwhale stuff */
 

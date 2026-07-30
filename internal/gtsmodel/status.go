@@ -104,6 +104,23 @@ type Status struct {
 	BoostOfAccountID string   `bun:"type:CHAR(26),nullzero"`
 	BoostOfAccount   *Account `bun:"rel:belongs-to"`
 
+	// ID of the status this status quotes (or NULL), the
+	// activitypub URI of the quoted status (or NULL), and
+	// the Status model corresponding to quoteID (if set/dereferenced).
+	QuoteID  string  `bun:"type:CHAR(26),nullzero"`
+	QuoteURI string  `bun:",nullzero"`
+	Quote    *Status `bun:"-"`
+
+	// ID of the account whose status is quoted,
+	// and account that corresponds to quoteAccountID.
+	QuoteAccountID string   `bun:"type:CHAR(26),nullzero"`
+	QuoteAccount   *Account `bun:"rel:belongs-to"`
+
+	// URI of the QuoteAuthorization (FEP-044f) proving this quote
+	// was approved by the quoted account (or NULL). Analogous to
+	// ApprovedByURI for replies/boosts; empty until approved.
+	QuoteApprovalURI string `bun:",nullzero"`
+
 	// ID of the thread to which this status belongs.
 	ThreadID string `bun:"type:CHAR(26),nullzero,notnull,default:'00000000000000000000000000'"`
 

@@ -36,6 +36,7 @@ const (
 	InteractionLike     InteractionType = 0
 	InteractionReply    InteractionType = 1
 	InteractionAnnounce InteractionType = 2
+	InteractionQuote    InteractionType = 3
 )
 
 const (
@@ -50,6 +51,10 @@ const (
 	// Suffix to append to the URI of impolite
 	// Announces to mock an AnnounceRequest.
 	ImpoliteAnnounceRequestSuffix = "#AnnounceRequest"
+
+	// Suffix to append to the URI of impolite
+	// quotes to mock a QuoteRequest.
+	ImpoliteQuoteRequestSuffix = "#QuoteRequest"
 )
 
 // Stringifies this InteractionType in a
@@ -64,6 +69,9 @@ func (i InteractionType) String() string {
 		return text
 	case InteractionAnnounce:
 		const text = "reblog"
+		return text
+	case InteractionQuote:
+		const text = "quote"
 		return text
 	default:
 		panic("undefined InteractionType")
@@ -128,6 +136,10 @@ type InteractionRequest struct {
 	// Set if InteractionType = InteractionAnnounce.
 	// Column not stored in DB.
 	Announce *Status `bun:"-"`
+
+	// Set if InteractionType = InteractionQuote.
+	// Column not stored in DB.
+	Quote *Status `bun:"-"`
 
 	// If interaction request was accepted, time at which this occurred.
 	AcceptedAt time.Time `bun:"type:timestamptz,nullzero"`

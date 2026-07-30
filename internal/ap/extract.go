@@ -1212,6 +1212,7 @@ func ExtractInteractionPolicy(
 		CanLike:     extractCanLike(policy.GetGoToSocialCanLike(), owner),
 		CanReply:    extractCanReply(policy.GetGoToSocialCanReply(), owner),
 		CanAnnounce: extractCanAnnounce(policy.GetGoToSocialCanAnnounce(), owner),
+		CanQuote:    extractCanQuote(policy.GetGoToSocialCanQuote(), owner),
 	}
 }
 
@@ -1276,6 +1277,30 @@ func extractCanAnnounce(
 
 	propIter := prop.At(0)
 	if !propIter.IsGoToSocialCanAnnounce() {
+		return nil
+	}
+
+	withRules := propIter.Get()
+	if withRules == nil {
+		return nil
+	}
+
+	return extractPolicyRules(withRules, owner)
+}
+
+// Returns either a parsed CanQuote sub-policy, or nil
+// if canQuote is not set, ie., if this post is from an
+// instance that doesn't know / care about canQuote.
+func extractCanQuote(
+	prop vocab.GoToSocialCanQuoteProperty,
+	owner *gtsmodel.Account,
+) *gtsmodel.PolicyRules {
+	if prop == nil || prop.Len() != 1 {
+		return nil
+	}
+
+	propIter := prop.At(0)
+	if !propIter.IsGoToSocialCanQuote() {
 		return nil
 	}
 

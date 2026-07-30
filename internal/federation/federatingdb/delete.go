@@ -25,8 +25,10 @@ import (
 	"code.superseriousbusiness.org/gopkg/log"
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
 	"code.superseriousbusiness.org/gotosocial/internal/db"
+	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtserror"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/messages"
 )
 
@@ -71,6 +73,18 @@ func (f *DB) Delete(ctx context.Context, id *url.URL) error {
 	}
 
 	// Try delete as a status URI.
+	ok, err = f.deleteQuoteAuthorization(ctx,
+		requesting,
+		receiving,
+		id,
+	)
+	if err != nil {
+		return err
+	} else if ok {
+		return nil
+	}
+
+	// Try delete as a status URI.
 	ok, err = f.deleteStatus(ctx,
 		requesting,
 		receiving,
@@ -84,6 +98,110 @@ func (f *DB) Delete(ctx context.Context, id *url.URL) error {
 	}
 
 	log.Debugf(ctx, "unknown iri: %s", uriStr)
+	return nil
+}
+
+func (f *DB) deleteQuoteAuthorization(
+	ctx context.Context,
+	requesting *gtsmodel.Account,
+	receiving *gtsmodel.Account,
+	id *url.URL,
+) (bool, error) {
+	uri := id.String()
+	req, err := f.state.DB.GetInteractionRequestByAuthorizationURI(ctx, uri)
+	if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		return false, gtserror.Newf("error getting quote authorization: %w", err)
+	}
+	if req == nil {
+		// Third-party recipients generally have no InteractionRequest for
+		// the remote quote. Locate the status by its attached stamp instead.
+		status, err := f.state.DB.GetStatusByQuoteApprovalURI(ctx, uri)
+		if err != nil && !errors.Is(err, db.ErrNoEntries) {
+			return false, gtserror.Newf("error getting status by quote authorization: %w", err)
+		}
+		if status == nil {
+			return false, nil
+		}
+		if status.QuoteAccountID != requesting.ID {
+			const text = "quote authorization issuer and requesting account differ"
+			return true, gtserror.NewErrorForbidden(errors.New(text), text)
+		}
+		if err := f.tombstoneQuoteAuthorization(ctx, id); err != nil {
+			return true, err
+		}
+		return true, nil
+	}
+	if req.InteractionType != gtsmodel.InteractionQuote {
+		return false, nil
+	}
+	if err := f.state.DB.PopulateInteractionRequest(ctx, req); err != nil {
+		return true, gtserror.Newf("error populating quote authorization: %w", err)
+	}
+
+	// Only the account that issued the authorization may revoke it, and the
+	// Delete must arrive in the inbox of the local quote author.
+	if req.TargetAccountID != requesting.ID {
+		const text = "quote authorization issuer and requesting account differ"
+		return true, gtserror.NewErrorForbidden(errors.New(text), text)
+	}
+	if req.InteractingAccountID != receiving.ID || req.Quote == nil {
+		const text = "quote authorization owner and inbox account differ"
+		return true, gtserror.NewErrorForbidden(errors.New(text), text)
+	}
+
+	unlock := f.state.FedLocks.Lock(req.InteractionURI)
+	defer unlock()
+
+	if err := f.tombstoneQuoteAuthorization(ctx, id); err != nil {
+		return true, err
+	}
+
+	req.AuthorizationURI = ""
+	if err := f.state.DB.UpdateInteractionRequest(
+		ctx,
+		req,
+		"authorization_uri",
+	); err != nil {
+		return true, gtserror.Newf("error revoking quote authorization: %w", err)
+	}
+
+	req.Quote.QuoteApprovalURI = ""
+	if err := f.state.DB.UpdateStatus(
+		ctx,
+		req.Quote,
+		"quote_approval_uri",
+	); err != nil {
+		return true, gtserror.Newf("error clearing quote approval: %w", err)
+	}
+
+	f.state.Workers.Federator.Queue.Push(&messages.FromFediAPI{
+		APObjectType:   ap.ObjectQuoteAuthorization,
+		APActivityType: ap.ActivityDelete,
+		APIRI:          id,
+		TargetURI: func() string {
+			if activityID := gtscontext.ActivityID(ctx); activityID != nil {
+				return activityID.String()
+			}
+			return ""
+		}(),
+		GTSModel:   req,
+		Receiving:  receiving,
+		Requesting: requesting,
+	})
+
+	return true, nil
+}
+
+func (f *DB) tombstoneQuoteAuthorization(ctx context.Context, uri *url.URL) error {
+	tombstone := &gtsmodel.Tombstone{
+		ID:     id.NewULID(),
+		Domain: uri.Host,
+		URI:    uri.String(),
+	}
+	if err := f.state.DB.PutTombstone(ctx, tombstone); err != nil &&
+		!errors.Is(err, db.ErrAlreadyExists) {
+		return gtserror.Newf("error tombstoning quote authorization: %w", err)
+	}
 	return nil
 }
 

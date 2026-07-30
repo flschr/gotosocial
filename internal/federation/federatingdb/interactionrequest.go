@@ -569,3 +569,119 @@ func (f *DB) AnnounceRequest(ctx context.Context, announceReq vocab.GoToSocialAn
 
 	return nil
 }
+
+func (f *DB) QuoteRequest(ctx context.Context, quoteReq vocab.GoToSocialQuoteRequest) error {
+	log.DebugKV(ctx, "QuoteRequest", Serialize{quoteReq})
+
+	// Parse out base level interaction request information.
+	// For a QuoteRequest, object = the quoted (local) status,
+	// instrument = the remote quoting Note.
+	partial, err := f.parseInteractionRequest(ctx, quoteReq)
+	if err != nil {
+		return err
+	}
+	if partial == nil {
+		// Already processed.
+		return nil
+	}
+
+	// Instrument should be the quoting status (a Note).
+	statusable, ok := ap.ToStatusable(partial.instrument)
+	if !ok {
+		return gtserror.NewWithCode(
+			http.StatusBadRequest,
+			"could not parse instrument to Statusable",
+		)
+	}
+
+	// Convert received AS quoting note to internal status.
+	quote, err := f.converter.ASStatusToStatus(ctx, statusable)
+	if err != nil {
+		err := gtserror.Newf("error converting from AS type: %w", err)
+		return gtserror.WrapWithCode(http.StatusBadRequest, err)
+	}
+
+	// The quoted status is the object of the request.
+	targetStatus := partial.object
+
+	// Ensure quote enacted by the requesting account.
+	if quote.AccountID != partial.requesting.ID {
+		return gtserror.NewfWithCode(
+			http.StatusForbidden,
+			"requester %s is not expected actor %s",
+			partial.requesting.URI, quote.Account.URI,
+		)
+	}
+
+	// Ensure quoted status owned by receiving account.
+	if targetStatus.AccountID != partial.receiving.ID {
+		return gtserror.NewfWithCode(
+			http.StatusForbidden,
+			"receiver %s is not owner of quoted status",
+			partial.receiving.URI,
+		)
+	}
+
+	// Ensure this is a valid quote target for requester.
+	policyResult, err := f.intFilter.StatusQuoteable(ctx,
+		partial.requesting,
+		targetStatus,
+	)
+	if err != nil {
+		return gtserror.Newf(
+			"error seeing if status %s is quoteable: %w",
+			targetStatus.URI, err,
+		)
+	} else if policyResult.Forbidden() {
+		return gtserror.NewWithCode(
+			http.StatusForbidden,
+			"requester does not have permission to quote status",
+		)
+	}
+	quote.PreApproved = policyResult.AutomaticApproval()
+
+	// Policy result is either automatic or manual approval,
+	// so store the interaction request. Further processing
+	// (auto-approval + Accept + Authorization) is done by the
+	// worker; the quoting status itself is stored later when
+	// the quoter federates it with the authorization attached.
+	intReq := &gtsmodel.InteractionRequest{
+		ID:                    id.NewULID(),
+		TargetStatusID:        targetStatus.ID,
+		TargetStatus:          targetStatus,
+		TargetAccountID:       targetStatus.AccountID,
+		TargetAccount:         targetStatus.Account,
+		InteractingAccountID:  quote.AccountID,
+		InteractingAccount:    quote.Account,
+		InteractionRequestURI: partial.intRequestURI,
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 quote,
+	}
+	switch err := f.state.DB.PutInteractionRequest(ctx, intReq); {
+	case err == nil:
+		// No problem.
+
+	case errors.Is(err, db.ErrAlreadyExists):
+		log.Warnf(ctx, "received duplicate interaction request: %s", partial.intRequestURI)
+		return nil
+
+	default:
+		return gtserror.Newf(
+			"db error storing interaction request %s",
+			partial.intRequestURI,
+		)
+	}
+
+	f.state.Workers.Federator.Queue.Push(&messages.FromFediAPI{
+		APActivityType: ap.ActivityCreate,
+		APObjectType:   ap.ActivityQuoteRequest,
+		APObject:       statusable,
+		GTSModel:       intReq,
+		Receiving:      partial.receiving,
+		Requesting:     partial.requesting,
+	})
+
+	return nil
+}

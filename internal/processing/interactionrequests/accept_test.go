@@ -83,6 +83,62 @@ func (suite *AcceptTestSuite) TestAccept() {
 	})
 }
 
+func (suite *AcceptTestSuite) TestAcceptLocalQuote() {
+	testStructs := testrig.SetupTestStructs(rMediaPath, rTemplatePath)
+	defer testrig.TearDownTestStructs(testStructs)
+
+	var (
+		ctx              = suite.T().Context()
+		state            = testStructs.State
+		targetAcct       = suite.testAccounts["local_account_1"]
+		quoterAcct       = suite.testAccounts["local_account_2"]
+		target           = suite.testStatuses["local_account_1_status_1"]
+		quote            = suite.testStatuses["local_account_2_status_1"]
+		requestID        = "01K1FAQQQQQQQQQQQQQQQQQQQQ"
+		requestURI       = targetAcct.URI + "/interaction_requests/" + requestID
+		authorizationURI = targetAcct.URI + "/authorizations/" + requestID
+	)
+
+	intReq := &gtsmodel.InteractionRequest{
+		ID:                    requestID,
+		TargetStatusID:        target.ID,
+		TargetStatus:          target,
+		TargetAccountID:       targetAcct.ID,
+		TargetAccount:         targetAcct,
+		InteractingAccountID:  quoterAcct.ID,
+		InteractingAccount:    quoterAcct,
+		InteractionRequestURI: requestURI,
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Quote:                 quote,
+	}
+	if err := state.DB.PutInteractionRequest(ctx, intReq); err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	p := interactionrequests.New(
+		testStructs.Common,
+		state,
+		testStructs.TypeConverter,
+	)
+	if _, errWithCode := p.Accept(ctx, targetAcct, requestID); errWithCode != nil {
+		suite.FailNow(errWithCode.Error())
+	}
+
+	dbReq, err := state.DB.GetInteractionRequestByID(ctx, requestID)
+	if err != nil {
+		suite.FailNow(err.Error())
+	}
+	suite.True(dbReq.IsAccepted())
+	suite.Equal(authorizationURI, dbReq.AuthorizationURI)
+
+	dbQuote, err := state.DB.GetStatusByID(ctx, quote.ID)
+	if err != nil {
+		suite.FailNow(err.Error())
+	}
+	suite.Equal(dbReq.AuthorizationURI, dbQuote.QuoteApprovalURI)
+}
+
 func TestAcceptTestSuite(t *testing.T) {
 	suite.Run(t, new(AcceptTestSuite))
 }

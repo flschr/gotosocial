@@ -113,6 +113,10 @@ func (p *Processor) ProcessFromClientAPI(ctx context.Context, cMsg *messages.Fro
 		case ap.ActivityAnnounceRequest:
 			return p.clientAPI.CreateAnnounceRequest(ctx, cMsg)
 
+		// CREATE QUOTE REQUEST
+		case ap.ActivityQuoteRequest:
+			return p.clientAPI.CreateQuoteRequest(ctx, cMsg)
+
 		// CREATE BLOCK
 		case ap.ActivityBlock:
 			return p.clientAPI.CreateBlock(ctx, cMsg)
@@ -162,6 +166,9 @@ func (p *Processor) ProcessFromClientAPI(ctx context.Context, cMsg *messages.Fro
 		// ACCEPT BOOST
 		case ap.ActivityAnnounce:
 			return p.clientAPI.AcceptAnnounce(ctx, cMsg)
+
+		case ap.ActivityQuoteRequest:
+			return p.clientAPI.AcceptQuote(ctx, cMsg)
 		}
 
 	// REJECT SOMETHING
@@ -187,6 +194,9 @@ func (p *Processor) ProcessFromClientAPI(ctx context.Context, cMsg *messages.Fro
 		// REJECT BOOST
 		case ap.ActivityAnnounce:
 			return p.clientAPI.RejectAnnounce(ctx, cMsg)
+
+		case ap.ActivityQuoteRequest:
+			return p.clientAPI.RejectQuote(ctx, cMsg)
 		}
 
 	// UNDO SOMETHING
@@ -297,6 +307,74 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 		log.Errorf(ctx, "error checking Bluesky reply mapping: %v", replyErr)
 	}
 
+	return nil
+}
+
+func (p *clientAPI) CreateQuoteRequest(ctx context.Context, cMsg *messages.FromClientAPI) error {
+	quote, ok := cMsg.GTSModel.(*gtsmodel.Status)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.Status", cMsg.GTSModel)
+	}
+
+	if err := p.state.DB.PopulateStatus(ctx, quote); err != nil {
+		return gtserror.Newf("error populating quote status: %w", err)
+	}
+	if quote.Quote == nil || quote.QuoteAccount == nil || quote.Account == nil {
+		return gtserror.New("quote interaction request is missing status or account data")
+	}
+
+	intReqID := id.NewULIDFromTime(quote.CreatedAt)
+	intReq := &gtsmodel.InteractionRequest{
+		ID:                    intReqID,
+		TargetStatusID:        quote.QuoteID,
+		TargetStatus:          quote.Quote,
+		TargetAccountID:       quote.QuoteAccountID,
+		TargetAccount:         quote.QuoteAccount,
+		InteractingAccountID:  quote.AccountID,
+		InteractingAccount:    quote.Account,
+		InteractionRequestURI: uris.GenerateURIForQuoteRequest(quote.Account.Username, intReqID),
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 quote,
+	}
+
+	if quote.QuoteAccount.IsLocal() && quote.PreApproved {
+		// Both sides are local and policy grants automatic approval.
+		// Issue a local authorization before the status is federated.
+		intReq.MarkAccepted()
+		quote.QuoteApprovalURI = intReq.AuthorizationURI
+		if err := p.utils.storeInteractionRequest(ctx, intReq); err != nil {
+			return gtserror.Newf("error storing accepted quote interaction request: %w", err)
+		}
+		if err := p.state.DB.UpdateStatus(
+			ctx,
+			quote,
+			"quote_approval_uri",
+		); err != nil {
+			return gtserror.Newf("error storing local quote authorization: %w", err)
+		}
+		return p.CreateStatus(ctx, cMsg)
+	}
+
+	if err := p.utils.storeInteractionRequest(ctx, intReq); err != nil {
+		return gtserror.Newf("error storing quote interaction request: %w", err)
+	}
+
+	// The author should see their status immediately, but it must not leave
+	// this instance until the remote target has authorized the quote.
+	if err := p.surfacer.TimelineAndNotifyStatus(ctx, quote); err != nil {
+		log.Errorf(ctx, "error timelining pending quote status: %v", err)
+	}
+
+	if quote.QuoteAccount.IsRemote() {
+		if err := p.federate.InteractionRequest(ctx, intReq); err != nil {
+			return gtserror.Newf("error federating quote interaction request: %w", err)
+		}
+	}
+
+	// A local manual-approval request remains pending for the target account
+	// and is exposed through the interaction-requests API.
 	return nil
 }
 
@@ -1282,6 +1360,66 @@ func (p *clientAPI) AcceptAnnounce(ctx context.Context, cMsg *messages.FromClien
 		log.Errorf(ctx, "error federating approval of announce: %v", err)
 	}
 
+	return nil
+}
+
+func (p *clientAPI) AcceptQuote(ctx context.Context, cMsg *messages.FromClientAPI) error {
+	req, ok := cMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", cMsg.GTSModel)
+	}
+	if err := p.state.DB.PopulateInteractionRequest(ctx, req); err != nil {
+		return gtserror.Newf("error populating quote interaction request: %w", err)
+	}
+
+	if req.InteractingAccount.IsLocal() {
+		if err := p.federate.CreateStatus(ctx, req.Quote); err != nil {
+			return gtserror.Newf("error federating approved local quote: %w", err)
+		}
+		return nil
+	}
+
+	if err := p.federate.AcceptInteraction(ctx, req); err != nil {
+		return gtserror.Newf("error federating quote approval: %w", err)
+	}
+	return nil
+}
+
+func (p *clientAPI) RejectQuote(ctx context.Context, cMsg *messages.FromClientAPI) error {
+	req, ok := cMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", cMsg.GTSModel)
+	}
+	if err := p.state.DB.PopulateInteractionRequest(ctx, req); err != nil {
+		return gtserror.Newf("error populating quote interaction request: %w", err)
+	}
+	if err := p.federate.RejectInteraction(ctx, req); err != nil {
+		return gtserror.Newf("error federating quote rejection: %w", err)
+	}
+
+	// A remote quote was stored only so the target account could inspect the
+	// QuoteRequest instrument. Once rejected it must not linger indefinitely
+	// as a hidden pending status.
+	if req.InteractingAccount.IsRemote() && req.Quote != nil {
+		const (
+			attachments = true
+			sinBin      = true
+			wipe        = true
+		)
+		if err := p.utils.deleteStatus(
+			ctx,
+			req.Quote,
+			attachments,
+			sinBin,
+			wipe,
+		); err != nil {
+			return gtserror.Newf(
+				"error deleting rejected quote %s: %w",
+				req.Quote.URI,
+				err,
+			)
+		}
+	}
 	return nil
 }
 

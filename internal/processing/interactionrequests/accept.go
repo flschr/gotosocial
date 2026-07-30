@@ -69,6 +69,28 @@ func (p *Processor) Accept(
 	req.AcceptedAt = time.Now()
 	req.ResponseURI = uris.GenerateURIForAccept(acct.Username, req.ID)
 	req.AuthorizationURI = uris.GenerateURIForAuthorization(acct.Username, req.ID)
+
+	// Persist the quote's authorization stamp before marking its request
+	// accepted. If the following request update fails, a retry still sees a
+	// pending request and can complete the operation; the quote is not
+	// federated until both writes have succeeded.
+	if req.InteractionType == gtsmodel.InteractionQuote &&
+		req.InteractingAccount.IsLocal() {
+		if req.Quote == nil {
+			err := gtserror.Newf("no Quote found for interaction request %s", req.ID)
+			return nil, gtserror.NewErrorNotFound(err)
+		}
+		req.Quote.QuoteApprovalURI = req.AuthorizationURI
+		if err := p.state.DB.UpdateStatus(
+			ctx,
+			req.Quote,
+			"quote_approval_uri",
+		); err != nil {
+			err := gtserror.Newf("db error updating quote authorization: %w", err)
+			return nil, gtserror.NewErrorInternalError(err)
+		}
+	}
+
 	if err := p.state.DB.UpdateInteractionRequest(
 		ctx,
 		req,
@@ -94,6 +116,11 @@ func (p *Processor) Accept(
 
 	case gtsmodel.InteractionAnnounce:
 		if errWithCode := p.acceptAnnounce(ctx, req); errWithCode != nil {
+			return nil, errWithCode
+		}
+
+	case gtsmodel.InteractionQuote:
+		if errWithCode := p.acceptQuote(ctx, req); errWithCode != nil {
 			return nil, errWithCode
 		}
 
@@ -228,6 +255,26 @@ func (p *Processor) acceptAnnounce(
 	// client API processor to handle side effects.
 	p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
 		APObjectType:   ap.ActivityAnnounce,
+		APActivityType: ap.ActivityAccept,
+		GTSModel:       req,
+		Origin:         req.TargetAccount,
+		Target:         req.InteractingAccount,
+	})
+
+	return nil
+}
+
+func (p *Processor) acceptQuote(
+	ctx context.Context,
+	req *gtsmodel.InteractionRequest,
+) gtserror.WithCode {
+	if req.Quote == nil {
+		err := gtserror.Newf("no Quote found for interaction request %s", req.ID)
+		return gtserror.NewErrorNotFound(err)
+	}
+
+	p.state.Workers.Client.Queue.Push(&messages.FromClientAPI{
+		APObjectType:   ap.ActivityQuoteRequest,
 		APActivityType: ap.ActivityAccept,
 		GTSModel:       req,
 		Origin:         req.TargetAccount,

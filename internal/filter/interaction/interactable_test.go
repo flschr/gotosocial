@@ -202,6 +202,30 @@ func (suite *InteractionTestSuite) TestInteractable() {
 	}
 }
 
+func (suite *InteractionTestSuite) TestPrivateStatusCannotBeQuotedByAnotherAccount() {
+	testStructs := testrig.SetupTestStructs(rMediaPath, rTemplatePath)
+	defer testrig.TearDownTestStructs(testStructs)
+
+	status := new(gtsmodel.Status)
+	*status = *suite.testStatuses["local_account_1_status_1"]
+	status.Visibility = gtsmodel.VisibilityFollowersOnly
+	status.InteractionPolicy = &gtsmodel.InteractionPolicy{
+		CanQuote: &gtsmodel.PolicyRules{
+			AutomaticApproval: gtsmodel.PolicyValues{
+				gtsmodel.PolicyValuePublic,
+			},
+		},
+	}
+
+	result, err := testStructs.InteractionFilter.StatusQuoteable(
+		suite.T().Context(),
+		suite.testAccounts["admin_account"],
+		status,
+	)
+	suite.NoError(err)
+	suite.Equal(gtsmodel.PolicyPermissionForbidden, result.Permission)
+}
+
 func TestInteractionTestSuite(t *testing.T) {
 	suite.Run(t, new(InteractionTestSuite))
 }

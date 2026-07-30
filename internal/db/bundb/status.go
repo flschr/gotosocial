@@ -147,6 +147,26 @@ func (s *statusDB) GetStatusByURL(ctx context.Context, url string) (*gtsmodel.St
 	)
 }
 
+func (s *statusDB) GetStatusByQuoteApprovalURI(
+	ctx context.Context,
+	uri string,
+) (*gtsmodel.Status, error) {
+	status := new(gtsmodel.Status)
+	if err := s.db.NewSelect().
+		Model(status).
+		Where("? = ?", bun.Ident("status.quote_approval_uri"), uri).
+		Scan(ctx); err != nil {
+		return nil, err
+	}
+	if gtscontext.Barebones(ctx) {
+		return status, nil
+	}
+	if err := s.PopulateStatus(ctx, status); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
 func (s *statusDB) GetStatusByPollID(ctx context.Context, pollID string) (*gtsmodel.Status, error) {
 	return s.getStatus(
 		ctx,
@@ -268,6 +288,28 @@ func (s *statusDB) PopulateStatus(ctx context.Context, status *gtsmodel.Status) 
 			)
 			if err != nil {
 				errs.Appendf("error populating status boost author: %w", err)
+			}
+		}
+	}
+
+	if status.QuoteID != "" {
+		if status.Quote == nil {
+			status.Quote, err = s.GetStatusByID(
+				gtscontext.SetBarebones(ctx),
+				status.QuoteID,
+			)
+			if err != nil && !errors.Is(err, db.ErrNoEntries) {
+				errs.Appendf("error populating quoted status: %w", err)
+			}
+		}
+
+		if status.QuoteAccount == nil {
+			status.QuoteAccount, err = s.state.DB.GetAccountByID(
+				gtscontext.SetBarebones(ctx),
+				status.QuoteAccountID,
+			)
+			if err != nil {
+				errs.Appendf("error populating quoted status author: %w", err)
 			}
 		}
 	}
@@ -1407,6 +1449,39 @@ func (s *statusDB) CountStatusBoosts(ctx context.Context, statusID string) (int,
 	return s.state.Caches.DB.BoostOfIDs.Count(statusID, func() ([]string, error) {
 		return getStatusBoostIDs(ctx, s.db, statusID)
 	})
+}
+
+func (s *statusDB) GetStatusQuotes(ctx context.Context, statusID string, page *paging.Page) ([]*gtsmodel.Status, error) {
+	quoteIDs, err := s.state.Caches.DB.QuoteOfIDs.Load(statusID, func() ([]string, error) {
+		return getStatusQuoteIDs(ctx, s.db, statusID)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if page != nil {
+		quoteIDs = page.Page(quoteIDs)
+	}
+	return s.GetStatusesByIDs(ctx, quoteIDs)
+}
+
+func (s *statusDB) CountStatusQuotes(ctx context.Context, statusID string) (int, error) {
+	return s.state.Caches.DB.QuoteOfIDs.Count(statusID, func() ([]string, error) {
+		return getStatusQuoteIDs(ctx, s.db, statusID)
+	})
+}
+
+func getStatusQuoteIDs(ctx context.Context, bundb *bun.DB, statusID string) ([]string, error) {
+	var statusIDs []string
+	err := bundb.NewSelect().
+		Table("statuses").
+		Column("id").
+		Where("? = ?", bun.Ident("quote_id"), statusID).
+		Order("id DESC").
+		Scan(ctx, &statusIDs)
+	if err != nil && !errors.Is(err, db.ErrNoEntries) {
+		return nil, err
+	}
+	return statusIDs, nil
 }
 
 func (s *statusDB) GetStatusBoostIDs(ctx context.Context, statusID string) ([]string, error) {

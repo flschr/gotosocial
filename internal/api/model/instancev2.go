@@ -38,6 +38,8 @@ type InstanceV2 struct {
 	//
 	// example: 0.1.1 cb85f65
 	Version string `json:"version"`
+	// Versions of the Mastodon-flavoured client API that this instance implements.
+	APIVersions InstanceV2APIVersions `json:"api_versions"`
 	// Whether or not instance is running in DEBUG mode. Omitted if false.
 	Debug *bool `json:"debug,omitempty"`
 	// The URL for the source code of the software running on this instance, in keeping with AGPL license requirements.
@@ -171,6 +173,16 @@ type InstanceV2ConfigurationTranslation struct {
 // Configured values and limits for this instance.
 //
 // swagger:model instanceV2Configuration
+// InstanceV2APIVersions models the versions of the (Mastodon-flavoured)
+// client API implemented by this instance.
+//
+// swagger:model instanceV2APIVersions
+type InstanceV2APIVersions struct {
+	// Version of the Mastodon client API implemented by this instance.
+	// example: 7
+	Mastodon int `json:"mastodon"`
+}
+
 type InstanceV2Configuration struct {
 	// URLs of interest for clients apps.
 	URLs InstanceV2URLs `json:"urls"`

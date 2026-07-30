@@ -187,6 +187,7 @@ func (suite *InteractionTestSuite) TestGetPending() {
 		likes,
 		replies,
 		boosts,
+		true,
 		page,
 	)
 	suite.NoError(err)
@@ -235,6 +236,7 @@ func (suite *InteractionTestSuite) TestGetPendingRepliesOnly() {
 		likes,
 		replies,
 		boosts,
+		false,
 		page,
 	)
 	suite.NoError(err)
@@ -243,6 +245,46 @@ func (suite *InteractionTestSuite) TestGetPendingRepliesOnly() {
 	for _, pendingInt := range pendingInts {
 		suite.Equal(gtsmodel.InteractionReply, pendingInt.InteractionType)
 	}
+}
+
+func (suite *InteractionTestSuite) TestGetPendingQuotesOnlyForStatus() {
+	var (
+		ctx          = suite.T().Context()
+		targetStatus = suite.testStatuses["local_account_1_status_1"]
+		quoteStatus  = suite.testStatuses["local_account_2_status_1"]
+	)
+
+	request := &gtsmodel.InteractionRequest{
+		ID:                    id.NewULID(),
+		TargetStatusID:        targetStatus.ID,
+		TargetStatus:          targetStatus,
+		TargetAccountID:       targetStatus.AccountID,
+		TargetAccount:         targetStatus.Account,
+		InteractingAccountID:  quoteStatus.AccountID,
+		InteractingAccount:    quoteStatus.Account,
+		InteractionRequestURI: quoteStatus.URI + "#quote-request",
+		InteractionURI:        quoteStatus.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 quoteStatus,
+	}
+	suite.NoError(suite.state.DB.PutInteractionRequest(ctx, request))
+
+	pending, err := suite.state.DB.GetInteractionsRequestsForAcct(
+		ctx,
+		"",
+		targetStatus.ID,
+		false,
+		false,
+		false,
+		true,
+		&paging.Page{Max: paging.MaxID(id.Highest), Limit: 20},
+	)
+	suite.NoError(err)
+	suite.Len(pending, 1)
+	suite.Equal(gtsmodel.InteractionQuote, pending[0].InteractionType)
+	suite.NotNil(pending[0].Quote)
+	suite.Equal(quoteStatus.ID, pending[0].Quote.ID)
 }
 
 func (suite *InteractionTestSuite) TestInteractionRejected() {

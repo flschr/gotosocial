@@ -248,10 +248,10 @@ This allows you to do things like:
 
 - Create posts that nobody can interact with except you.
 - Create posts that only your followers / people you follow can interact with.
-- Create posts that anyone can like or boost, but only certain people can reply to.
+- Create posts that anyone can like or boost, but only certain people can reply or quote.
 - Etc.
 
-For example, the below image shows a policy for Public visibility posts that allows anyone to like or boost, but only allows followers, and people you follow, to reply.
+For example, the below image shows a policy for Public visibility posts that allows anyone to like or boost, but only allows followers, and people you follow, to reply. Quote permissions for public and unlisted posts are configured in the same section using the **Quote** policy. Followers-only posts remain quoteable only by their author so that a private post cannot be exposed through a quote.
 
 ![Policy showing "Who can like" = "anyone", "Who can reply" = "followers" and "following", and "Who can boost" = "anyone".](../public/user-settings-interaction-policy-1.png)
 
@@ -266,7 +266,7 @@ When you are finished updating your interaction policy settings, remember to cli
 If you want to reset all your policies to the initial defaults, you can click on `Reset to defaults` button.
 
 !!! danger
-    While GoToSocial respects interaction policies, it is not guaranteed that other server softwares will, and it is possible that accounts on other servers will still send out replies and boosts of your post to their followers, even if your instance forbids these interactions.
+    While GoToSocial respects interaction policies, it is not guaranteed that other server softwares will, and it is possible that accounts on other servers will still send out replies, boosts, or quotes of your post to their followers, even if your instance forbids these interactions.
     
     As more ActivityPub servers roll out support for interaction policies, this issue will hopefully diminish, but in the meantime GoToSocial can offer only a "best effort" attempt to restrict interactions with your posts according to the policies you have set.
 

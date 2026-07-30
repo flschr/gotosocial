@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"testing"
 	"time"
 
@@ -1152,6 +1153,175 @@ func (suite *FromFediAPITestSuite) TestCreateReplyRequest() {
 	//   "to": "http://fossbros-anonymous.io/users/foss_satan",
 	//   "type": "Accept"
 	// }
+}
+
+func (suite *FromFediAPITestSuite) TestForwardQuoteAuthorizationDelete() {
+	testStructs := testrig.SetupTestStructs(rMediaPath, rTemplatePath)
+	defer testrig.TearDownTestStructs(testStructs)
+
+	var (
+		ctx              = suite.T().Context()
+		quote            = suite.testStatuses["local_account_1_status_1"]
+		quoter           = suite.testAccounts["local_account_1"]
+		authorizationBy  = suite.testAccounts["remote_account_1"]
+		authorizationURI = "http://fossbros-anonymous.io/users/foss_satan/authorizations/quote-1"
+		deleteURI        = "http://fossbros-anonymous.io/users/foss_satan/deletes/quote-1"
+	)
+	remoteFollower := suite.testAccounts["remote_account_2"]
+	follow := &gtsmodel.Follow{
+		ID:              "01K1FASQQQQQQQQQQQQQQQQQQQ",
+		AccountID:       remoteFollower.ID,
+		Account:         remoteFollower,
+		TargetAccountID: quoter.ID,
+		TargetAccount:   quoter,
+		URI:             remoteFollower.URI + "/follows/01K1FASQQQQQQQQQQQQQQQQQQQ",
+		ShowReblogs:     util.Ptr(true),
+		Notify:          util.Ptr(false),
+	}
+	if err := testStructs.State.DB.Put(ctx, follow); err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K1FARQQQQQQQQQQQQQQQQQQQ",
+		TargetStatusID:        quote.ID,
+		TargetStatus:          quote,
+		TargetAccountID:       authorizationBy.ID,
+		TargetAccount:         authorizationBy,
+		InteractingAccountID:  quoter.ID,
+		InteractingAccount:    quoter,
+		InteractionRequestURI: quoter.URI + "/interaction_requests/01K1FARQQQQQQQQQQQQQQQQQQQ",
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		AuthorizationURI:      authorizationURI,
+		Quote:                 quote,
+	}
+
+	authorizationIRI, err := url.Parse(authorizationURI)
+	if err != nil {
+		suite.FailNow(err.Error())
+	}
+	if err := testStructs.Processor.Workers().ProcessFromFediAPI(
+		ctx,
+		&messages.FromFediAPI{
+			APObjectType:   ap.ObjectQuoteAuthorization,
+			APActivityType: ap.ActivityDelete,
+			APIRI:          authorizationIRI,
+			TargetURI:      deleteURI,
+			GTSModel:       req,
+			Receiving:      quoter,
+			Requesting:     authorizationBy,
+		},
+	); err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	if !testrig.WaitFor(func() bool {
+		delivery, ok := testStructs.State.Workers.Delivery.Queue.Pop()
+		if !ok {
+			return false
+		}
+		body, err := io.ReadAll(delivery.Request.Body)
+		if err != nil {
+			panic(err)
+		}
+		raw := make(map[string]any)
+		if err := json.Unmarshal(body, &raw); err != nil {
+			panic(err)
+		}
+		suite.Equal("Delete", raw["type"])
+		suite.Equal(deleteURI, raw["id"])
+		suite.Equal(authorizationURI, raw["object"])
+		suite.Equal(authorizationBy.URI, raw["actor"])
+		return true
+	}) {
+		suite.FailNow("timed out waiting for forwarded authorization Delete")
+	}
+}
+
+func (suite *FromFediAPITestSuite) TestCreateQuoteRequestPersistsInstrument() {
+	var (
+		ctx         = suite.T().Context()
+		testStructs = testrig.SetupTestStructs(rMediaPath, rTemplatePath)
+		requesting  = suite.testAccounts["remote_account_1"]
+		receiving   = suite.testAccounts["admin_account"]
+		target      = suite.testStatuses["admin_account_status_1"]
+		intReqURI   = requesting.URI + "/quote_requests/quote-persist-1"
+		quoteURI    = requesting.URI + "/statuses/quote-persist-1"
+		jsonStr     = `{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://gotosocial.org/ns"
+  ],
+  "type": "QuoteRequest",
+  "id": "` + intReqURI + `",
+  "actor": "` + requesting.URI + `",
+  "object": "` + target.URI + `",
+  "to": "` + receiving.URI + `",
+  "instrument": {
+    "attributedTo": "` + requesting.URI + `",
+    "cc": "` + requesting.FollowersURI + `",
+    "content": "<p>this quote survives a reload</p>",
+    "id": "` + quoteURI + `",
+    "quoteUri": "` + target.URI + `",
+    "to": "https://www.w3.org/ns/activitystreams#Public",
+    "type": "Note"
+  }
+}`
+	)
+	defer testrig.TearDownTestStructs(testStructs)
+
+	t, err := ap.DecodeType(ctx, io.NopCloser(bytes.NewBufferString(jsonStr)))
+	suite.NoError(err)
+	quoteReq := t.(vocab.GoToSocialQuoteRequest)
+	statusable := quoteReq.
+		GetActivityStreamsInstrument().
+		At(0).
+		GetActivityStreamsNote().(ap.Statusable)
+
+	intReq := &gtsmodel.InteractionRequest{
+		ID:                    id.NewULID(),
+		TargetStatusID:        target.ID,
+		TargetStatus:          target,
+		TargetAccountID:       receiving.ID,
+		TargetAccount:         receiving,
+		InteractingAccountID:  requesting.ID,
+		InteractingAccount:    requesting,
+		InteractionRequestURI: intReqURI,
+		InteractionURI:        quoteURI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 &gtsmodel.Status{PreApproved: true},
+	}
+	suite.NoError(testStructs.State.DB.PutInteractionRequest(ctx, intReq))
+
+	err = testStructs.Processor.Workers().ProcessFromFediAPI(
+		ctx,
+		&messages.FromFediAPI{
+			APObjectType:   ap.ActivityQuoteRequest,
+			APActivityType: ap.ActivityCreate,
+			GTSModel:       intReq,
+			APObject:       statusable,
+			Receiving:      receiving,
+			Requesting:     requesting,
+		},
+	)
+	suite.NoError(err)
+
+	// Prove the quote wasn't only carried by the worker message: evict the
+	// request cache and populate a fresh request from database relationships.
+	testStructs.State.Caches.DB.InteractionRequest.Invalidate("ID", intReq.ID)
+	storedReq, err := testStructs.State.DB.GetInteractionRequestByID(ctx, intReq.ID)
+	suite.NoError(err)
+	suite.NotNil(storedReq.Quote)
+	suite.Equal(quoteURI, storedReq.Quote.URI)
+	suite.Equal(target.ID, storedReq.Quote.QuoteID)
+	suite.True(storedReq.Quote.Flags.PendingApproval())
+
+	// Public quote policy auto-accepts the request, while the embedded status
+	// remains hidden pending the authorized Create from the remote quoter.
+	suite.True(storedReq.IsAccepted())
+	suite.NotEmpty(storedReq.AuthorizationURI)
 }
 
 func TestFromFederatorTestSuite(t *testing.T) {

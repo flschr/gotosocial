@@ -36,6 +36,10 @@ type Status interface {
 	// GetStatusByURL fetches the status from the database with matching url column.
 	GetStatusByURL(ctx context.Context, uri string) (*gtsmodel.Status, error)
 
+	// GetStatusByQuoteApprovalURI fetches the status carrying the given
+	// FEP-044f quote authorization URI.
+	GetStatusByQuoteApprovalURI(ctx context.Context, uri string) (*gtsmodel.Status, error)
+
 	// GetStatusByIdempotencyKey fetches a local status previously created with
 	// the given account-, application-, and client-scoped idempotency key.
 	GetStatusByIdempotencyKey(ctx context.Context, accountID string, applicationID string, key string) (*gtsmodel.Status, error)
@@ -110,6 +114,12 @@ type Status interface {
 
 	// CountStatusBoosts returns the number of stored boosts for status ID.
 	CountStatusBoosts(ctx context.Context, statusID string) (int, error)
+
+	// GetStatusQuotes returns all statuses whose quote_id column refers to the given status ID.
+	GetStatusQuotes(ctx context.Context, statusID string, page *paging.Page) ([]*gtsmodel.Status, error)
+
+	// CountStatusQuotes returns the number of stored statuses that quote the given status ID.
+	CountStatusQuotes(ctx context.Context, statusID string) (int, error)
 
 	// IsStatusBoostedBy checks whether the given status ID is boosted by account ID.
 	IsStatusBoostedBy(ctx context.Context, statusID string, accountID string) (bool, error)

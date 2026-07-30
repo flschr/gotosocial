@@ -368,6 +368,11 @@ func (c *Caches) OnInvalidateStatus(status *gtsmodel.Status) {
 		c.DB.InReplyToIDs.Invalidate(status.InReplyToID)
 	}
 
+	if status.QuoteID != "" {
+		// Invalidate the "who quotes this" ID list of the quoted status.
+		c.DB.QuoteOfIDs.Invalidate(status.QuoteID)
+	}
+
 	if status.PollID != "" {
 		// Invalidate cache of attached poll ID.
 		c.DB.Poll.Invalidate("ID", status.PollID)

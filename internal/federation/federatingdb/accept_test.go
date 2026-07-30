@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"io"
 	"testing"
+	"time"
 
 	"code.superseriousbusiness.org/activity/streams/vocab"
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
@@ -113,6 +114,91 @@ func (suite *AcceptTestSuite) TestAcceptRemoteReplyRequest() {
 		},
 		msg,
 	)
+}
+
+func (suite *AcceptTestSuite) TestAcceptLocalQuoteRequest() {
+	ctx := createTestContext(
+		suite.T(),
+		suite.testAccounts["local_account_1"],
+		suite.testAccounts["remote_account_1"],
+	)
+
+	quote := suite.testStatuses["local_account_1_status_1"]
+	target := suite.testStatuses["remote_account_1_status_1"]
+	quote.QuoteID = target.ID
+	quote.Quote = target
+	quote.QuoteURI = target.URI
+	quote.QuoteAccountID = target.AccountID
+	quote.QuoteAccount = target.Account
+	if err := suite.state.DB.UpdateStatus(
+		ctx,
+		quote,
+		"quote_id",
+		"quote_uri",
+		"quote_account_id",
+	); err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K4STEH5NWAXBZ4TFNGQQQ985",
+		TargetStatusID:        target.ID,
+		TargetStatus:          target,
+		TargetAccountID:       target.AccountID,
+		TargetAccount:         target.Account,
+		InteractingAccountID:  quote.AccountID,
+		InteractingAccount:    quote.Account,
+		InteractionRequestURI: quote.AccountURI + "/quote_requests/01K4STEH5NWAXBZ4TFNGQQQ985",
+		InteractionURI:        quote.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                new(bool),
+		Quote:                 quote,
+	}
+	*req.Polite = true
+	if err := suite.state.DB.PutInteractionRequest(ctx, req); err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	acceptJSON := `{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://gotosocial.org/ns"
+  ],
+  "type": "Accept",
+  "id": "http://fossbros-anonymous.io/users/foss_satan/accepts/quote-1",
+  "actor": "http://fossbros-anonymous.io/users/foss_satan",
+  "object": {
+    "type": "QuoteRequest",
+    "id": "` + req.InteractionRequestURI + `",
+    "actor": "` + quote.AccountURI + `",
+    "object": "` + target.URI + `",
+    "instrument": "` + quote.URI + `"
+  },
+  "result": "http://fossbros-anonymous.io/users/foss_satan/authorizations/quote-1"
+}`
+
+	t, err := ap.DecodeType(ctx, io.NopCloser(bytes.NewBufferString(acceptJSON)))
+	suite.NoError(err)
+	accept := t.(vocab.ActivityStreamsAccept)
+	suite.NoError(suite.federatingDB.Accept(ctx, accept))
+
+	storedReq, err := suite.state.DB.GetInteractionRequestByID(ctx, req.ID)
+	suite.NoError(err)
+	suite.WithinDuration(time.Now(), storedReq.AcceptedAt, time.Second)
+	suite.Equal(
+		"http://fossbros-anonymous.io/users/foss_satan/authorizations/quote-1",
+		storedReq.AuthorizationURI,
+	)
+
+	storedQuote, err := suite.state.DB.GetStatusByID(ctx, quote.ID)
+	suite.NoError(err)
+	suite.Equal(storedReq.AuthorizationURI, storedQuote.QuoteApprovalURI)
+
+	msg, ok := suite.state.Workers.Federator.Queue.PopCtx(ctx)
+	suite.True(ok)
+	suite.Equal(ap.ActivityQuoteRequest, msg.APObjectType)
+	suite.Equal(ap.ActivityAccept, msg.APActivityType)
+	suite.Equal(req.ID, msg.GTSModel.(*gtsmodel.InteractionRequest).ID)
 }
 
 func TestAcceptTestSuite(t *testing.T) {

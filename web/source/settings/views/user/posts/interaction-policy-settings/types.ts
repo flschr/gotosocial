@@ -29,7 +29,7 @@ export interface PolicyFormSub {
 /* Form / select types */
 
 export type Visibility = "public" | "unlisted" | "private"; 
-export type Action = "favourite" | "reply" | "reblog";
+export type Action = "favourite" | "reply" | "reblog" | "quote";
 export type BasicValue = "anyone" | "anyone_with_approval" | "just_me" | "something_else";
 export type SomethingElseValue = "automatic_approval" | "manual_approval" | "no";
 export type Audience = "followers" | "following" | "mentioned_accounts" | "everyone_else";

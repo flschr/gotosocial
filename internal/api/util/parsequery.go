@@ -102,6 +102,7 @@ const (
 	InteractionFavouritesKey = "favourites"
 	InteractionRepliesKey    = "replies"
 	InteractionReblogsKey    = "reblogs"
+	InteractionQuotesKey     = "quotes"
 
 	/* Web view keys */
 
@@ -235,6 +236,10 @@ func ParseInteractionReplies(value string, defaultValue bool) (bool, gtserror.Wi
 
 func ParseInteractionReblogs(value string, defaultValue bool) (bool, gtserror.WithCode) {
 	return parseBool(value, defaultValue, InteractionReblogsKey)
+}
+
+func ParseInteractionQuotes(value string, defaultValue bool) (bool, gtserror.WithCode) {
+	return parseBool(value, defaultValue, InteractionQuotesKey)
 }
 
 func ParseWebIncludeBoosts(value string, defaultValue *bool) (*bool, gtserror.WithCode) {

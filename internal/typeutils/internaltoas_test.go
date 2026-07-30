@@ -586,7 +586,7 @@ func (suite *InternalToASTestSuite) TestStatusToAS() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/the_mighty_zork"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -676,7 +676,7 @@ func (suite *InternalToASTestSuite) TestStatusWithTagsToASWithIDs() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -783,7 +783,7 @@ func (suite *InternalToASTestSuite) TestStatusWithTagsToASFromDB() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -877,7 +877,7 @@ func (suite *InternalToASTestSuite) TestStatusToASWithMentions() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -994,7 +994,7 @@ func (suite *InternalToASTestSuite) TestStatusToASPoliteApproved() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -1104,7 +1104,7 @@ func (suite *InternalToASTestSuite) TestStatusToASPImpoliteApproved() {
     },
     "canQuote": {
       "automaticApproval": [
-        "http://localhost:8080/users/admin"
+        "https://www.w3.org/ns/activitystreams#Public"
       ]
     },
     "canReply": {
@@ -1691,7 +1691,7 @@ func (suite *InternalToASTestSuite) TestInteractionReqToASInteractionRequestable
       },
       "canQuote": {
         "automaticApproval": [
-          "http://fossbros-anonymous.io/users/foss_satan"
+          "https://www.w3.org/ns/activitystreams#Public"
         ]
       },
       "canReply": {
@@ -1719,6 +1719,44 @@ func (suite *InternalToASTestSuite) TestInteractionReqToASInteractionRequestable
   "to": "http://localhost:8080/users/the_mighty_zork",
   "type": "ReplyRequest"
 }`, string(b))
+}
+
+func (suite *InternalToASTestSuite) TestQuoteReqToASInteractionRequestable() {
+	interactingAccount := suite.testAccounts["local_account_1"]
+	targetAccount := suite.testAccounts["remote_account_1"]
+	quotingStatus := new(gtsmodel.Status)
+	*quotingStatus = *suite.testStatuses["local_account_1_status_1"]
+	targetStatus := suite.testStatuses["remote_account_1_status_1"]
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01J1AKMZ8JE5NW0ZSFTRC1JJNQ",
+		TargetStatusID:        targetStatus.ID,
+		TargetStatus:          targetStatus,
+		TargetAccountID:       targetAccount.ID,
+		TargetAccount:         targetAccount,
+		InteractingAccountID:  interactingAccount.ID,
+		InteractingAccount:    interactingAccount,
+		InteractionRequestURI: "http://localhost:8080/users/the_mighty_zork/quote_requests/01J1AKMZ8JE5NW0ZSFTRC1JJNQ",
+		InteractionURI:        quotingStatus.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Quote:                 quotingStatus,
+		Polite:                util.Ptr(true),
+	}
+
+	request, err := suite.typeconverter.InteractionReqToASInteractionRequestable(
+		suite.T().Context(),
+		req,
+	)
+	suite.NoError(err)
+	suite.Equal(ap.ActivityQuoteRequest, request.GetTypeName())
+	suite.Equal(req.InteractionRequestURI, ap.GetJSONLDId(request).String())
+	objectIRI, err := ap.GetOneObjectIRI(request)
+	suite.NoError(err)
+	suite.Equal(targetStatus.URI, objectIRI.String())
+
+	instruments := ap.ExtractInstruments(request)
+	suite.Len(instruments, 1)
+	suite.Equal(quotingStatus.URI, ap.GetJSONLDId(instruments[0].GetType()).String())
 }
 
 func TestInternalToASTestSuite(t *testing.T) {

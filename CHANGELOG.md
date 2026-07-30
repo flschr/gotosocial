@@ -4,14 +4,53 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
-## Unreleased
+## v0.22.1-plus.5 — 2026-07-30
 
-### Reliable Mastodon quote cleanup
+### Native quote posts
 
-- Remove Mastodon's redundant leading `RE:` quote fallback whenever the
-  structured `quote-inline` marker is present, including quotes without a
-  matching classic preview card.
-- Preserve ordinary links and user-authored `RE:` paragraphs.
+- Create and display Mastodon-compatible native quotes, including the quoted
+  status, quote state, quote count, and the accounts that quoted a status.
+- Advertise quote support through the Mastodon API so compatible clients can
+  offer their native quote composer.
+- Recognize Mastodon quote fallbacks and preserve ordinary links and
+  user-authored `RE:` paragraphs.
+
+### Quote authorization and privacy
+
+- Enforce FEP-044f quote interaction policies across local and federated
+  quotes.
+- Keep approval-required quotes pending until accepted, handle typed
+  rejections, and retain durable authorization revocations.
+- Prevent another account from quoting followers-only or direct posts,
+  including when a malformed received policy claims broader permission.
+- Preserve pending and authorization state across retries, cache eviction,
+  and restarts.
+
+### Quote controls and review
+
+- Add **Quote** controls to the default interaction policies for public and
+  unlisted posts.
+- Include pending quotes in interaction requests with filtering, list
+  summaries, and the complete quoting status in the review view.
+- Keep `can_quote` optional on API input for compatibility with older clients
+  while always returning the effective quote policy in API responses.
+
+### Client compatibility
+
+- Add the Mastodon-compatible grouped notifications endpoint at
+  `/api/v2/notifications`.
+- Expand Plus CI coverage for quote policy, interaction request, federation,
+  retry, visibility, and revocation paths.
+
+### Upgrade notes
+
+- This release remains based on GoToSocial 0.22.1.
+- A database migration adds native quote relationships and authorization
+  metadata; it runs automatically on startup.
+- No new configuration key is required.
+- Existing quote-fallback display settings remain independent of quote
+  permissions.
+- Deploy the binary, web assets, and templates from the same release archive.
 
 ## v0.22.1-plus.4 — 2026-07-25
 

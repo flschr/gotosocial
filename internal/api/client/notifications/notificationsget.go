@@ -195,6 +195,84 @@ func (m *Module) NotificationsGETHandler(c *gin.Context) {
 	apiutil.JSON(c, http.StatusOK, resp.Items)
 }
 
+// NotificationsGETHandlerV2 swagger:operation GET /api/v2/notifications v2Notifications
+//
+// Get notifications for the authenticated account, in Mastodon 4.3+ grouped
+// form. GoToSocial doesn't group notifications yet, so each notification is
+// returned as its own single-item group.
+//
+//	---
+//	tags:
+//	- notifications
+//
+//	produces:
+//	- application/json
+//
+//	security:
+//	- OAuth2 Bearer:
+//		- read:notifications
+//
+//	responses:
+//		'200':
+//			headers:
+//				Link:
+//					type: string
+//					description: Links to the next and previous queries.
+//			schema:
+//				"$ref": "#/definitions/groupedNotificationsResults"
+//		'400':
+//			schema:
+//				"$ref": "#/definitions/error"
+//			description: bad request
+//		'401':
+//			schema:
+//				"$ref": "#/definitions/error"
+//			description: unauthorized
+func (m *Module) NotificationsGETHandlerV2(c *gin.Context) {
+	authed, errWithCode := apiutil.TokenAuth(c,
+		true, true, true, true,
+		apiutil.ScopeReadNotifications,
+	)
+	if errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+
+	if _, errWithCode := apiutil.NegotiateAccept(c, apiutil.JSONAcceptHeaders...); errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+
+	page, errWithCode := paging.ParseIDPage(c,
+		1,  // min limit
+		80, // max limit
+		20, // default limit
+	)
+	if errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+
+	ctx := c.Request.Context()
+	resp, linkHeader, errWithCode := m.processor.Timeline().NotificationsGetGrouped(
+		ctx,
+		authed.Account,
+		page,
+		parseNotificationTypes(ctx, c.QueryArray(TypesKey)),
+		parseNotificationTypes(ctx, c.QueryArray(ExcludeTypesKey)),
+	)
+	if errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+
+	if linkHeader != "" {
+		c.Header("Link", linkHeader)
+	}
+
+	apiutil.JSON(c, http.StatusOK, resp)
+}
+
 // parseNotificationTypes converts the given slice of string values
 // to gtsmodel notification types, logging + skipping unknown types.
 func parseNotificationTypes(

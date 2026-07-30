@@ -95,6 +95,13 @@ var regular *bluemonday.Policy = func() *bluemonday.Policy {
 	// `<span class="h-card"><a href="https://example.org/users/targetAccount" class="u-url mention">@<span>someusername</span></a></span>`
 	p.AllowAttrs("class").OnElements("span")
 
+	// Class needed on <p> for the "quote-inline" marker on the leading
+	// RE: fallback paragraph of a quote post. Native-quote-aware clients
+	// (Phanpy, Mastodon web, ...) use this class to hide the redundant
+	// fallback line once they render the structured quote card. Restricted
+	// to exactly "quote-inline" so no other styling can be smuggled in.
+	p.AllowAttrs("class").Matching(regexp.MustCompile("^quote-inline$")).OnElements("p")
+
 	/*
 		LANGUAGE FORMATTING
 	*/

@@ -36,7 +36,7 @@ jobs:
       CGO_ENABLED: "0"
       GOFLAGS: "-mod=vendor"
       PLUS_BASE_VERSION: "0.22.1"
-      PLUS_DEV_RELEASE: "4"
+      PLUS_DEV_RELEASE: "5"
       GTS_TEST_POSTGRES_DSN: "postgres://gotosocial:gotosocial@localhost:5432/gotosocial_test?sslmode=disable"
 
     steps:
@@ -97,15 +97,21 @@ jobs:
           test_log="$(mktemp)"
           trap 'rm -f "${test_log}"' EXIT
           if ! go test -tags="netgo osusergo static_build kvformat timetzdata" -timeout=20m \
+            ./internal/api/client/interactionrequests \
             ./internal/api/client/instance \
+            ./internal/api/util \
             ./internal/bluesky \
             ./internal/cleaner \
             ./internal/config \
             ./internal/db/bundb \
             ./internal/db/bundb/migrations \
             ./internal/federation/dereferencing \
+            ./internal/federation/federatingdb \
+            ./internal/filter/interaction \
             ./internal/middleware \
             ./internal/processing \
+            ./internal/processing/interactionrequests \
+            ./internal/processing/workers \
             ./internal/typeutils \
             ./internal/web >"${test_log}" 2>&1
           then

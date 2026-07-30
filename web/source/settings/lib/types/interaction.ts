@@ -39,6 +39,7 @@ export interface InteractionPolicy {
 	can_favourite: InteractionPolicyEntry;
 	can_reply: InteractionPolicyEntry;
 	can_reblog: InteractionPolicyEntry;
+	can_quote: InteractionPolicyEntry;
 }
 
 export interface InteractionPolicyEntry {
@@ -78,7 +79,7 @@ export interface InteractionRequest {
 	/**
 	 * Type of interaction being requested.
 	 */
-	type: "favourite" | "reply" | "reblog";
+	type: "favourite" | "reply" | "reblog" | "quote";
 	/**
 	 * Time when the request was created.
 	 */
@@ -95,6 +96,10 @@ export interface InteractionRequest {
 	 * Replying status, if type = "reply".
 	 */
 	reply?: Status;
+	/**
+	 * Quoting status, if type = "quote".
+	 */
+	quote?: Status;
 }
 
 /**
@@ -117,6 +122,10 @@ export interface SearchInteractionRequestsParams {
 	 * If true or not set, include reblogs in the results.
 	 */
 	reblogs?: boolean;
+	/**
+	 * If true or not set, include quotes in the results.
+	 */
+	quotes?: boolean;
 	/**
 	 * If set, show only requests older (ie., lower) than the given ID.
 	 * Request with the given ID will not be included in response.

@@ -333,6 +333,68 @@ func (f *Filter) StatusBoostable(
 	}
 }
 
+// StatusQuoteable checks whether the requester is permitted to quote the
+// given status, according to the status's canQuote interaction policy (or the
+// default for its visibility). Mirrors StatusBoostable.
+func (f *Filter) StatusQuoteable(
+	ctx context.Context,
+	requester *gtsmodel.Account,
+	status *gtsmodel.Status,
+) (*gtsmodel.PolicyCheckResult, error) {
+	if requester.ID == status.AccountID {
+		// Status author themself can
+		// always quote their own status.
+		return &gtsmodel.PolicyCheckResult{
+			Permission:          gtsmodel.PolicyPermissionAutomaticApproval,
+			PermissionMatchedOn: util.Ptr(gtsmodel.PolicyValueAuthor),
+		}, nil
+	}
+
+	switch {
+	// Never let another account quote a followers-only or direct status,
+	// even if a malformed or malicious policy claims otherwise. A quote
+	// may be public and would expose the private target's URI.
+	case !status.ToOrCcPublic():
+		return &gtsmodel.PolicyCheckResult{
+			Permission: gtsmodel.PolicyPermissionForbidden,
+		}, nil
+
+	// If status has a canQuote sub-policy set, check against that.
+	case status.InteractionPolicy != nil && status.InteractionPolicy.CanQuote != nil:
+		return f.checkPolicy(
+			ctx,
+			requester,
+			status,
+			status.InteractionPolicy.CanQuote,
+		)
+
+	// No policy set but local: check against the default
+	// policy for this visibility (we're policy-aware).
+	case status.Flags.Local():
+		policy := gtsmodel.DefaultInteractionPolicyFor(status.Visibility)
+		return f.checkPolicy(
+			ctx,
+			requester,
+			status,
+			policy.CanQuote,
+		)
+
+	// Remote status from an instance that doesn't set
+	// canQuote: quotable if it's unlisted or public.
+	case status.ToOrCcPublic():
+		return &gtsmodel.PolicyCheckResult{
+			Permission: gtsmodel.PolicyPermissionAutomaticApproval,
+		}, nil
+
+	// Not permitted by any of the
+	// above checks, so it's forbidden.
+	default:
+		return &gtsmodel.PolicyCheckResult{
+			Permission: gtsmodel.PolicyPermissionForbidden,
+		}, nil
+	}
+}
+
 func (f *Filter) checkPolicy(
 	ctx context.Context,
 	requester *gtsmodel.Account,

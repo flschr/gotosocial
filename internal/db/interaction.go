@@ -59,7 +59,7 @@ type Interaction interface {
 	// GetInteractionsRequestsForAcct returns pending interactions targeting
 	// the given (optional) account ID and the given (optional) status ID.
 	//
-	// At least one of `likes`, `replies`, or `boosts` must be true.
+	// At least one of `likes`, `replies`, `boosts`, or `quotes` must be true.
 	GetInteractionsRequestsForAcct(
 		ctx context.Context,
 		acctID string,
@@ -67,6 +67,7 @@ type Interaction interface {
 		likes bool,
 		replies bool,
 		boosts bool,
+		quotes bool,
 		page *paging.Page,
 	) ([]*gtsmodel.InteractionRequest, error)
 

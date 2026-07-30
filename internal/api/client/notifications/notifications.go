@@ -29,6 +29,8 @@ const (
 	IDKey = "id"
 	// BasePath is the base path for serving the notification API, minus the 'api' prefix.
 	BasePath = "/v1/notifications"
+	// BasePathV2 is the base path for the grouped (Mastodon 4.3+) notifications API.
+	BasePathV2 = "/v2/notifications"
 	// BasePathWithID is just the base path with the ID key in it.
 	// Use this anywhere you need to know the ID of the notification being queried.
 	BasePathWithID    = BasePath + "/:" + IDKey
@@ -56,6 +58,7 @@ func New(processor *processing.Processor) *Module {
 
 func (m *Module) Route(attachHandler func(method string, path string, f ...gin.HandlerFunc) gin.IRoutes) {
 	attachHandler(http.MethodGet, BasePath, m.NotificationsGETHandler)
+	attachHandler(http.MethodGet, BasePathV2, m.NotificationsGETHandlerV2)
 	attachHandler(http.MethodGet, BasePathWithID, m.NotificationGETHandler)
 	attachHandler(http.MethodPost, BasePathWithClear, m.NotificationsClearPOSTHandler)
 }

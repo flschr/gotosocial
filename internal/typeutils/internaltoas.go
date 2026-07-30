@@ -537,6 +537,23 @@ func (c *Converter) StatusToAS(ctx context.Context, s *gtsmodel.Status) (ap.Stat
 		ap.AppendInReplyTo(statusable, rURI)
 	}
 
+	// `quote` / `quoteUri` / `_misskey_quote` properties.
+	//
+	// GtS's vendored ActivityStreams vocab has no typed property to carry
+	// the quoted-status URI (FEP-044f), so we ride it on the Note/Question
+	// unknown-properties map, which go-fed re-emits verbatim on both the
+	// pull (GET) and push (deliver) serialize paths. We emit all three
+	// common aliases for maximum interop with Mastodon, Misskey/Fedibird.
+	if s.QuoteURI != "" {
+		if wu, ok := statusable.(withUnknownProperties); ok {
+			if unknown := wu.GetUnknownProperties(); unknown != nil {
+				unknown["quote"] = s.QuoteURI          // FEP-044f
+				unknown["quoteUri"] = s.QuoteURI       // Mastodon
+				unknown["_misskey_quote"] = s.QuoteURI // Misskey / Fedibird
+			}
+		}
+	}
+
 	// `published` and `updatedAt` properties.
 	ap.SetPublished(statusable, s.CreatedAt)
 	if at := s.EditedAt; !at.IsZero() {
@@ -711,6 +728,19 @@ func (c *Converter) StatusToAS(ctx context.Context, s *gtsmodel.Status) (ap.Stat
 
 		if err != nil {
 			return nil, gtserror.Newf("error setting reply authorization field(s): %w", err)
+		}
+	}
+
+	// `quoteAuthorization` property (FEP-044f), for an approved quote.
+	if s.QuoteApprovalURI != "" {
+		err := c.appendASInteractionAuthorization(
+			ctx,
+			s.QuoteApprovalURI,
+			statusable,
+		)
+
+		if err != nil {
+			return nil, gtserror.Newf("error setting quote authorization field: %w", err)
 		}
 	}
 
@@ -1887,18 +1917,46 @@ func (c *Converter) InteractionPolicyToASInteractionPolicy(
 
 	/*
 		CAN QUOTE
-		todo: GtS doesn't support quote posts yet so
-		just set restrictive quote policy (self only).
 	*/
 
+	// Older stored policies may lack a canQuote sub-policy;
+	// fall back to the default for the status's visibility.
+	canQuoteRules := interactionPolicy.CanQuote
+	if canQuoteRules == nil {
+		canQuoteRules = gtsmodel.DefaultCanQuoteFor(status.Visibility)
+	}
+
+	// Build canQuote.
 	canQuote := streams.NewGoToSocialCanQuote()
+
+	// Build canQuote.automaticApproval.
 	canQuoteAutomaticApprovalProp := streams.NewGoToSocialAutomaticApprovalProperty()
-	authorIRI, err := url.Parse(status.Account.URI)
-	if err != nil {
+	if err := populateValuesForProp(
+		canQuoteAutomaticApprovalProp,
+		status,
+		canQuoteRules.AutomaticApproval,
+	); err != nil {
 		return nil, gtserror.Newf("error setting canQuote.automaticApproval: %w", err)
 	}
-	canQuoteAutomaticApprovalProp.AppendIRI(authorIRI)
+
+	// Set canQuote.automaticApproval.
 	canQuote.SetGoToSocialAutomaticApproval(canQuoteAutomaticApprovalProp)
+
+	// Only bother building manualApproval if it has entries.
+	if len(canQuoteRules.ManualApproval) != 0 {
+		canQuoteManualApprovalProp := streams.NewGoToSocialManualApprovalProperty()
+		if err := populateValuesForProp(
+			canQuoteManualApprovalProp,
+			status,
+			canQuoteRules.ManualApproval,
+		); err != nil {
+			return nil, gtserror.Newf("error setting canQuote.manualApproval: %w", err)
+		}
+
+		canQuote.SetGoToSocialManualApproval(canQuoteManualApprovalProp)
+	}
+
+	// Set canQuote on the policy.
 	canQuoteProp := streams.NewGoToSocialCanQuoteProperty()
 	canQuoteProp.AppendGoToSocialCanQuote(canQuote)
 	policy.SetGoToSocialCanQuote(canQuoteProp)
@@ -1984,6 +2042,10 @@ func (c *Converter) InteractionReqToASAccept(
 		case gtsmodel.InteractionAnnounce:
 			v := streams.NewGoToSocialAnnounceRequest()
 			objProp.AppendGoToSocialAnnounceRequest(v)
+			ir = v
+		case gtsmodel.InteractionQuote:
+			v := streams.NewGoToSocialQuoteRequest()
+			objProp.AppendGoToSocialQuoteRequest(v)
 			ir = v
 		}
 
@@ -2129,6 +2191,12 @@ func (c *Converter) InteractionReqToASReject(
 			v := streams.NewGoToSocialAnnounceRequest()
 			objProp.AppendGoToSocialAnnounceRequest(v)
 			ir = v
+		case gtsmodel.InteractionQuote:
+			v := streams.NewGoToSocialQuoteRequest()
+			objProp.AppendGoToSocialQuoteRequest(v)
+			ir = v
+		default:
+			return nil, gtserror.Newf("unsupported interaction request type %v", req.InteractionType)
 		}
 
 		// URI of the interaction request.
@@ -2239,6 +2307,8 @@ func (c *Converter) InteractionReqToASAuthorization(
 		auth = streams.NewGoToSocialReplyAuthorization()
 	case gtsmodel.InteractionAnnounce:
 		auth = streams.NewGoToSocialAnnounceAuthorization()
+	case gtsmodel.InteractionQuote:
+		auth = streams.NewGoToSocialQuoteAuthorization()
 	}
 
 	// Set the ID.
@@ -2335,6 +2405,10 @@ func (c *Converter) appendASInteractionAuthorization(
 		if waa, ok := t.(ap.WithAnnounceAuthorization); ok {
 			ap.SetAnnounceAuthorization(waa, approvedByURI)
 		}
+	case gtsmodel.InteractionQuote:
+		if wqa, ok := t.(ap.WithQuoteAuthorization); ok {
+			ap.SetQuoteAuthorization(wqa, approvedByURI)
+		}
 	}
 
 	return nil
@@ -2359,7 +2433,6 @@ func (c *Converter) InteractionReqToASInteractionRequestable(
 	ctx context.Context,
 	req *gtsmodel.InteractionRequest,
 ) (ap.InteractionRequestable, error) {
-
 	// Actor of the interaction aka the interacting account.
 	actorIRI, err := url.Parse(req.InteractingAccount.URI)
 	if err != nil {
@@ -2423,6 +2496,26 @@ func (c *Converter) InteractionReqToASInteractionRequestable(
 			return nil, gtserror.Newf("error converting announce: %w", err)
 		}
 		instrumentProp.AppendActivityStreamsAnnounce(announce)
+
+	// QuoteRequest
+	case gtsmodel.InteractionQuote:
+		v = streams.NewGoToSocialQuoteRequest()
+		statusable, err := c.StatusToAS(ctx, req.Quote)
+		if err != nil {
+			return nil, gtserror.Newf("error converting quote: %w", err)
+		}
+
+		switch t := statusable.(type) {
+		case vocab.ActivityStreamsNote:
+			instrumentProp.AppendActivityStreamsNote(t)
+		case vocab.ActivityStreamsQuestion:
+			instrumentProp.AppendActivityStreamsQuestion(t)
+		default:
+			return nil, gtserror.Newf("type %T not supported as instrument of QuoteRequest", t)
+		}
+
+	default:
+		return nil, gtserror.Newf("unsupported interaction request type %v", req.InteractionType)
 	}
 
 	// Set ID.

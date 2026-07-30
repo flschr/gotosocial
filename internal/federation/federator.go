@@ -105,6 +105,7 @@ func NewFederator(
 			federatingDB.LikeRequest,
 			federatingDB.ReplyRequest,
 			federatingDB.AnnounceRequest,
+			federatingDB.QuoteRequest,
 		},
 	}
 	actor := newFederatingActor(f, f, federatingDB, clock)

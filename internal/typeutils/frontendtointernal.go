@@ -178,6 +178,26 @@ func APIInteractionPolicyToInteractionPolicy(
 		return nil, err
 	}
 
+	canQuote := gtsmodel.DefaultCanQuoteFor(visibility)
+	if p.CanQuote != nil {
+		canQuoteAutomaticApproval, err := convertURIs(p.CanQuote.AutomaticApproval)
+		if err != nil {
+			err := fmt.Errorf("error converting %s.can_quote.automatic_approval: %w", v, err)
+			return nil, err
+		}
+
+		canQuoteManualApproval, err := convertURIs(p.CanQuote.ManualApproval)
+		if err != nil {
+			err := fmt.Errorf("error converting %s.can_quote.manual_approval: %w", v, err)
+			return nil, err
+		}
+
+		canQuote = &gtsmodel.PolicyRules{
+			AutomaticApproval: canQuoteAutomaticApproval,
+			ManualApproval:    canQuoteManualApproval,
+		}
+	}
+
 	// Normalize URIs.
 	//
 	// 1. Ensure canLikeAlways, canReplyAlways,
@@ -212,6 +232,7 @@ func APIInteractionPolicyToInteractionPolicy(
 	canLikeAutomaticApproval = ensureIncludesSelf(canLikeAutomaticApproval)
 	canReplyAutomaticApproval = ensureIncludesSelf(canReplyAutomaticApproval)
 	canAnnounceAutomaticApproval = ensureIncludesSelf(canAnnounceAutomaticApproval)
+	canQuote.AutomaticApproval = ensureIncludesSelf(canQuote.AutomaticApproval)
 
 	// 2. Ensure canReplyAlways includes mentioned
 	//    accounts (either explicitly or within public).
@@ -241,6 +262,7 @@ func APIInteractionPolicyToInteractionPolicy(
 			AutomaticApproval: canAnnounceAutomaticApproval,
 			ManualApproval:    canAnnounceManualApproval,
 		},
+		CanQuote: canQuote,
 	}, nil
 }
 

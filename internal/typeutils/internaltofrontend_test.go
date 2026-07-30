@@ -23,10 +23,12 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
+	"code.superseriousbusiness.org/gotosocial/internal/uris"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
 	"code.superseriousbusiness.org/gotosocial/testrig"
 	"github.com/stretchr/testify/suite"
@@ -667,7 +669,21 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontend() {
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -810,7 +826,21 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendHTMLContentWarning
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -955,7 +985,21 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendApplicationDeleted
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -1082,7 +1126,21 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownAttachments
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -1154,6 +1212,12 @@ func (suite *InternalToFrontendTestSuite) TestStatusToWebStatus() {
       "manual_approval": []
     },
     "can_reblog": {
+      "automatic_approval": [
+        "public"
+      ],
+      "manual_approval": []
+    },
+    "can_quote": {
       "automatic_approval": [
         "public"
       ],
@@ -1401,7 +1465,21 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownLanguage() 
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }`, string(b))
 }
@@ -1495,6 +1573,12 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendPartialInteraction
       "manual_approval": []
     },
     "can_reblog": {
+      "automatic_approval": [
+        "author"
+      ],
+      "manual_approval": []
+    },
+    "can_quote": {
       "automatic_approval": [
         "author"
       ],
@@ -1632,7 +1716,21 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPendingApproval()
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
+  },
+  "quote_approval": {
+    "automatic": [
+      "public"
+    ],
+    "manual": [],
+    "current_user": "automatic"
   }
 }
 `, out.String())
@@ -1850,6 +1948,9 @@ func (suite *InternalToFrontendTestSuite) TestInstanceV2ToFrontend() {
   "account_domain": "localhost:8080",
   "title": "GoToSocial Testrig Instance",
   "version": "0.0.0-testrig",
+  "api_versions": {
+    "mastodon": 7
+  },
   "source_url": "https://github.com/flschr/gotosocial-plus",
   "description": "\u003cp\u003eHere's a fuller description of the GoToSocial testrig instance.\u003c/p\u003e\u003cp\u003eThis instance is for testing purposes only. It doesn't federate at all. Go check out \u003ca href=\"https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/testrig\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003ehttps://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/testrig\u003c/a\u003e and \u003ca href=\"https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/CONTRIBUTING.md#testing\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003ehttps://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/CONTRIBUTING.md#testing\u003c/a\u003e\u003c/p\u003e\u003cp\u003eUsers on this instance:\u003c/p\u003e\u003cul\u003e\u003cli\u003e\u003cspan class=\"h-card\"\u003e\u003ca href=\"http://localhost:8080/@admin\" class=\"u-url mention\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003e@\u003cspan\u003eadmin\u003c/span\u003e\u003c/a\u003e\u003c/span\u003e (admin!).\u003c/li\u003e\u003cli\u003e\u003cspan class=\"h-card\"\u003e\u003ca href=\"http://localhost:8080/@1happyturtle\" class=\"u-url mention\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003e@\u003cspan\u003e1happyturtle\u003c/span\u003e\u003c/a\u003e\u003c/span\u003e (posts about turtles, we don't know why).\u003c/li\u003e\u003cli\u003e\u003cspan class=\"h-card\"\u003e\u003ca href=\"http://localhost:8080/@the_mighty_zork\" class=\"u-url mention\" rel=\"nofollow noreferrer noopener\" target=\"_blank\"\u003e@\u003cspan\u003ethe_mighty_zork\u003c/span\u003e\u003c/a\u003e\u003c/span\u003e (who knows).\u003c/li\u003e\u003c/ul\u003e\u003cp\u003eIf you need to edit the models for the testrig, you can do so at \u003ccode\u003einternal/testmodels.go\u003c/code\u003e.\u003c/p\u003e",
   "description_text": "Here's a fuller description of the GoToSocial testrig instance.\n\nThis instance is for testing purposes only. It doesn't federate at all. Go check out https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/testrig and https://codeberg.org/superseriousbusiness/gotosocial/src/branch/main/CONTRIBUTING.md#testing\n\nUsers on this instance:\n\n- @admin (admin!).\n- @1happyturtle (posts about turtles, we don't know why).\n- @the_mighty_zork (who knows).\n\nIf you need to edit the models for the testrig, you can do so at `+"`"+`internal/testmodels.go`+"`"+`.",
@@ -2629,7 +2730,21 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend2() {
             "me"
           ],
           "manual_approval": []
+        },
+        "can_quote": {
+          "automatic_approval": [
+            "public",
+            "me"
+          ],
+          "manual_approval": []
         }
+      },
+      "quote_approval": {
+        "automatic": [
+          "public"
+        ],
+        "manual": [],
+        "current_user": "automatic"
       }
     }
   ],
@@ -3124,7 +3239,21 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
           "me"
         ],
         "manual_approval": []
+      },
+      "can_quote": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   },
   "reply": {
@@ -3216,7 +3345,21 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
           "me"
         ],
         "manual_approval": []
+      },
+      "can_quote": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   }
 }`, string(b))
@@ -3376,7 +3519,21 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPISelfConvo() {
           "me"
         ],
         "manual_approval": []
+      },
+      "can_quote": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   }
 }`, string(b))
@@ -3546,7 +3703,21 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPI() {
           "me"
         ],
         "manual_approval": []
+      },
+      "can_quote": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
       }
+    },
+    "quote_approval": {
+      "automatic": [
+        "public"
+      ],
+      "manual": [],
+      "current_user": "automatic"
     }
   }
 }`, string(b))
@@ -3814,6 +3985,146 @@ func (suite *InternalToFrontendTestSuite) TestDomainLimitToAPIDomainLimit() {
     "created_by": "01F8MH17FWEB39HZJ76B6VXSKF",
     "created_at": "2025-10-30T11:30:32.868Z"
 }`, string(b))
+}
+
+func (suite *InternalToFrontendTestSuite) TestStatusToFrontendNativeQuote() {
+	ctx := suite.T().Context()
+
+	quoted := suite.testStatuses["admin_account_status_1"]
+
+	// Copy a status and turn it into a native quote of `quoted`,
+	// without mutating the shared fixture.
+	quoter := new(gtsmodel.Status)
+	*quoter = *suite.testStatuses["local_account_1_status_1"]
+	quoter.QuoteID = quoted.ID
+	quoter.QuoteURI = quoted.URI
+	quoter.QuoteAccountID = quoted.AccountID
+
+	requestingAccount := suite.testAccounts["local_account_1"]
+	apiStatus, err := suite.typeconverter.StatusToAPIStatus(ctx, quoter, requestingAccount)
+	suite.NoError(err)
+
+	// Quote object must be present and accepted.
+	if suite.NotNil(apiStatus.Quote) {
+		suite.Equal("accepted", apiStatus.Quote.State)
+
+		// Regression guard: the inlined quoted status must carry its
+		// account, otherwise clients render a blank quote card.
+		if suite.NotNil(apiStatus.Quote.QuotedStatus) {
+			suite.Equal(quoted.ID, apiStatus.Quote.QuotedStatus.ID)
+			suite.NotNil(apiStatus.Quote.QuotedStatus.Account)
+		}
+	}
+}
+
+func (suite *InternalToFrontendTestSuite) TestQuoteIntReqToAPIIncludesQuote() {
+	var (
+		ctx           = suite.T().Context()
+		targetAccount = suite.testAccounts["local_account_1"]
+		quoterAccount = suite.testAccounts["remote_account_1"]
+		targetStatus  = suite.testStatuses["local_account_1_status_1"]
+		quoteStatus   = suite.testStatuses["remote_account_1_status_1"]
+	)
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K1FAVQQQQQQQQQQQQQQQQQQQ",
+		TargetStatusID:        targetStatus.ID,
+		TargetStatus:          targetStatus,
+		TargetAccountID:       targetAccount.ID,
+		TargetAccount:         targetAccount,
+		InteractingAccountID:  quoterAccount.ID,
+		InteractingAccount:    quoterAccount,
+		InteractionRequestURI: quoterAccount.URI + "/interaction_requests/01K1FAVQQQQQQQQQQQQQQQQQQQ",
+		InteractionURI:        quoteStatus.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Quote:                 quoteStatus,
+	}
+
+	apiReq, err := suite.typeconverter.InteractionReqToAPIInteractionReq(
+		ctx,
+		req,
+		targetAccount,
+	)
+	suite.NoError(err)
+	suite.Equal("quote", apiReq.Type)
+	if suite.NotNil(apiReq.Status) {
+		suite.Equal(targetStatus.ID, apiReq.Status.ID)
+	}
+	if suite.NotNil(apiReq.Quote) {
+		suite.Equal(quoteStatus.ID, apiReq.Quote.ID)
+	}
+	suite.Nil(apiReq.Reply)
+}
+
+func (suite *InternalToFrontendTestSuite) TestStatusToFrontendQuoteHandshakeStates() {
+	ctx := suite.T().Context()
+	quoter := suite.testStatuses["local_account_1_status_1"]
+	quoted := suite.testStatuses["remote_account_1_status_1"]
+	quoter.QuoteID = quoted.ID
+	quoter.Quote = quoted
+	quoter.QuoteURI = quoted.URI
+	quoter.QuoteAccountID = quoted.AccountID
+	quoter.QuoteAccount = suite.testAccounts["remote_account_1"]
+	suite.NoError(suite.state.DB.UpdateStatus(
+		ctx,
+		quoter,
+		"quote_id",
+		"quote_uri",
+		"quote_account_id",
+	))
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K4STEH5NWAXBZ4TFNGQQQ988",
+		TargetStatusID:        quoted.ID,
+		TargetStatus:          quoted,
+		TargetAccountID:       quoted.AccountID,
+		TargetAccount:         suite.testAccounts["remote_account_1"],
+		InteractingAccountID:  quoter.AccountID,
+		InteractingAccount:    suite.testAccounts["local_account_1"],
+		InteractionRequestURI: uris.GenerateURIForQuoteRequest(suite.testAccounts["local_account_1"].Username, "01K4STEH5NWAXBZ4TFNGQQQ988"),
+		InteractionURI:        quoter.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 quoter,
+	}
+	suite.NoError(suite.state.DB.PutInteractionRequest(ctx, req))
+
+	requester := suite.testAccounts["local_account_1"]
+	apiStatus, err := suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("pending", apiStatus.Quote.State)
+
+	req.RejectedAt = time.Now()
+	suite.NoError(suite.state.DB.UpdateInteractionRequest(ctx, req, "rejected_at"))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("rejected", apiStatus.Quote.State)
+
+	req.RejectedAt = time.Time{}
+	req.AcceptedAt = time.Now()
+	suite.NoError(suite.state.DB.UpdateInteractionRequest(
+		ctx,
+		req,
+		"rejected_at",
+		"accepted_at",
+	))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("revoked", apiStatus.Quote.State)
+
+	quoter.QuoteApprovalURI = "https://remote.example/authorizations/quote-1"
+	suite.NoError(suite.state.DB.UpdateStatus(ctx, quoter, "quote_approval_uri"))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("accepted", apiStatus.Quote.State)
+
+	suite.NoError(suite.state.DB.PutTombstone(ctx, &gtsmodel.Tombstone{
+		ID:     "01K1FATQQQQQQQQQQQQQQQQQQQ",
+		Domain: "remote.example",
+		URI:    quoter.QuoteApprovalURI,
+	}))
+	apiStatus, err = suite.typeconverter.StatusToAPIStatus(ctx, quoter, requester)
+	suite.NoError(err)
+	suite.Equal("revoked", apiStatus.Quote.State)
 }
 
 func TestInternalToFrontendTestSuite(t *testing.T) {

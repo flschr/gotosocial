@@ -112,6 +112,10 @@ func (p *Processor) ProcessFromFediAPI(ctx context.Context, fMsg *messages.FromF
 		case ap.ActivityAnnounceRequest:
 			return p.fediAPI.CreateAnnounceRequest(ctx, fMsg)
 
+		// REQUEST TO QUOTE A STATUS
+		case ap.ActivityQuoteRequest:
+			return p.fediAPI.CreateQuoteRequest(ctx, fMsg)
+
 		// CREATE BLOCK
 		case ap.ActivityBlock:
 			return p.fediAPI.CreateBlock(ctx, fMsg)
@@ -162,6 +166,10 @@ func (p *Processor) ProcessFromFediAPI(ctx context.Context, fMsg *messages.FromF
 		case ap.ActivityReplyRequest:
 			return p.fediAPI.AcceptPoliteReplyRequest(ctx, fMsg)
 
+		// ACCEPT (pending) POLITE QUOTE REQUEST
+		case ap.ActivityQuoteRequest:
+			return p.fediAPI.AcceptPoliteQuoteRequest(ctx, fMsg)
+
 		// ACCEPT (pending) ANNOUNCE
 		case ap.ActivityAnnounce:
 			return p.fediAPI.AcceptAnnounce(ctx, fMsg)
@@ -191,6 +199,10 @@ func (p *Processor) ProcessFromFediAPI(ctx context.Context, fMsg *messages.FromF
 	// DELETE SOMETHING
 	case ap.ActivityDelete:
 		switch fMsg.APObjectType {
+
+		// DELETE / REVOKE QUOTE AUTHORIZATION
+		case ap.ObjectQuoteAuthorization:
+			return p.fediAPI.DeleteQuoteAuthorization(ctx, fMsg)
 
 		// DELETE NOTE/STATUS
 		case ap.ObjectNote:
@@ -1234,6 +1246,127 @@ func (p *fediAPI) CreateAnnounceRequest(ctx context.Context, fMsg *messages.From
 	// status dereferencer stage will cause it to skip typical surfacing logic.
 	if err := p.surfacer.TimelineAndNotifyStatus(ctx, boost); err != nil {
 		log.Errorf(ctx, "error timelining and notifying status: %v", err)
+	}
+
+	return nil
+}
+
+func (p *fediAPI) CreateQuoteRequest(ctx context.Context, fMsg *messages.FromFediAPI) error {
+	req, ok := fMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
+	}
+
+	// Persist the quoting status through the normal dereferencing path. This
+	// stores pending quotes without surfacing them, and makes the instrument
+	// available when the interaction request is loaded again after this
+	// worker message and its in-memory Quote pointer are gone.
+	statusable, ok := fMsg.APObject.(ap.Statusable)
+	if !ok {
+		return gtserror.Newf("cannot cast %T -> ap.Statusable", fMsg.APObject)
+	}
+
+	quoteURI := ap.GetJSONLDId(statusable).String()
+	if quoteURI != req.InteractionURI {
+		return gtserror.Newf(
+			"quote request instrument URI %s does not match interaction URI %s",
+			quoteURI,
+			req.InteractionURI,
+		)
+	}
+
+	// Mark the bare status pending before dereferencing so the dereferencer's
+	// surfacing hook never exposes a QuoteRequest instrument. RefreshStatus
+	// deliberately carries this flag across its policy checks.
+	bareQuote := &gtsmodel.Status{URI: quoteURI}
+	bareQuote.Flags.SetPendingApproval(true)
+	quote, _, err := p.federate.RefreshStatus(ctx,
+		fMsg.Receiving.Username,
+		bareQuote,
+		statusable,
+		&dereferencing.Fresh,
+	)
+	if err != nil {
+		return gtserror.Newf(
+			"error processing QuoteRequest instrument %s: %w",
+			quoteURI,
+			err,
+		)
+	}
+	automaticallyApproved := req.Quote != nil && req.Quote.PreApproved
+	// Carry the policy decision onto the persisted-model instance held by the
+	// worker message. If a later operation fails and the message is retried,
+	// replacing req.Quote must not turn an automatic decision into manual.
+	quote.PreApproved = automaticallyApproved
+	req.Quote = quote
+
+	// Manual quote policies leave the request pending for the target account.
+	if !automaticallyApproved {
+		return nil
+	}
+
+	// The quote target was permission-checked when the QuoteRequest arrived
+	// and policy grants automatic approval, so issue the authorization.
+	req.AcceptedAt = time.Now()
+	req.ResponseURI = uris.GenerateURIForAccept(
+		req.TargetAccount.Username, req.ID)
+	req.AuthorizationURI = uris.GenerateURIForAuthorization(
+		req.TargetAccount.Username, req.ID)
+
+	if err := p.state.DB.UpdateInteractionRequest(ctx,
+		req,
+		"accepted_at",
+		"response_uri",
+		"authorization_uri",
+	); err != nil {
+		return gtserror.Newf("db error updating interaction request: %w", err)
+	}
+
+	// Send out the Accept; its `result` points at the QuoteAuthorization,
+	// which we serve at the authorization URI for the quoter to attach.
+	if err := p.federate.AcceptInteraction(ctx, req); err != nil {
+		log.Errorf(ctx, "error federating quote accept: %v", err)
+	}
+
+	return nil
+}
+
+func (p *fediAPI) AcceptPoliteQuoteRequest(ctx context.Context, fMsg *messages.FromFediAPI) error {
+	req, ok := fMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
+	}
+	if err := p.state.DB.PopulateInteractionRequest(ctx, req); err != nil {
+		return gtserror.Newf("error populating accepted quote request: %w", err)
+	}
+	if req.Quote == nil || req.Quote.QuoteApprovalURI == "" {
+		return gtserror.New("accepted quote request has no quote authorization")
+	}
+
+	// Now that the authorization is attached, federate the quote status.
+	if err := p.federate.CreateStatus(ctx, req.Quote); err != nil {
+		return gtserror.Newf("error federating authorized quote status: %w", err)
+	}
+
+	return nil
+}
+
+func (p *fediAPI) DeleteQuoteAuthorization(ctx context.Context, fMsg *messages.FromFediAPI) error {
+	req, ok := fMsg.GTSModel.(*gtsmodel.InteractionRequest)
+	if !ok {
+		return gtserror.Newf("%T not parseable as *gtsmodel.InteractionRequest", fMsg.GTSModel)
+	}
+	if fMsg.APIRI == nil {
+		return gtserror.New("deleted quote authorization has no object URI")
+	}
+
+	if err := p.federate.ForwardQuoteAuthorizationDelete(
+		ctx,
+		req,
+		fMsg.TargetURI,
+		fMsg.APIRI,
+	); err != nil {
+		return gtserror.Newf("error forwarding quote authorization revocation: %w", err)
 	}
 
 	return nil

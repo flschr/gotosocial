@@ -910,6 +910,183 @@ func TagToAPITag(tag *gtsmodel.Tag, stubHistory bool, following *bool) apimodel.
 	}
 }
 
+// quoteDepthCtxKey is used to bound recursion when
+// serializing nested quotes (a quote of a quote of ...).
+type quoteDepthCtxKey struct{}
+
+func quoteDepth(ctx context.Context) int {
+	d, _ := ctx.Value(quoteDepthCtxKey{}).(int)
+	return d
+}
+
+// maxQuoteDepth bounds how deeply nested quotes are serialized as full
+// statuses; beyond this a shallow quote (ID reference only) is returned.
+const maxQuoteDepth = 1
+
+// mastodonAPIVersion is the Mastodon-flavoured client API version advertised
+// in the instance's api_versions. 7 corresponds to Mastodon 4.5, the level at
+// which native quote posts are exposed; clients gate their native-quote UI on
+// this value.
+const mastodonAPIVersion = 7
+
+// quoteToAPIQuote builds the Mastodon-API `quote` object for status, or
+// nil if status is not a quote. It resolves the quoted status, checks the
+// requester is permitted to see it, and bounds nesting depth by returning
+// a shallow quote (quoted_status_id only) past maxQuoteDepth.
+func (c *Converter) quoteToAPIQuote(
+	ctx context.Context,
+	status *gtsmodel.Status,
+	requester *gtsmodel.Account,
+) (*apimodel.Quote, error) {
+	// Start from any persisted quote relationship.
+	quoted := status.Quote
+	quoteID := status.QuoteID
+	haveRelationship := quoteID != "" || status.QuoteURI != ""
+
+	// If there's no persisted relationship, try to derive one from a
+	// leading "RE: <link>" fallback paragraph in the content. This covers
+	// federated Mastodon quotes and pre-feature local posts that only
+	// arrived as a fallback line, without native quote metadata.
+	if !haveRelationship && quoted == nil {
+		if !strings.Contains(status.Content, "RE:") {
+			// Cheap reject before parsing HTML: not a quote.
+			return nil, nil
+		}
+		url, ok := text.ExtractQuoteFallbackURL(status.Content)
+		if !ok {
+			return nil, nil
+		}
+		derived := c.resolveQuotedByURL(ctx, url)
+		if derived == nil {
+			// Link doesn't resolve to a status we know: leave it
+			// as an ordinary link rather than fabricating a quote.
+			return nil, nil
+		}
+		quoted = derived
+		quoteID = derived.ID
+	}
+
+	// Ensure the quoted status is loaded.
+	if quoted == nil && quoteID != "" {
+		var err error
+		quoted, err = c.state.DB.GetStatusByID(ctx, quoteID)
+		if err != nil && !errors.Is(err, db.ErrNoEntries) {
+			return nil, gtserror.Newf("db error getting quoted status %s: %w", quoteID, err)
+		}
+	}
+
+	// If we only have a URI (e.g. an inbound federated quote whose target
+	// we have since stored), try to resolve it against our local database.
+	if quoted == nil && status.QuoteURI != "" {
+		if quoted = c.resolveQuotedByURL(ctx, status.QuoteURI); quoted != nil {
+			quoteID = quoted.ID
+		}
+	}
+
+	if quoted == nil {
+		if quoteID == "" {
+			// We only know a URI; the target hasn't
+			// been dereferenced into our db yet.
+			return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+		}
+		// We had a quoted status ID, but the
+		// target is no longer in the database.
+		return &apimodel.Quote{State: apimodel.QuoteStateDeleted}, nil
+	}
+
+	// A Delete of a QuoteAuthorization revokes the quote for every
+	// recipient. Keep the original approval URI on remote quote posts so
+	// the tombstone provides durable, unambiguous revocation evidence.
+	if status.QuoteApprovalURI != "" {
+		revoked, err := c.state.DB.TombstoneExistsWithURI(
+			ctx,
+			status.QuoteApprovalURI,
+		)
+		if err != nil {
+			return nil, gtserror.Newf("db error checking quote authorization tombstone: %w", err)
+		}
+		if revoked {
+			return &apimodel.Quote{State: apimodel.QuoteStateRevoked}, nil
+		}
+	}
+
+	// For local quotes of remote posts, expose the FEP-044f handshake state
+	// to Mastodon API clients. Quotes created before handshake support have
+	// no InteractionRequest and retain their historical accepted behavior.
+	if status.Flags.Local() &&
+		!quoted.Flags.Local() {
+		req, err := c.state.DB.GetInteractionRequestByInteractionURI(ctx, status.URI)
+		if err != nil && !errors.Is(err, db.ErrNoEntries) {
+			return nil, gtserror.Newf("db error getting quote interaction request: %w", err)
+		}
+		if req != nil {
+			switch {
+			case req.IsRejected():
+				return &apimodel.Quote{State: apimodel.QuoteStateRejected}, nil
+			case req.IsPending():
+				return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+			case req.IsAccepted() && status.QuoteApprovalURI == "":
+				return &apimodel.Quote{State: apimodel.QuoteStateRevoked}, nil
+			}
+		} else if status.QuoteApprovalURI == "" {
+			return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+		}
+	}
+
+	// Never let a status quote itself (e.g. a self-referential RE: link);
+	// combined with maxQuoteDepth this bounds recursion.
+	if quoted.ID == status.ID {
+		return nil, nil
+	}
+
+	// Check the requesting account may see the quoted status.
+	visible, err := c.visFilter.StatusVisible(ctx, requester, quoted)
+	if err != nil {
+		return nil, gtserror.Newf("error checking quoted status visibility: %w", err)
+	}
+	if !visible {
+		return &apimodel.Quote{State: apimodel.QuoteStateUnauthorized}, nil
+	}
+
+	if quoteDepth(ctx) >= maxQuoteDepth {
+		// Too deeply nested: return a shallow quote
+		// (ID reference only) to bound recursion.
+		return &apimodel.Quote{
+			State:          apimodel.QuoteStateAccepted,
+			QuotedStatusID: util.Ptr(quoted.ID),
+		}, nil
+	}
+
+	// Convert the quoted status one level deep, incrementing quote depth so
+	// its own quote (if any) serializes as a shallow quote. Use the full
+	// StatusToAPIStatus (not baseStatusToFrontend) so the quoted status's
+	// account and other caller-populated fields are set — otherwise clients
+	// receive quoted_status.account == null and can't render the card.
+	ctx = context.WithValue(ctx, quoteDepthCtxKey{}, quoteDepth(ctx)+1)
+	apiQuoted, err := c.StatusToAPIStatus(ctx, quoted, requester)
+	if err != nil {
+		return nil, gtserror.Newf("error converting quoted status %s: %w", quoted.ID, err)
+	}
+
+	return &apimodel.Quote{
+		State:        apimodel.QuoteStateAccepted,
+		QuotedStatus: apiQuoted,
+	}, nil
+}
+
+// resolveQuotedByURL looks up a locally-known status by web URL or AP URI.
+// It returns nil if no such status exists; it deliberately does NOT fetch
+// remote statuses, so serialization stays fast and side-effect free.
+func (c *Converter) resolveQuotedByURL(ctx context.Context, url string) *gtsmodel.Status {
+	if s, err := c.state.DB.GetStatusByURL(ctx, url); err == nil && s != nil {
+		return s
+	}
+	if s, err := c.state.DB.GetStatusByURI(ctx, url); err == nil && s != nil {
+		return s
+	}
+	return nil
+}
+
 // StatusToAPIStatus converts a gts model
 // status into its api (frontend) representation
 // for serialization on the API.
@@ -1332,6 +1509,11 @@ func (c *Converter) baseStatusToFrontend(
 		return nil, gtserror.Newf("error counting faves: %w", err)
 	}
 
+	quotesCount, err := c.state.DB.CountStatusQuotes(ctx, status.ID)
+	if err != nil {
+		return nil, gtserror.Newf("error counting quotes: %w", err)
+	}
+
 	apiAttachments := c.attachmentsToAPI(ctx, status.Attachments, status.AttachmentIDs)
 
 	apiEmojis := c.emojisToAPI(ctx, status.Emojis, status.EmojiIDs)
@@ -1372,8 +1554,10 @@ func (c *Converter) baseStatusToFrontend(
 		RepliesCount:       repliesCount,
 		ReblogsCount:       reblogsCount,
 		FavouritesCount:    favesCount,
+		QuotesCount:        quotesCount,
 		Content:            apiContent,
 		Reblog:             nil, // Set below.
+		Quote:              nil, // Set below.
 		Application:        nil, // Set below.
 		Account:            nil, // Caller must do this.
 		MediaAttachments:   apiAttachments,
@@ -1399,6 +1583,36 @@ func (c *Converter) baseStatusToFrontend(
 	apiStatus.InReplyToID = util.PtrIf(status.InReplyToID)
 	apiStatus.InReplyToAccountID = util.PtrIf(status.InReplyToAccountID)
 	apiStatus.Language = util.PtrIf(status.Language)
+
+	apiQuote, err := c.quoteToAPIQuote(ctx, status, requester)
+	if err != nil {
+		return nil, gtserror.Newf("error converting quote: %w", err)
+	}
+	apiStatus.Quote = apiQuote
+
+	if apiQuote != nil && apiQuote.State == apimodel.QuoteStateAccepted {
+		// Hide the redundant "RE: <link>" fallback line for
+		// native-quote-aware clients by marking it quote-inline in the
+		// *served* content only. Non-destructive: stored content is
+		// untouched and the link is preserved, so clients that render
+		// the quote card from the link keep working.
+		apiStatus.Content = text.MarkQuoteInline(apiStatus.Content)
+	}
+
+	// Advertise quote-approval so clients can offer a native quote action.
+	// Public/unlisted statuses are quotable (matching the create-time guard),
+	// and an authenticated requester is auto-approved. This mirrors Mastodon's
+	// quote_approval field, which clients gate their quote button on. Left
+	// unset for unauthenticated requests (no quoting possible anyway).
+	if requester != nil &&
+		(status.Visibility == gtsmodel.VisibilityPublic ||
+			status.Visibility == gtsmodel.VisibilityUnlocked) {
+		apiStatus.QuoteApproval = &apimodel.QuoteApproval{
+			Automatic:   []string{"public"},
+			Manual:      []string{},
+			CurrentUser: "automatic",
+		}
+	}
 
 	switch {
 	case status.CreatedWithApplication != nil:
@@ -1855,6 +2069,13 @@ func (c *Converter) InstanceSettingsToAPIV2Instance(
 		Rules:           InstanceRulesToAPIRules(settings.Rules),
 		Terms:           settings.Terms,
 		TermsText:       settings.TermsText,
+	}
+
+	instance.APIVersions = apimodel.InstanceV2APIVersions{
+		// Mastodon 4.5-level client API: advertises native quote-post
+		// support (status.quote + quoted_status_id create param) so
+		// clients such as Phanpy expose native quoting.
+		Mastodon: mastodonAPIVersion,
 	}
 
 	if config.GetInstanceInjectMastodonVersion() {
@@ -2651,7 +2872,7 @@ func (c *Converter) ThemesToAPIThemes(themes []*gtsmodel.Theme) []apimodel.Theme
 // Provided status can be nil to convert a
 // policy without a particular status in mind,
 // but ***if status is nil then sub-policies
-// CanLike, CanReply, and CanAnnounce on
+// CanLike, CanReply, CanAnnounce, and CanQuote on
 // the given policy must *not* be nil.***
 //
 // RequestingAccount can also be nil for
@@ -2710,6 +2931,20 @@ func (c *Converter) InteractionPolicyToAPIInteractionPolicy(
 		apiPolicy.CanReblog = apimodel.PolicyRules{
 			AutomaticApproval: policyValsToAPIPolicyVals(pCanAnnounce.AutomaticApproval),
 			ManualApproval:    policyValsToAPIPolicyVals(pCanAnnounce.ManualApproval),
+		}
+	}
+
+	// gtsmodel CanQuote -> apimodel CanQuote
+	if policy.CanQuote != nil {
+		apiPolicy.CanQuote = &apimodel.PolicyRules{
+			AutomaticApproval: policyValsToAPIPolicyVals(policy.CanQuote.AutomaticApproval),
+			ManualApproval:    policyValsToAPIPolicyVals(policy.CanQuote.ManualApproval),
+		}
+	} else {
+		pCanQuote := gtsmodel.DefaultCanQuoteFor(status.Visibility)
+		apiPolicy.CanQuote = &apimodel.PolicyRules{
+			AutomaticApproval: policyValsToAPIPolicyVals(pCanQuote.AutomaticApproval),
+			ManualApproval:    policyValsToAPIPolicyVals(pCanQuote.ManualApproval),
 		}
 	}
 
@@ -2775,6 +3010,23 @@ func (c *Converter) InteractionPolicyToAPIInteractionPolicy(
 		// We can do this with approval.
 		apiPolicy.CanReblog.ManualApproval = append(
 			apiPolicy.CanReblog.ManualApproval,
+			apimodel.PolicyValueMe,
+		)
+	}
+
+	quoteable, err := c.intFilter.StatusQuoteable(ctx, requester, status)
+	if err != nil {
+		return apiPolicy, gtserror.Newf("error checking status quoteable by requester: %w", err)
+	}
+
+	if quoteable.Permission == gtsmodel.PolicyPermissionAutomaticApproval {
+		apiPolicy.CanQuote.AutomaticApproval = append(
+			apiPolicy.CanQuote.AutomaticApproval,
+			apimodel.PolicyValueMe,
+		)
+	} else if quoteable.Permission == gtsmodel.PolicyPermissionManualApproval {
+		apiPolicy.CanQuote.ManualApproval = append(
+			apiPolicy.CanQuote.ManualApproval,
 			apimodel.PolicyValueMe,
 		)
 	}
@@ -2904,6 +3156,18 @@ func (c *Converter) InteractionReqToAPIInteractionReq(
 		}
 	}
 
+	var quote *apimodel.Status
+	if req.InteractionType == gtsmodel.InteractionQuote && req.Quote != nil {
+		quote, err = c.statusToAPIStatus(ctx,
+			req.Quote,
+			requestingAcct,
+			false,
+		)
+		if err != nil {
+			return nil, gtserror.Newf("error converting quote: %w", err)
+		}
+	}
+
 	var acceptedAt string
 	if req.IsAccepted() {
 		acceptedAt = util.FormatISO8601(req.AcceptedAt)
@@ -2928,6 +3192,7 @@ func (c *Converter) InteractionReqToAPIInteractionReq(
 		Account:    interactingAcct,
 		Status:     interactedStatus,
 		Reply:      reply,
+		Quote:      quote,
 		AcceptedAt: acceptedAt,
 		RejectedAt: rejectedAt,
 	}, nil

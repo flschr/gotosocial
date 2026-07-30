@@ -171,6 +171,25 @@ func (f *DB) Accept(ctx context.Context, accept vocab.ActivityStreamsAccept) err
 					return err
 				}
 
+			// ACCEPT POLITE INLINED QUOTE REQUEST
+			case name == ap.ActivityQuoteRequest:
+				quoteReq, ok := asType.(vocab.GoToSocialQuoteRequest)
+				if !ok {
+					const text = "malformed QuoteRequest as object of Accept"
+					return gtserror.NewErrorBadRequest(errors.New(text), text)
+				}
+
+				if err := f.acceptPoliteQuoteRequest(
+					ctx,
+					acceptID,
+					accept,
+					quoteReq,
+					receivingAcct,
+					requestingAcct,
+				); err != nil {
+					return err
+				}
+
 			// Todo: ACCEPT POLITE INLINED ANNOUNCE REQUEST
 			//
 			// Implement this when we start
@@ -886,6 +905,94 @@ func (f *DB) acceptPoliteReplyRequest(
 	// Handle any remaining side effects in the processor.
 	f.state.Workers.Federator.Queue.Push(&messages.FromFediAPI{
 		APObjectType:   ap.ActivityReplyRequest,
+		APActivityType: ap.ActivityAccept,
+		APIRI:          partial.authURI,
+		APObject:       partial.instrumentURI,
+		GTSModel:       partial.intReq,
+		Receiving:      receivingAcct,
+		Requesting:     requestingAcct,
+	})
+
+	return nil
+}
+
+func (f *DB) acceptPoliteQuoteRequest(
+	ctx context.Context,
+	acceptID *url.URL,
+	accept vocab.ActivityStreamsAccept,
+	quoteRequest vocab.GoToSocialQuoteRequest,
+	receivingAcct *gtsmodel.Account,
+	requestingAcct *gtsmodel.Account,
+) error {
+	partial, err := f.parseAcceptInteractionRequestable(
+		ctx,
+		accept,
+		quoteRequest,
+		receivingAcct,
+		requestingAcct,
+	)
+	if err != nil {
+		return err
+	}
+	if partial == nil {
+		return nil
+	}
+	if partial.intReq == nil {
+		// We only act on Accepts for QuoteRequests created by this instance.
+		return nil
+	}
+	if partial.intReq.InteractionType != gtsmodel.InteractionQuote {
+		const text = "Accept QuoteRequest targets interaction request that isn't of type Quote"
+		return gtserror.NewErrorBadRequest(errors.New(text), text)
+	}
+
+	quote := partial.intReq.Quote
+	if quote == nil || quote.URI != partial.instrumentURI.String() {
+		const text = "Accept QuoteRequest mismatched instrument URI"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	}
+	if quote.AccountURI != partial.actorURI.String() {
+		const text = "Accept QuoteRequest mismatched actor URI"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	}
+
+	// The authorization must be issued by the same server as the Accept.
+	// This prevents a target from blessing the quote with an unrelated URI.
+	approvedBy, err := approvedByURI(acceptID, accept)
+	if err != nil {
+		return gtserror.NewErrorForbidden(err, err.Error())
+	}
+	if approvedBy.String() != partial.authURI.String() {
+		const text = "Accept QuoteRequest mismatched authorization URI"
+		return gtserror.NewErrorForbidden(errors.New(text), text)
+	}
+
+	unlock := f.state.FedLocks.Lock(partial.intReq.InteractionURI)
+	defer unlock()
+
+	authURIStr := partial.authURI.String()
+	quote.QuoteApprovalURI = authURIStr
+	if err := f.state.DB.UpdateStatus(ctx,
+		quote,
+		"quote_approval_uri",
+	); err != nil {
+		return gtserror.Newf("db error updating quote authorization: %w", err)
+	}
+
+	partial.intReq.AcceptedAt = time.Now()
+	partial.intReq.AuthorizationURI = authURIStr
+	partial.intReq.ResponseURI = acceptID.String()
+	if err := f.state.DB.UpdateInteractionRequest(ctx,
+		partial.intReq,
+		"accepted_at",
+		"authorization_uri",
+		"response_uri",
+	); err != nil {
+		return gtserror.Newf("db error updating quote interaction request: %w", err)
+	}
+
+	f.state.Workers.Federator.Queue.Push(&messages.FromFediAPI{
+		APObjectType:   ap.ActivityQuoteRequest,
 		APActivityType: ap.ActivityAccept,
 		APIRI:          partial.authURI,
 		APObject:       partial.instrumentURI,

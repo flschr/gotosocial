@@ -52,6 +52,7 @@ const (
 	LikeRequestsPath     = "like_requests"     // LikeRequestsPath is used to generate the URI for a LikeRequest.
 	ReplyRequestsPath    = "reply_requests"    // ReplyRequestsPath is used to generate the URI for a ReplyRequest.
 	AnnounceRequestsPath = "announce_requests" // LikeRequestsPath is used to generate the URI for an AnnounceRequest.
+	QuoteRequestsPath    = "quote_requests"    // QuoteRequestsPath is used to generate the URI for a QuoteRequest.
 )
 
 // UserURIs contains a bunch of UserURIs
@@ -267,6 +268,20 @@ func GenerateURIForAnnounceRequest(username string, id string) string {
 		UsersPath,
 		username,
 		AnnounceRequestsPath,
+		id,
+	)
+}
+
+// GenerateURIForQuoteRequest returns the AP URI for a new QuoteRequest object,
+// Eg., https://example.org/users/whatever_user/quote_requests/01F7XTH1QGBAPMGF49WJZ91XGC
+func GenerateURIForQuoteRequest(username string, id string) string {
+	proto := config.GetProtocol()
+	host := config.GetHost()
+	return buildURL4(proto,
+		host,
+		UsersPath,
+		username,
+		QuoteRequestsPath,
 		id,
 	)
 }
