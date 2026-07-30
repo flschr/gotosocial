@@ -16,11 +16,13 @@ publishing improvements used by
 - **Native Bluesky integration:** connect an existing Bluesky account,
   crosspost eligible public posts, receive replies and mentions, and answer
   them from Mastodon-compatible clients.
+- **Native quote posts:** create, display, count, approve, reject, and revoke
+  Mastodon-compatible quotes with ActivityPub interaction-policy enforcement.
 - **Complete remote conversations:** refresh available ActivityPub context
   when opening a thread so older and remote replies appear more reliably.
-- **Cleaner timelines:** optional link previews, redundant quote-fallback
-  removal, compact Bluesky replies, and suppression of profile cards created
-  only by mentions.
+- **Cleaner timelines:** optional link previews, native handling of redundant
+  quote fallbacks, compact Bluesky replies, and suppression of profile cards
+  created only by mentions.
 - **Identity and privacy controls:** improve split-domain handles, hide local
   roles, and optionally remove profile-supplied emojis from display names.
 - **Improved public profiles:** remote follow actions, configurable profile

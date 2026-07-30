@@ -95,23 +95,33 @@ Sensitive posts never trigger preview requests. External preview images are
 referenced rather than copied into local storage, so the image host can still
 observe a visitor requesting the image.
 
-## Cleaner Mastodon quote posts
+## Native quote posts
 
-Mastodon adds a leading `RE:` link to native quote posts for clients that do
-not support quotes. When link previews are enabled, clients can otherwise show
-this fallback directly above a card for the same target.
+GoToSocial Plus implements Mastodon-compatible native quote posts across the
+client API and ActivityPub federation. Compatible clients can create quotes,
+render the quoted status and its state, show quote counts, and list accounts
+that quoted a status.
 
-The optional quote-fallback setting removes only a leading Mastodon
-`quote-inline` paragraph whose URL exactly matches the visible preview card.
+Federated quotes use the FEP-044f interaction-policy handshake. Quotes that
+require approval remain pending until the quoted-post author accepts them.
+Rejections and later authorization revocations are retained and reflected in
+the quote state. Quotes of followers-only or direct posts by another account
+are rejected even if a received policy claims otherwise.
 
 Quote permissions for public and unlisted posts are controlled per account
-under **User Settings → Posts → Default Interaction Policies → Quote**.
-Followers-only posts remain quoteable only by their author. These are standard
-interaction-policy settings rather than a separate Plus configuration flag.
-The pending interaction requests page can also be filtered to include or
-exclude quotes.
-Normal links, user-authored `RE:` text, unmatched targets, and fallbacks
-without a card remain unchanged.
+under **User Settings → Posts → Default Interaction Policies → Quote**. The
+pending interaction requests page can be filtered to include or exclude
+quotes and shows the quoting status during review.
+
+Mastodon adds a leading `RE:` link to native quotes as a compatibility
+fallback. Plus recognizes structured and compatible fallback forms, exposes
+the native quote when the target is available, and keeps ordinary links and
+user-authored `RE:` text unchanged. The optional quote-fallback display
+setting remains available for matching preview-card fallbacks.
+
+The permission controls are standard interaction-policy settings rather than
+a separate Plus configuration flag. The display-only
+`statuses-hide-quote-fallback` option is independent of quote authorization.
 
 ## Display-name emoji control
 

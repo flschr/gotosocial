@@ -1535,6 +1535,10 @@ func (c *Converter) baseStatusToFrontend(
 	}
 
 	apiCard := c.previewCardForStatus(ctx, status, sensitive)
+	apiContent := status.Content
+	if config.GetStatusesHideQuoteFallback() {
+		apiContent = hideMatchingQuoteFallback(apiContent, apiCard)
+	}
 
 	apiStatus := &apimodel.Status{
 		ID:                 status.ID,
@@ -1551,7 +1555,7 @@ func (c *Converter) baseStatusToFrontend(
 		ReblogsCount:       reblogsCount,
 		FavouritesCount:    favesCount,
 		QuotesCount:        quotesCount,
-		Content:            status.Content,
+		Content:            apiContent,
 		Reblog:             nil, // Set below.
 		Quote:              nil, // Set below.
 		Application:        nil, // Set below.
