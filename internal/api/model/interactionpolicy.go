@@ -64,6 +64,11 @@ type InteractionPolicy struct {
 	CanReply PolicyRules `form:"can_reply" json:"can_reply"`
 	// Rules for who can reblog this status.
 	CanReblog PolicyRules `form:"can_reblog" json:"can_reblog"`
+	// Rules for who can quote this status.
+	//
+	// Optional on input for backwards compatibility with clients that
+	// predate quote policies. Always present on API responses.
+	CanQuote *PolicyRules `form:"can_quote" json:"can_quote,omitempty"`
 }
 
 // Default interaction policies to use for new statuses by requesting account.

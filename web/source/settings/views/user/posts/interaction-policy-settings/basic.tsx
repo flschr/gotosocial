@@ -132,6 +132,8 @@ function useBasicLabel(visibility: Visibility, action: Action) {
 				return "Who else can reply to " + visPost + "?";
 			case "reblog":
 				return "Who can boost " + visPost + "?";
+			case "quote":
+				return "Who can quote " + visPost + "?";
 		}
 	}, [visibility, action]);
 }

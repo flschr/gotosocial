@@ -57,6 +57,9 @@ export default function InteractionRequestsSearchForm() {
 		boosts: useBoolInput("reblogs", {
 			defaultValue: defaultTrue(urlQueryParams.get("reblogs"))
 		}),
+		quotes: useBoolInput("quotes", {
+			defaultValue: defaultTrue(urlQueryParams.get("quotes"))
+		}),
 	};
 
 	// On mount, trigger search.
@@ -126,6 +129,10 @@ export default function InteractionRequestsSearchForm() {
 					label="Include boosts"
 					field={form.boosts}
 				/>
+				<Checkbox
+					label="Include quotes"
+					field={form.quotes}
+				/>
 				<MutationButton
 					disabled={false}
 					label={"Search"}
@@ -172,7 +179,7 @@ function ReqsListEntry({ req, linkTo, backLocation }: ReqsListEntryProps) {
 	}, [req.account, noun]);
 
 	const ourContent = useContent(req.status);
-	const theirContent = useContent(req.reply);
+	const theirContent = useContent(req.reply ?? req.quote);
 
 	const onClick = (e) => {
 		e.preventDefault();
@@ -214,9 +221,9 @@ function ReqsListEntry({ req, linkTo, backLocation }: ReqsListEntryProps) {
 						{ourContent}
 					</dd>
 				</div>
-				{ req.type === "reply" &&
+				{ (req.type === "reply" || req.type === "quote") &&
 					<div className="info-list-entry">
-						<dt>They wrote:</dt>
+						<dt>{req.type === "quote" ? "They want to quote with:" : "They wrote:"}</dt>
 						<dd className="text-cutoff">
 							{theirContent}
 						</dd>
@@ -257,4 +264,3 @@ function ReqsListEntry({ req, linkTo, backLocation }: ReqsListEntryProps) {
 		</span>
 	);
 }
-

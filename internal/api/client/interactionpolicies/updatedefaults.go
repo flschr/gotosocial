@@ -96,6 +96,16 @@ import (
 //		in: formData
 //		description: Nth entry for public.can_reblog.manual_approval.
 //		type: string
+//	-
+//		name: public[can_quote][automatic_approval][0]
+//		in: formData
+//		description: Nth entry for public.can_quote.automatic_approval.
+//		type: string
+//	-
+//		name: public[can_quote][manual_approval][0]
+//		in: formData
+//		description: Nth entry for public.can_quote.manual_approval.
+//		type: string
 //
 //	-
 //		name: unlisted[can_favourite][automatic_approval][0]
@@ -126,6 +136,16 @@ import (
 //		name: unlisted[can_reblog][manual_approval][0]
 //		in: formData
 //		description: Nth entry for unlisted.can_reblog.manual_approval.
+//		type: string
+//	-
+//		name: unlisted[can_quote][automatic_approval][0]
+//		in: formData
+//		description: Nth entry for unlisted.can_quote.automatic_approval.
+//		type: string
+//	-
+//		name: unlisted[can_quote][manual_approval][0]
+//		in: formData
+//		description: Nth entry for unlisted.can_quote.manual_approval.
 //		type: string
 //
 //	-
@@ -158,6 +178,16 @@ import (
 //		in: formData
 //		description: Nth entry for private.can_reblog.manual_approval.
 //		type: string
+//	-
+//		name: private[can_quote][automatic_approval][0]
+//		in: formData
+//		description: Nth entry for private.can_quote.automatic_approval.
+//		type: string
+//	-
+//		name: private[can_quote][manual_approval][0]
+//		in: formData
+//		description: Nth entry for private.can_quote.manual_approval.
+//		type: string
 //
 //	-
 //		name: direct[can_favourite][automatic_approval][0]
@@ -188,6 +218,16 @@ import (
 //		name: direct[can_reblog][manual_approval][0]
 //		in: formData
 //		description: Nth entry for direct.can_reblog.manual_approval.
+//		type: string
+//	-
+//		name: direct[can_quote][automatic_approval][0]
+//		in: formData
+//		description: Nth entry for direct.can_quote.automatic_approval.
+//		type: string
+//	-
+//		name: direct[can_quote][manual_approval][0]
+//		in: formData
+//		description: Nth entry for direct.can_quote.manual_approval.
 //		type: string
 //
 //	security:

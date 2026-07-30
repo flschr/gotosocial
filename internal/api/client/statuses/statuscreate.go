@@ -233,6 +233,16 @@ import (
 //		in: formData
 //		description: Nth entry for interaction_policy.can_reblog.manual_approval.
 //		type: string
+//	-
+//		name: interaction_policy[can_quote][automatic_approval][0]
+//		in: formData
+//		description: Nth entry for interaction_policy.can_quote.automatic_approval.
+//		type: string
+//	-
+//		name: interaction_policy[can_quote][manual_approval][0]
+//		in: formData
+//		description: Nth entry for interaction_policy.can_quote.manual_approval.
+//		type: string
 //
 //	produces:
 //	- application/json

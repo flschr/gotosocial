@@ -317,10 +317,11 @@ func (i *interactionDB) GetInteractionsRequestsForAcct(
 	likes bool,
 	replies bool,
 	boosts bool,
+	quotes bool,
 	page *paging.Page,
 ) ([]*gtsmodel.InteractionRequest, error) {
-	if !likes && !replies && !boosts {
-		return nil, gtserror.New("at least one of likes, replies, or boosts must be true")
+	if !likes && !replies && !boosts && !quotes {
+		return nil, gtserror.New("at least one of likes, replies, boosts, or quotes must be true")
 	}
 
 	var (
@@ -350,7 +351,7 @@ func (i *interactionDB) GetInteractionsRequestsForAcct(
 
 	// Select interactions targeting status.
 	if statusID != "" {
-		q = q.Where("? = ?", bun.Ident("status_id"), statusID)
+		q = q.Where("? = ?", bun.Ident("target_status_id"), statusID)
 	}
 
 	// Select interactions targeting account.
@@ -360,7 +361,7 @@ func (i *interactionDB) GetInteractionsRequestsForAcct(
 
 	// Figure out which types of interaction are
 	// being sought, and add them to the query.
-	wantTypes := make([]gtsmodel.InteractionType, 0, 3)
+	wantTypes := make([]gtsmodel.InteractionType, 0, 4)
 	if likes {
 		wantTypes = append(wantTypes, gtsmodel.InteractionLike)
 	}
@@ -369,6 +370,9 @@ func (i *interactionDB) GetInteractionsRequestsForAcct(
 	}
 	if boosts {
 		wantTypes = append(wantTypes, gtsmodel.InteractionAnnounce)
+	}
+	if quotes {
+		wantTypes = append(wantTypes, gtsmodel.InteractionQuote)
 	}
 	q = q.Where("? IN (?)", bun.Ident("interaction_type"), bun.List(wantTypes))
 

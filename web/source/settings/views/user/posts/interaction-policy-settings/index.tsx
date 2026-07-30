@@ -82,6 +82,7 @@ function InteractionPoliciesForm({ defaultPolicies }: InteractionPoliciesFormPro
 			can_favourite: assemblePolicyEntry("public", "favourite", formPublic),
 			can_reply: assemblePolicyEntry("public", "reply", formPublic),
 			can_reblog: assemblePolicyEntry("public", "reblog", formPublic),
+			can_quote: assemblePolicyEntry("public", "quote", formPublic),
 		};
 	}, [formPublic]);
 	
@@ -92,6 +93,7 @@ function InteractionPoliciesForm({ defaultPolicies }: InteractionPoliciesFormPro
 			can_favourite: assemblePolicyEntry("unlisted", "favourite", formUnlisted),
 			can_reply: assemblePolicyEntry("unlisted", "reply", formUnlisted),
 			can_reblog: assemblePolicyEntry("unlisted", "reblog", formUnlisted),
+			can_quote: assemblePolicyEntry("unlisted", "quote", formUnlisted),
 		};
 	}, [formUnlisted]);
 	
@@ -102,6 +104,7 @@ function InteractionPoliciesForm({ defaultPolicies }: InteractionPoliciesFormPro
 			can_favourite: assemblePolicyEntry("private", "favourite", formPrivate),
 			can_reply: assemblePolicyEntry("private", "reply", formPrivate),
 			can_reblog: assemblePolicyEntry("private", "reblog", formPrivate),
+			can_quote: assemblePolicyEntry("private", "quote", formPrivate),
 		};
 	}, [formPrivate]);
 
@@ -323,6 +326,12 @@ function PolicyPanel({ policyForm, forVis, isActive }: PolicyPanelProps) {
 					forAction="reblog"
 				/>
 			}
+			{ forVis !== "private" &&
+				<PolicyComponent
+					form={policyForm.quote}
+					forAction="quote"
+				/>
+			}
 		</div>
 	);
 }
@@ -421,6 +430,13 @@ function useLegend(action: Action) {
 						<span>Boost</span>
 					</>
 				);
+			case "quote":
+				return (
+					<>
+						<i className="fa fa-fw fa-quote-right" aria-hidden="true"></i>
+						<span>Quote</span>
+					</>
+				);
 		}
 	}, [action]);
 }
@@ -437,6 +453,10 @@ interface PolicyForm {
 		somethingElse: PolicyFormSomethingElse,
 	}
 	reblog: {
+		basic: PolicyFormSub,
+		somethingElse: PolicyFormSomethingElse,
+	}
+	quote: {
 		basic: PolicyFormSub,
 		somethingElse: PolicyFormSomethingElse,
 	}
@@ -489,6 +509,20 @@ function useFormForVis(
 				"reblog",
 				currentPolicy.can_reblog.automatic_approval,
 				currentPolicy.can_reblog.manual_approval,
+			),
+		},
+		quote: {
+			basic: useBasicFor(
+				forVis,
+				"quote",
+				currentPolicy.can_quote.automatic_approval,
+				currentPolicy.can_quote.manual_approval,
+			),
+			somethingElse: useSomethingElseFor(
+				forVis,
+				"quote",
+				currentPolicy.can_quote.automatic_approval,
+				currentPolicy.can_quote.manual_approval,
 			),
 		},
 	};

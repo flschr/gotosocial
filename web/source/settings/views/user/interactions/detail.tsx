@@ -80,6 +80,13 @@ function InteractionRequestDetailForm({ data: req, backLocation }: { data: Inter
 					<Status status={req.reply} />
 				</div>
 			</> }
+
+			{ req.quote && <>
+				<h2>They want to quote you with:</h2>
+				<div className="thread">
+					<Status status={req.quote} />
+				</div>
+			</> }
 			
 			<div className="action-buttons">
 				<MutationButton

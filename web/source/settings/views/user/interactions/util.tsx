@@ -58,7 +58,7 @@ export function useContent(status: Status | undefined): string {
 	}, [status]);
 }
 
-export function useVerbed(type: "favourite" | "reply" | "reblog"): string {
+export function useVerbed(type: "favourite" | "reply" | "reblog" | "quote"): string {
 	return useMemo(() => {
 		switch (type) {
 			case "favourite":
@@ -67,11 +67,13 @@ export function useVerbed(type: "favourite" | "reply" | "reblog"): string {
 				return "replied to";
 			case "reblog":
 				return "boosted";
+			case "quote":
+				return "quoted";
 		}
 	}, [type]);
 }
 
-export function useNoun(type: "favourite" | "reply" | "reblog"): string {
+export function useNoun(type: "favourite" | "reply" | "reblog" | "quote"): string {
 	return useMemo(() => {
 		switch (type) {
 			case "favourite":
@@ -80,11 +82,13 @@ export function useNoun(type: "favourite" | "reply" | "reblog"): string {
 				return "Reply";
 			case "reblog":
 				return "Boost";
+			case "quote":
+				return "Quote";
 		}
 	}, [type]);
 }
 
-export function useIcon(type: "favourite" | "reply" | "reblog"): string {
+export function useIcon(type: "favourite" | "reply" | "reblog" | "quote"): string {
 	return useMemo(() => {
 		switch (type) {
 			case "favourite":
@@ -93,6 +97,8 @@ export function useIcon(type: "favourite" | "reply" | "reblog"): string {
 				return "fa-reply";
 			case "reblog":
 				return "fa-retweet";
+			case "quote":
+				return "fa-quote-right";
 		}
 	}, [type]);
 }

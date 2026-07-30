@@ -2868,7 +2868,7 @@ func (c *Converter) ThemesToAPIThemes(themes []*gtsmodel.Theme) []apimodel.Theme
 // Provided status can be nil to convert a
 // policy without a particular status in mind,
 // but ***if status is nil then sub-policies
-// CanLike, CanReply, and CanAnnounce on
+// CanLike, CanReply, CanAnnounce, and CanQuote on
 // the given policy must *not* be nil.***
 //
 // RequestingAccount can also be nil for
@@ -2927,6 +2927,20 @@ func (c *Converter) InteractionPolicyToAPIInteractionPolicy(
 		apiPolicy.CanReblog = apimodel.PolicyRules{
 			AutomaticApproval: policyValsToAPIPolicyVals(pCanAnnounce.AutomaticApproval),
 			ManualApproval:    policyValsToAPIPolicyVals(pCanAnnounce.ManualApproval),
+		}
+	}
+
+	// gtsmodel CanQuote -> apimodel CanQuote
+	if policy.CanQuote != nil {
+		apiPolicy.CanQuote = &apimodel.PolicyRules{
+			AutomaticApproval: policyValsToAPIPolicyVals(policy.CanQuote.AutomaticApproval),
+			ManualApproval:    policyValsToAPIPolicyVals(policy.CanQuote.ManualApproval),
+		}
+	} else {
+		pCanQuote := gtsmodel.DefaultCanQuoteFor(status.Visibility)
+		apiPolicy.CanQuote = &apimodel.PolicyRules{
+			AutomaticApproval: policyValsToAPIPolicyVals(pCanQuote.AutomaticApproval),
+			ManualApproval:    policyValsToAPIPolicyVals(pCanQuote.ManualApproval),
 		}
 	}
 
@@ -2992,6 +3006,23 @@ func (c *Converter) InteractionPolicyToAPIInteractionPolicy(
 		// We can do this with approval.
 		apiPolicy.CanReblog.ManualApproval = append(
 			apiPolicy.CanReblog.ManualApproval,
+			apimodel.PolicyValueMe,
+		)
+	}
+
+	quoteable, err := c.intFilter.StatusQuoteable(ctx, requester, status)
+	if err != nil {
+		return apiPolicy, gtserror.Newf("error checking status quoteable by requester: %w", err)
+	}
+
+	if quoteable.Permission == gtsmodel.PolicyPermissionAutomaticApproval {
+		apiPolicy.CanQuote.AutomaticApproval = append(
+			apiPolicy.CanQuote.AutomaticApproval,
+			apimodel.PolicyValueMe,
+		)
+	} else if quoteable.Permission == gtsmodel.PolicyPermissionManualApproval {
+		apiPolicy.CanQuote.ManualApproval = append(
+			apiPolicy.CanQuote.ManualApproval,
 			apimodel.PolicyValueMe,
 		)
 	}

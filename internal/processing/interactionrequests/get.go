@@ -41,6 +41,7 @@ func (p *Processor) GetPage(
 	likes bool,
 	replies bool,
 	boosts bool,
+	quotes bool,
 	page *paging.Page,
 ) (*apimodel.PageableResponse, gtserror.WithCode) {
 	reqs, err := p.state.DB.GetInteractionsRequestsForAcct(
@@ -50,6 +51,7 @@ func (p *Processor) GetPage(
 		likes,
 		replies,
 		boosts,
+		quotes,
 		page,
 	)
 	if err != nil && !errors.Is(err, db.ErrNoEntries) {
@@ -90,6 +92,7 @@ func (p *Processor) GetPage(
 	extraParams.Set(apiutil.InteractionFavouritesKey, strconv.FormatBool(likes))
 	extraParams.Set(apiutil.InteractionRepliesKey, strconv.FormatBool(replies))
 	extraParams.Set(apiutil.InteractionReblogsKey, strconv.FormatBool(boosts))
+	extraParams.Set(apiutil.InteractionQuotesKey, strconv.FormatBool(quotes))
 	if statusID != "" {
 		extraParams.Set(apiutil.InteractionStatusIDKey, statusID)
 	}

@@ -628,6 +628,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontend() {
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
   },
   "quote_approval": {
@@ -773,6 +780,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendHTMLContentWarning
       "manual_approval": []
     },
     "can_reblog": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
+    },
+    "can_quote": {
       "automatic_approval": [
         "public",
         "me"
@@ -930,6 +944,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendApplicationDeleted
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
   },
   "quote_approval": {
@@ -1064,6 +1085,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownAttachments
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
   },
   "quote_approval": {
@@ -1143,6 +1171,12 @@ func (suite *InternalToFrontendTestSuite) TestStatusToWebStatus() {
       "manual_approval": []
     },
     "can_reblog": {
+      "automatic_approval": [
+        "public"
+      ],
+      "manual_approval": []
+    },
+    "can_quote": {
       "automatic_approval": [
         "public"
       ],
@@ -1390,6 +1424,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendUnknownLanguage() 
         "me"
       ],
       "manual_approval": []
+    },
+    "can_quote": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
     }
   },
   "quote_approval": {
@@ -1491,6 +1532,12 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendPartialInteraction
       "manual_approval": []
     },
     "can_reblog": {
+      "automatic_approval": [
+        "author"
+      ],
+      "manual_approval": []
+    },
+    "can_quote": {
       "automatic_approval": [
         "author"
       ],
@@ -1623,6 +1670,13 @@ func (suite *InternalToFrontendTestSuite) TestStatusToAPIStatusPendingApproval()
       "manual_approval": []
     },
     "can_reblog": {
+      "automatic_approval": [
+        "public",
+        "me"
+      ],
+      "manual_approval": []
+    },
+    "can_quote": {
       "automatic_approval": [
         "public",
         "me"
@@ -2635,6 +2689,13 @@ func (suite *InternalToFrontendTestSuite) TestAdminReportToFrontend2() {
             "me"
           ],
           "manual_approval": []
+        },
+        "can_quote": {
+          "automatic_approval": [
+            "public",
+            "me"
+          ],
+          "manual_approval": []
         }
       },
       "quote_approval": {
@@ -3137,6 +3198,13 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
           "me"
         ],
         "manual_approval": []
+      },
+      "can_quote": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
       }
     },
     "quote_approval": {
@@ -3231,6 +3299,13 @@ func (suite *InternalToFrontendTestSuite) TestIntReqToAPI() {
         "manual_approval": []
       },
       "can_reblog": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
+      },
+      "can_quote": {
         "automatic_approval": [
           "public",
           "me"
@@ -3398,6 +3473,13 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPISelfConvo() {
         "manual_approval": []
       },
       "can_reblog": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
+      },
+      "can_quote": {
         "automatic_approval": [
           "public",
           "me"
@@ -3575,6 +3657,13 @@ func (suite *InternalToFrontendTestSuite) TestConversationToAPI() {
         "manual_approval": []
       },
       "can_reblog": {
+        "automatic_approval": [
+          "public",
+          "me"
+        ],
+        "manual_approval": []
+      },
+      "can_quote": {
         "automatic_approval": [
           "public",
           "me"

@@ -351,6 +351,14 @@ func (f *Filter) StatusQuoteable(
 	}
 
 	switch {
+	// Never let another account quote a followers-only or direct status,
+	// even if a malformed or malicious policy claims otherwise. A quote
+	// may be public and would expose the private target's URI.
+	case !status.ToOrCcPublic():
+		return &gtsmodel.PolicyCheckResult{
+			Permission: gtsmodel.PolicyPermissionForbidden,
+		}, nil
+
 	// If status has a canQuote sub-policy set, check against that.
 	case status.InteractionPolicy != nil && status.InteractionPolicy.CanQuote != nil:
 		return f.checkPolicy(

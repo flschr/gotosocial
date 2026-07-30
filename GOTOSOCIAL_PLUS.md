@@ -103,6 +103,13 @@ this fallback directly above a card for the same target.
 
 The optional quote-fallback setting removes only a leading Mastodon
 `quote-inline` paragraph whose URL exactly matches the visible preview card.
+
+Quote permissions for public and unlisted posts are controlled per account
+under **User Settings → Posts → Default Interaction Policies → Quote**.
+Followers-only posts remain quoteable only by their author. These are standard
+interaction-policy settings rather than a separate Plus configuration flag.
+The pending interaction requests page can also be filtered to include or
+exclude quotes.
 Normal links, user-authored `RE:` text, unmatched targets, and fallbacks
 without a card remain unchanged.
 

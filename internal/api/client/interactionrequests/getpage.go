@@ -55,7 +55,7 @@ import (
 //		type: boolean
 //		description: >-
 //			If true or not set, pending favourites will be included in the results.
-//			At least one of favourites, replies, and reblogs must be true.
+//			At least one of favourites, replies, reblogs, and quotes must be true.
 //		in: query
 //		required: false
 //		default: true
@@ -64,7 +64,7 @@ import (
 //		type: boolean
 //		description: >-
 //			If true or not set, pending replies will be included in the results.
-//			At least one of favourites, replies, and reblogs must be true.
+//			At least one of favourites, replies, reblogs, and quotes must be true.
 //		in: query
 //		required: false
 //		default: true
@@ -73,7 +73,16 @@ import (
 //		type: boolean
 //		description: >-
 //			If true or not set, pending reblogs will be included in the results.
-//			At least one of favourites, replies, and reblogs must be true.
+//			At least one of favourites, replies, reblogs, and quotes must be true.
+//		in: query
+//		required: false
+//		default: true
+//	-
+//		name: quotes
+//		type: boolean
+//		description: >-
+//			If true or not set, pending quotes will be included in the results.
+//			At least one of favourites, replies, reblogs, and quotes must be true.
 //		in: query
 //		required: false
 //		default: true
@@ -184,8 +193,16 @@ func (m *Module) InteractionRequestsGETHandler(c *gin.Context) {
 		return
 	}
 
-	if !includeLikes && !includeReplies && !includeBoosts {
-		const text = "at least one of favourites, replies, or boosts must be true"
+	includeQuotes, errWithCode := apiutil.ParseInteractionQuotes(
+		c.Query(apiutil.InteractionQuotesKey), true,
+	)
+	if errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+
+	if !includeLikes && !includeReplies && !includeBoosts && !includeQuotes {
+		const text = "at least one of favourites, replies, boosts, or quotes must be true"
 		errWithCode := gtserror.NewErrorBadRequest(errors.New(text), text)
 		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
 		return
@@ -208,6 +225,7 @@ func (m *Module) InteractionRequestsGETHandler(c *gin.Context) {
 		includeLikes,
 		includeReplies,
 		includeBoosts,
+		includeQuotes,
 		page,
 	)
 	if errWithCode != nil {
