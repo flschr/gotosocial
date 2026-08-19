@@ -94,9 +94,17 @@ jobs:
             # unique here, otherwise the binary reports two build metadata parts.
             build_version="${PLUS_BASE_VERSION}-plus.${PLUS_DEV_RELEASE}-dev"
           fi
+          source_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          build_identity="head-${source_sha:0:9}"
+          if [[ "${source_sha}" != "${GITHUB_SHA}" ]]
+          then
+            # Pull requests build GitHub's synthetic merge commit. Record both
+            # the source head and tested merge so the artifact is unambiguous.
+            build_identity="${build_identity}-merge-${GITHUB_SHA:0:9}"
+          fi
           echo "BUILD_VERSION=${build_version}" >> "${GITHUB_ENV}"
-          echo "BUILD_ARTIFACT=gotosocial-${build_version}-git-${GITHUB_SHA:0:9}-linux-amd64" >> "${GITHUB_ENV}"
-          echo "BUILD_ARCHIVE=gotosocial_${build_version}_git-${GITHUB_SHA:0:9}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"
+          echo "BUILD_ARTIFACT=gotosocial-${build_version}-${build_identity}-linux-amd64" >> "${GITHUB_ENV}"
+          echo "BUILD_ARCHIVE=gotosocial_${build_version}_${build_identity}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"
 
       - name: Test production monitor
         shell: bash
