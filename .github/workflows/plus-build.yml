@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - "plus/**"
+  pull_request:
+    branches:
+      - "plus/**"
   workflow_dispatch:
     inputs:
       release_version:

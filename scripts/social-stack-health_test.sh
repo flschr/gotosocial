@@ -59,7 +59,7 @@ sqlite3 "${database}" "UPDATE bluesky_connections SET oauth_session_id=NULL, oau
 expect_failure "crossposting is enabled"
 
 sqlite3 "${database}" "UPDATE bluesky_connections SET oauth_session_id='session', oauth_data=X'01', last_sync_at=datetime('now','-11 minutes');"
-expect_failure "incoming sync is stale"
+expect_failure "incoming sync scheduler is stale"
 
 sqlite3 "${database}" "UPDATE bluesky_connections SET last_sync_at=datetime('now'); INSERT INTO bluesky_notifications VALUES ('notification', 1);"
 expect_failure "1 failed incoming item(s)"
@@ -72,7 +72,26 @@ expect_failure "waiting longer than 15 minutes"
 
 sqlite3 "${database}" "DELETE FROM bluesky_deliveries; UPDATE bluesky_connections SET last_sync_error='temporary upstream failure';"
 run_check >/dev/null
-printf '%s\n' "$(( $(date +%s) - 601 ))" >"${error_state}"
+IFS='|' read -r error_since error_fingerprint <"${error_state}"
+[[ "${error_since}" =~ ^[0-9]+$ ]]
+[[ -n "${error_fingerprint}" ]]
+
+# A different error identity starts a new grace period instead of inheriting
+# the age of the previous transient failure.
+printf '%s|%s\n' "$(( $(date +%s) - 601 ))" "${error_fingerprint}" >"${error_state}"
+sqlite3 "${database}" "UPDATE bluesky_connections SET last_sync_error='different temporary failure';"
+run_check >/dev/null
+IFS='|' read -r reset_since reset_fingerprint <"${error_state}"
+(( reset_since > $(date +%s) - 60 ))
+[[ "${reset_fingerprint}" != "${error_fingerprint}" ]]
+
+# Multiple accounts are fingerprinted deterministically and alert only after
+# that exact combined failure state remains unchanged for the grace period.
+sqlite3 "${database}" "INSERT INTO bluesky_connections (id, updated_at, oauth_session_id, oauth_data, last_sync_at, last_sync_error, crosspost_public) VALUES ('account-b', datetime('now'), 'session-b', X'02', datetime('now'), 'second account failure', 1);"
+run_check >/dev/null
+IFS='|' read -r combined_since combined_fingerprint <"${error_state}"
+[[ "${combined_fingerprint}" != "${reset_fingerprint}" ]]
+printf '%s|%s\n' "$(( $(date +%s) - 601 ))" "${combined_fingerprint}" >"${error_state}"
 expect_failure "failed continuously"
 
 sqlite3 "${database}" "UPDATE bluesky_connections SET last_sync_error=NULL;"

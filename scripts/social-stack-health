@@ -25,7 +25,7 @@ healthchecks_ping() {
   /usr/bin/curl --fail --silent --show-error --max-time 10 \
     --data-binary "${body}" "${url}${suffix}" >/dev/null 2>&1 || \
     /usr/bin/logger --tag social-stack-monitoring \
-      "Could not deliver Healthchecks.io ping for ${url##*/}${suffix}"
+      "Could not deliver Healthchecks.io stack${suffix} ping"
 }
 
 diagnostic="Social stack health check failed."
@@ -49,7 +49,7 @@ check_container() {
 }
 
 check_bluesky() {
-  local result auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync sync_errors
+  local result auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync sync_errors sync_error_fingerprint
   result="$(sqlite3 -readonly -separator '|' "${GTS_DATABASE}" "
     SELECT
       (SELECT count(*) FROM bluesky_connections
@@ -71,9 +71,16 @@ check_bluesky() {
        WHERE oauth_session_id IS NOT NULL AND oauth_session_id != ''
          AND oauth_data IS NOT NULL AND length(oauth_data) > 0
          AND ((last_sync_at IS NULL AND julianday(updated_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))
-           OR julianday(last_sync_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes')));
+           OR julianday(last_sync_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))),
+      (SELECT coalesce(group_concat(hex(error_identity), ''), '')
+       FROM (
+         SELECT id || char(0) || coalesce(last_sync_error_code, '') || char(0) || last_sync_error AS error_identity
+         FROM bluesky_connections
+         WHERE last_sync_error IS NOT NULL AND last_sync_error != ''
+         ORDER BY id
+       ));
   ")"
-  IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications sync_errors stale_sync <<<"${result}"
+  IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications sync_errors stale_sync sync_error_fingerprint <<<"${result}"
   if (( auth_failures > 0 )); then
     diagnostic="Bluesky sync authorization expired: reconnect required; ${pending} outgoing post(s) waiting."
     return 1
@@ -95,13 +102,16 @@ check_bluesky() {
     return 1
   fi
   if (( sync_errors > 0 )); then
-    local now error_since
+    local now error_since stored_fingerprint state_tmp
     now="$(date +%s)"
     if [[ -r "${BLUESKY_ERROR_STATE_FILE}" ]]; then
-      read -r error_since <"${BLUESKY_ERROR_STATE_FILE}"
-    else
+      IFS='|' read -r error_since stored_fingerprint <"${BLUESKY_ERROR_STATE_FILE}" || true
+    fi
+    if [[ ! "${error_since:-}" =~ ^[0-9]+$ || "${stored_fingerprint:-}" != "${sync_error_fingerprint}" ]]; then
       error_since="${now}"
-      printf '%s\n' "${error_since}" >"${BLUESKY_ERROR_STATE_FILE}"
+      state_tmp="${BLUESKY_ERROR_STATE_FILE}.tmp.$$"
+      printf '%s|%s\n' "${error_since}" "${sync_error_fingerprint}" >"${state_tmp}"
+      mv -f -- "${state_tmp}" "${BLUESKY_ERROR_STATE_FILE}"
     fi
     if (( now - error_since >= BLUESKY_MAX_ERROR_MINUTES * 60 )); then
       diagnostic="Bluesky incoming sync has failed continuously for more than ${BLUESKY_MAX_ERROR_MINUTES} minutes on ${sync_errors} account(s)."
