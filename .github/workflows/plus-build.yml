@@ -109,9 +109,10 @@ jobs:
       - name: Test production monitor
         shell: bash
         run: |
-          bash -n scripts/social-stack-health scripts/social-stack-health_test.sh
+          bash -n scripts/social-stack-health scripts/social-stack-health_test.sh scripts/social-stack-health_stack_test.sh
           bash -n example/social-stack-monitoring.conf.example
           scripts/social-stack-health_test.sh
+          scripts/social-stack-health_stack_test.sh
           sudo install -o root -g root -m 0755 scripts/social-stack-health /usr/local/sbin/social-stack-health
           systemd-analyze verify \
             example/social-stack-health.service \
@@ -162,7 +163,7 @@ jobs:
           mkdir -p dist/gotosocial
           cp gotosocial LICENSE README.md CHANGELOG.md GOTOSOCIAL_PLUS.md example/config.yaml example/gotosocial.service dist/gotosocial/
           mkdir -p dist/gotosocial/scripts dist/gotosocial/example
-          cp scripts/social-stack-health scripts/social-stack-health_test.sh dist/gotosocial/scripts/
+          cp scripts/social-stack-health scripts/social-stack-health_test.sh scripts/social-stack-health_stack_test.sh dist/gotosocial/scripts/
           cp example/social-stack-health.service example/social-stack-health.timer example/social-stack-monitoring.conf.example dist/gotosocial/example/
           cp -R web/assets web/template dist/gotosocial/
           tar -C dist -czf "dist/${BUILD_ARCHIVE}" gotosocial

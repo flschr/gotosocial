@@ -47,6 +47,7 @@ sudo systemctl enable --now social-stack-health.timer
 systemctl show social-stack-health.service -p Result -p ExecMainStatus
 systemctl show social-stack-health.timer -p ActiveState -p SubState -p LastTriggerUSec
 scripts/social-stack-health_test.sh
+scripts/social-stack-health_stack_test.sh
 ```
 
 A healthy service reports `Result=success` and `ExecMainStatus=0`; the timer is

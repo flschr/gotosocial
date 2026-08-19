@@ -43,6 +43,11 @@ failure_ping() {
 }
 trap failure_ping ERR
 
+if [[ -z "${HC_STACK_URL:-}" ]]; then
+  diagnostic="Healthchecks.io stack ping URL is not configured."
+  false
+fi
+
 check_container() {
   local container="$1" state health
   if ! state="$("${DOCKER_BIN}" inspect --format '{{.State.Status}}' "${container}")"; then

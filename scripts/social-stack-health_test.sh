@@ -10,29 +10,10 @@ readonly error_state="${test_dir}/error-since"
 readonly fake_curl="${test_dir}/curl"
 readonly fake_logger="${test_dir}/logger"
 readonly logger_output="${test_dir}/logger-output"
-readonly fake_systemctl="${test_dir}/systemctl"
-readonly fake_docker="${test_dir}/docker"
-readonly fake_stack_curl="${test_dir}/stack-curl"
-readonly fake_sleep="${test_dir}/sleep"
-readonly stack_curl_output="${test_dir}/stack-curl-output"
-readonly sleep_output="${test_dir}/sleep-output"
 touch "${config}"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"${fake_curl}"
 printf '%s\n' '#!/usr/bin/env bash' 'printf '\''%s\n'\'' "$*" >>"${TEST_LOGGER_OUTPUT}"' >"${fake_logger}"
-printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${fake_systemctl}"
-printf '%s\n' \
-  '#!/usr/bin/env bash' \
-  'container="${!#}"' \
-  '[[ "${FAIL_CONTAINER:-}" != "${container}" ]] || exit 1' \
-  'if [[ "$*" == *State.Health* ]]; then printf '\''healthy\n'\''; else printf '\''running\n'\''; fi' >"${fake_docker}"
-printf '%s\n' \
-  '#!/usr/bin/env bash' \
-  'printf '\''%s\n'\'' "$*" >>"${TEST_CURL_OUTPUT}"' \
-  '[[ -z "${FAIL_URL:-}" || "$*" != *"${FAIL_URL}"* ]]' >"${fake_stack_curl}"
-printf '%s\n' \
-  '#!/usr/bin/env bash' \
-  'printf '\''%s\n'\'' "$*" >>"${TEST_SLEEP_OUTPUT}"' >"${fake_sleep}"
-chmod +x "${fake_curl}" "${fake_logger}" "${fake_systemctl}" "${fake_docker}" "${fake_stack_curl}" "${fake_sleep}"
+chmod +x "${fake_curl}" "${fake_logger}"
 
 sqlite3 "${database}" <<'SQL'
 CREATE TABLE bluesky_connections (
@@ -65,6 +46,7 @@ run_check() {
   GTS_DATABASE="${database}" \
   SOCIAL_STACK_HEALTH_BLUESKY_ONLY=true \
   BLUESKY_ERROR_STATE_FILE="${error_state}" \
+  HC_STACK_URL="https://example.invalid/stack-check" \
   CURL_BIN="${fake_curl}" \
   LOGGER_BIN="${fake_logger}" \
   TEST_LOGGER_OUTPUT="${logger_output}" \
@@ -83,24 +65,6 @@ run_missing_database_check() {
   "${SCRIPT_DIR}/social-stack-health" 2>&1
 }
 
-run_stack_check() {
-  SOCIAL_MONITORING_CONFIG="${config}" \
-  GTS_DATABASE="${database}" \
-  BLUESKY_ERROR_STATE_FILE="${error_state}" \
-  HC_STACK_URL="https://example.invalid/stack-check" \
-  CURL_BIN="${fake_stack_curl}" \
-  LOGGER_BIN="${fake_logger}" \
-  SYSTEMCTL_BIN="${fake_systemctl}" \
-  DOCKER_BIN="${fake_docker}" \
-  SLEEP_BIN="${fake_sleep}" \
-  TEST_LOGGER_OUTPUT="${logger_output}" \
-  TEST_CURL_OUTPUT="${stack_curl_output}" \
-  TEST_SLEEP_OUTPUT="${sleep_output}" \
-  FAIL_CONTAINER="${FAIL_CONTAINER:-}" \
-  FAIL_URL="${FAIL_URL:-}" \
-  "${SCRIPT_DIR}/social-stack-health" 2>&1
-}
-
 expect_failure() {
   local expected="$1" output
   set +e
@@ -111,29 +75,7 @@ expect_failure() {
   grep -F "${expected}" <<<"${output}" >/dev/null
 }
 
-expect_stack_failure() {
-  local expected="$1" output status
-  set +e
-  output="$(run_stack_check)"
-  status=$?
-  set -e
-  [[ "${status}" -ne 0 ]]
-  grep -F "${expected}" <<<"${output}" >/dev/null
-  [[ "$(wc -l <"${sleep_output}" | tr -d ' ')" -eq 2 ]]
-  : >"${sleep_output}"
-}
-
 run_check >/dev/null
-
-# The complete stack path must succeed only when every individual dependency
-# succeeds. A later healthy dependency must never hide an earlier failure.
-run_stack_check >/dev/null
-grep -F 'https://social.fischr.org/api/v1/instance' "${stack_curl_output}" >/dev/null
-grep -F 'https://pds.fischr.org/xrpc/_health' "${stack_curl_output}" >/dev/null
-grep -F 'https://example.invalid/stack-check' "${stack_curl_output}" >/dev/null
-: >"${stack_curl_output}"
-FAIL_CONTAINER=caddy expect_stack_failure "Could not inspect the caddy container."
-FAIL_URL=social.fischr.org expect_stack_failure "GoToSocial API is not reachable."
 
 set +e
 missing_output="$(run_missing_database_check)"
