@@ -68,6 +68,16 @@ func TestConnectionErrorCode(t *testing.T) {
 	require.Equal(t, ErrorCodeRemote, errorCode(errors.New("timeout")))
 }
 
+func TestOAuthRefreshFailureIsAuthenticationError(t *testing.T) {
+	for _, message := range []string{
+		"token refresh failed: auth server request failed (HTTP 400): invalid_grant",
+		"token refresh failed: Session expired",
+		"token refresh failed: Invalid refresh token",
+	} {
+		require.Equal(t, ErrorCodeAuth, errorCode(errors.New(message)))
+	}
+}
+
 func TestInteractionCreatedAtPrefersServerObservedTime(t *testing.T) {
 	indexedAt := time.Now()
 	maliciousFuture := indexedAt.Add(100 * 365 * 24 * time.Hour)

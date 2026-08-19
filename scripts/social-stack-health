@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Production health check used by social.fischr.org. Besides process and HTTP
+# health, this deliberately checks durable Bluesky state so a live server
+# cannot hide an expired OAuth session or a stuck crosspost queue.
+
+readonly SOCIAL_MONITORING_CONFIG="${SOCIAL_MONITORING_CONFIG:-/etc/social-stack-monitoring.conf}"
+readonly GTS_DATABASE="${GTS_DATABASE:-/srv/gotosocial/sqlite.db}"
+readonly BLUESKY_MAX_PENDING_MINUTES="${BLUESKY_MAX_PENDING_MINUTES:-15}"
+
+if [[ -r "${SOCIAL_MONITORING_CONFIG}" ]]; then
+  # shellcheck source=/dev/null
+  source "${SOCIAL_MONITORING_CONFIG}"
+fi
+
+healthchecks_ping() {
+  local url="${1:-}"
+  local suffix="${2:-}"
+  local body="${3:-}"
+  [[ -n "${url}" ]] || return 0
+  /usr/bin/curl --fail --silent --show-error --max-time 10 \
+    --data-binary "${body}" "${url}${suffix}" >/dev/null 2>&1 || \
+    /usr/bin/logger --tag social-stack-monitoring \
+      "Could not deliver Healthchecks.io ping for ${url##*/}${suffix}"
+}
+
+diagnostic="Social stack health check failed."
+failure_ping() {
+  local status="$?"
+  printf '%s\n' "${diagnostic}" >&2
+  /usr/bin/logger --tag social-stack-health "${diagnostic}"
+  healthchecks_ping "${HC_STACK_URL:-}" "/fail" "${diagnostic}"
+  exit "${status}"
+}
+trap failure_ping ERR
+
+check_container() {
+  local container="$1" state health
+  state="$(docker inspect --format '{{.State.Status}}' "${container}")"
+  health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "${container}")"
+  if [[ "${state}" != "running" || "${health}" != "healthy" ]]; then
+    diagnostic="${container} is not healthy: state=${state}, health=${health}."
+    return 1
+  fi
+}
+
+check_bluesky() {
+  local result auth_failures pending stale dead
+  result="$(sqlite3 -readonly -separator '|' "${GTS_DATABASE}" "
+    SELECT
+      (SELECT count(*) FROM bluesky_connections
+       WHERE last_sync_error_code = 'auth'
+          OR last_sync_error LIKE '%invalid_grant%'
+          OR last_sync_error LIKE '%Session expired%'
+          OR last_sync_error LIKE '%Invalid refresh token%'),
+      (SELECT count(*) FROM bluesky_deliveries),
+      (SELECT count(*) FROM bluesky_deliveries
+       WHERE julianday(created_at) <= julianday('now', '-${BLUESKY_MAX_PENDING_MINUTES} minutes')),
+      (SELECT count(*) FROM bluesky_deliveries WHERE dead_letter = 1);
+  ")"
+  IFS='|' read -r auth_failures pending stale dead <<<"${result}"
+  if (( auth_failures > 0 )); then
+    diagnostic="Bluesky sync authorization expired: reconnect required; ${pending} outgoing post(s) waiting."
+    return 1
+  fi
+  if (( dead > 0 )); then
+    diagnostic="Bluesky sync has ${dead} failed item(s); ${pending} outgoing post(s) waiting."
+    return 1
+  fi
+  if (( stale > 0 )); then
+    diagnostic="Bluesky sync is stuck: ${stale} post(s) waiting longer than ${BLUESKY_MAX_PENDING_MINUTES} minutes (${pending} total)."
+    return 1
+  fi
+}
+
+check_stack() {
+  systemctl is-active --quiet gotosocial.service || { diagnostic="GoToSocial service is not active."; return 1; }
+  check_container caddy
+  check_container pds
+  curl --fail --silent --show-error --max-time 15 https://social.fischr.org/api/v1/instance >/dev/null
+  curl --fail --silent --show-error --max-time 15 https://pds.fischr.org/xrpc/_health >/dev/null
+}
+
+for attempt in 1 2 3; do
+  if check_stack; then
+    break
+  fi
+  if [[ "${attempt}" == "3" ]]; then
+    false
+  fi
+  sleep 30
+done
+
+check_bluesky
+healthchecks_ping "${HC_STACK_URL:-}" "" "Social stack and Bluesky sync are healthy."
+trap - ERR
