@@ -98,6 +98,12 @@ jobs:
           echo "BUILD_ARTIFACT=gotosocial-${build_version}-git-${GITHUB_SHA:0:9}-linux-amd64" >> "${GITHUB_ENV}"
           echo "BUILD_ARCHIVE=gotosocial_${build_version}_git-${GITHUB_SHA:0:9}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"
 
+      - name: Test production monitor
+        shell: bash
+        run: |
+          bash -n scripts/social-stack-health scripts/social-stack-health_test.sh
+          scripts/social-stack-health_test.sh
+
       - name: Test Plus behavior
         shell: bash
         run: |
