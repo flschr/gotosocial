@@ -11,7 +11,7 @@ readonly fake_curl="${test_dir}/curl"
 readonly fake_logger="${test_dir}/logger"
 readonly logger_output="${test_dir}/logger-output"
 touch "${config}"
-printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"${fake_curl}"
+printf '%s\n' '#!/usr/bin/env bash' '[[ "${FAIL_CURL:-}" != true ]]' >"${fake_curl}"
 printf '%s\n' '#!/usr/bin/env bash' 'printf '\''%s\n'\'' "$*" >>"${TEST_LOGGER_OUTPUT}"' >"${fake_logger}"
 chmod +x "${fake_curl}" "${fake_logger}"
 
@@ -49,6 +49,7 @@ run_check() {
   HC_STACK_URL="https://example.invalid/stack-check" \
   CURL_BIN="${fake_curl}" \
   LOGGER_BIN="${fake_logger}" \
+  FAIL_CURL=false \
   TEST_LOGGER_OUTPUT="${logger_output}" \
   "${SCRIPT_DIR}/social-stack-health" 2>&1
 }
@@ -61,6 +62,7 @@ run_missing_database_check() {
   HC_STACK_URL="https://example.invalid/SECRET-PING-KEY" \
   CURL_BIN="${fake_curl}" \
   LOGGER_BIN="${fake_logger}" \
+  FAIL_CURL=true \
   TEST_LOGGER_OUTPUT="${logger_output}" \
   "${SCRIPT_DIR}/social-stack-health" 2>&1
 }

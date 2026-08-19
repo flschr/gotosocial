@@ -29,7 +29,8 @@ On first installation, replace the commented placeholder in
 `/etc/social-stack-monitoring.conf` with the real `HC_STACK_URL`. On upgrades,
 preserve the existing active configuration and compare it with the newly
 installed `.example` file. Keep the active file mode at `0600`; the URL is a
-credential.
+credential. The monitor requires a valid HTTPS URL and fails locally if the
+healthy ping is rejected, so a broken alert transport cannot appear healthy.
 
 Reload systemd, verify the unit definitions, run one foreground check, and then
 enable the timer:

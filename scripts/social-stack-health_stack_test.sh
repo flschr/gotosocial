@@ -65,7 +65,7 @@ SQL
 run_check() {
   SOCIAL_MONITORING_CONFIG="${config}" \
   GTS_DATABASE="${database}" \
-  HC_STACK_URL="https://example.invalid/stack-check" \
+  HC_STACK_URL="${TEST_HC_URL:-https://example.invalid/stack-check}" \
   CURL_BIN="${fake_curl}" \
   LOGGER_BIN="${fake_logger}" \
   SYSTEMCTL_BIN="${fake_systemctl}" \
@@ -93,6 +93,18 @@ expect_failure() {
   [[ "$(wc -l <"${sleep_output}" | tr -d ' ')" -eq 2 ]]
 }
 
+expect_direct_failure() {
+  local expected="$1" output status
+  : >"${sleep_output}"
+  set +e
+  output="$(run_check)"
+  status=$?
+  set -e
+  [[ "${status}" -ne 0 ]]
+  grep -F "${expected}" <<<"${output}" >/dev/null
+  [[ ! -s "${sleep_output}" ]]
+}
+
 run_check >/dev/null
 grep -F 'https://social.fischr.org/api/v1/instance' "${curl_output}" >/dev/null
 grep -F 'https://pds.fischr.org/xrpc/_health' "${curl_output}" >/dev/null
@@ -108,7 +120,10 @@ missing_config_output="$(env -u HC_STACK_URL \
 missing_config_status=$?
 set -e
 [[ "${missing_config_status}" -ne 0 ]]
-grep -F 'Healthchecks.io stack ping URL is not configured.' <<<"${missing_config_output}" >/dev/null
+grep -F 'Healthchecks.io stack ping URL must be a valid HTTPS URL.' <<<"${missing_config_output}" >/dev/null
+
+TEST_HC_URL=not-a-url expect_direct_failure "Healthchecks.io stack ping URL must be a valid HTTPS URL."
+FAIL_URL=example.invalid/stack-check expect_direct_failure "Could not deliver Healthchecks.io healthy stack ping."
 
 FAIL_SYSTEMCTL=true expect_failure "GoToSocial service is not active."
 FAIL_CONTAINER=caddy expect_failure "Could not inspect the caddy container."
