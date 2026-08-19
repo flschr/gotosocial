@@ -50,7 +50,7 @@ check_container() {
 
 check_bluesky() {
   local result auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync sync_errors sync_error_fingerprint
-  result="$(sqlite3 -readonly -separator '|' "${GTS_DATABASE}" "
+  if ! result="$(sqlite3 -readonly -separator '|' "${GTS_DATABASE}" "
     SELECT
       (SELECT count(*) FROM bluesky_connections
        WHERE last_sync_error_code = 'auth'
@@ -79,7 +79,10 @@ check_bluesky() {
          WHERE last_sync_error IS NOT NULL AND last_sync_error != ''
          ORDER BY id
        ));
-  ")"
+  ")"; then
+    diagnostic="Could not inspect the Bluesky sync database."
+    return 1
+  fi
   IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications sync_errors stale_sync sync_error_fingerprint <<<"${result}"
   if (( auth_failures > 0 )); then
     diagnostic="Bluesky sync authorization expired: reconnect required; ${pending} outgoing post(s) waiting."

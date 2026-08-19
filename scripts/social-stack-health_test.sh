@@ -43,6 +43,14 @@ run_check() {
   "${SCRIPT_DIR}/social-stack-health" 2>&1
 }
 
+run_missing_database_check() {
+  SOCIAL_MONITORING_CONFIG="${config}" \
+  GTS_DATABASE="${test_dir}/missing/sqlite.db" \
+  SOCIAL_STACK_HEALTH_BLUESKY_ONLY=true \
+  BLUESKY_ERROR_STATE_FILE="${error_state}" \
+  "${SCRIPT_DIR}/social-stack-health" 2>&1
+}
+
 expect_failure() {
   local expected="$1" output
   set +e
@@ -54,6 +62,13 @@ expect_failure() {
 }
 
 run_check >/dev/null
+
+set +e
+missing_output="$(run_missing_database_check)"
+missing_status=$?
+set -e
+[[ "${missing_status}" -ne 0 ]]
+[[ "$(grep -Fc 'Could not inspect the Bluesky sync database.' <<<"${missing_output}")" -eq 1 ]]
 
 sqlite3 "${database}" "UPDATE bluesky_connections SET oauth_session_id=NULL, oauth_data=NULL;"
 expect_failure "crossposting is enabled"
