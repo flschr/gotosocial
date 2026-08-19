@@ -46,6 +46,9 @@ run_check() {
   GTS_DATABASE="${database}" \
   SOCIAL_STACK_HEALTH_BLUESKY_ONLY=true \
   BLUESKY_ERROR_STATE_FILE="${error_state}" \
+  CURL_BIN="${fake_curl}" \
+  LOGGER_BIN="${fake_logger}" \
+  TEST_LOGGER_OUTPUT="${logger_output}" \
   "${SCRIPT_DIR}/social-stack-health" 2>&1
 }
 

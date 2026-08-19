@@ -1,0 +1,25 @@
+[Unit]
+Description=Check GoToSocial, Caddy, and Bluesky PDS health
+After=network-online.target pds.service gotosocial.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/social-stack-health
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+MemoryMax=256M
+TasksMax=128
+UMask=0077
