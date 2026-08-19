@@ -116,6 +116,7 @@ jobs:
           systemd-analyze verify \
             example/social-stack-health.service \
             example/social-stack-health.timer
+          grep -Fx 'TimeoutStartSec=4min' example/social-stack-health.service
           grep -Fx '# HC_STACK_URL="https://hc-ping.com/replace-with-stack-check-id"' \
             example/social-stack-monitoring.conf.example
 

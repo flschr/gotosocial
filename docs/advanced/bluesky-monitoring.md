@@ -65,9 +65,11 @@ labelled controlled failure and recovery through the real stack check:
 
 ```sh
 sudo bash -c '
+  set -euo pipefail
   set -a
   source /etc/social-stack-monitoring.conf
   set +a
+  test -n "${HC_STACK_URL:-}"
   /usr/bin/curl --fail --silent --show-error --max-time 10 \
     --data-binary "TEST ONLY: controlled Bluesky monitor notification test" \
     "${HC_STACK_URL}/fail" >/dev/null

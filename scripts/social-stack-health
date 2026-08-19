@@ -13,6 +13,9 @@ readonly BLUESKY_MAX_ERROR_MINUTES="${BLUESKY_MAX_ERROR_MINUTES:-10}"
 readonly BLUESKY_ERROR_STATE_FILE="${BLUESKY_ERROR_STATE_FILE:-/run/social-stack-health-bluesky-error-since}"
 readonly CURL_BIN="${CURL_BIN:-/usr/bin/curl}"
 readonly LOGGER_BIN="${LOGGER_BIN:-/usr/bin/logger}"
+readonly SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-/usr/bin/systemctl}"
+readonly DOCKER_BIN="${DOCKER_BIN:-/usr/bin/docker}"
+readonly SLEEP_BIN="${SLEEP_BIN:-/usr/bin/sleep}"
 
 if [[ -r "${SOCIAL_MONITORING_CONFIG}" ]]; then
   # shellcheck source=/dev/null
@@ -42,8 +45,14 @@ trap failure_ping ERR
 
 check_container() {
   local container="$1" state health
-  state="$(docker inspect --format '{{.State.Status}}' "${container}")"
-  health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "${container}")"
+  if ! state="$("${DOCKER_BIN}" inspect --format '{{.State.Status}}' "${container}")"; then
+    diagnostic="Could not inspect the ${container} container."
+    return 1
+  fi
+  if ! health="$("${DOCKER_BIN}" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "${container}")"; then
+    diagnostic="Could not inspect the ${container} container health."
+    return 1
+  fi
   if [[ "${state}" != "running" || "${health}" != "healthy" ]]; then
     diagnostic="${container} is not healthy: state=${state}, health=${health}."
     return 1
@@ -137,11 +146,17 @@ check_bluesky() {
 }
 
 check_stack() {
-  systemctl is-active --quiet gotosocial.service || { diagnostic="GoToSocial service is not active."; return 1; }
-  check_container caddy
-  check_container pds
-  curl --fail --silent --show-error --max-time 15 https://social.fischr.org/api/v1/instance >/dev/null
-  curl --fail --silent --show-error --max-time 15 https://pds.fischr.org/xrpc/_health >/dev/null
+  "${SYSTEMCTL_BIN}" is-active --quiet gotosocial.service || { diagnostic="GoToSocial service is not active."; return 1; }
+  check_container caddy || return 1
+  check_container pds || return 1
+  if ! "${CURL_BIN}" --fail --silent --show-error --max-time 15 https://social.fischr.org/api/v1/instance >/dev/null; then
+    diagnostic="GoToSocial API is not reachable."
+    return 1
+  fi
+  if ! "${CURL_BIN}" --fail --silent --show-error --max-time 15 https://pds.fischr.org/xrpc/_health >/dev/null; then
+    diagnostic="Bluesky PDS API is not reachable."
+    return 1
+  fi
 }
 
 if [[ "${SOCIAL_STACK_HEALTH_BLUESKY_ONLY:-false}" != "true" ]]; then
@@ -152,7 +167,7 @@ if [[ "${SOCIAL_STACK_HEALTH_BLUESKY_ONLY:-false}" != "true" ]]; then
     if [[ "${attempt}" == "3" ]]; then
       false
     fi
-    sleep 30
+    "${SLEEP_BIN}" 30
   done
 fi
 
