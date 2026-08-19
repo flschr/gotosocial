@@ -7,6 +7,7 @@ package bluesky
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -29,5 +30,19 @@ func errorCode(err error) string {
 	if errors.As(err, &connectionErr) {
 		return connectionErr.Code
 	}
+	// Indigo currently returns OAuth token endpoint failures as formatted
+	// errors rather than a typed error. Treat terminal refresh failures as
+	// authentication errors so operators and users are told to reconnect
+	// instead of waiting for a retry that cannot succeed.
+	if isTerminalOAuthError(err) {
+		return ErrorCodeAuth
+	}
 	return ErrorCodeRemote
+}
+
+func isTerminalOAuthError(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "invalid_grant") ||
+		strings.Contains(message, "session expired") ||
+		strings.Contains(message, "invalid refresh token")
 }

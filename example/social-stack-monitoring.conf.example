@@ -1,0 +1,3 @@
+# Copy this file to /etc/social-stack-monitoring.conf with mode 0600.
+# The Healthchecks.io ping URL is a credential; never commit its real value.
+# HC_STACK_URL="https://hc-ping.com/replace-with-stack-check-id"

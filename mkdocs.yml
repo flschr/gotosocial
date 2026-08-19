@@ -131,6 +131,7 @@ nav:
       - "advanced/security/sandboxing.md"
       - "advanced/security/firewall.md"
     - "advanced/healthchecks.md"
+    - "advanced/bluesky-monitoring.md"
     - "advanced/tracing.md"
     - "advanced/metrics.md"
     - "advanced/replicating-sqlite.md"

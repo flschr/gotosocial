@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Production health check used by social.fischr.org. Besides process and HTTP
+# health, this deliberately checks durable Bluesky state so a live server
+# cannot hide an expired OAuth session or a stuck crosspost queue.
+
+readonly SOCIAL_MONITORING_CONFIG="${SOCIAL_MONITORING_CONFIG:-/etc/social-stack-monitoring.conf}"
+readonly GTS_DATABASE="${GTS_DATABASE:-/srv/gotosocial/sqlite.db}"
+readonly BLUESKY_MAX_PENDING_MINUTES="${BLUESKY_MAX_PENDING_MINUTES:-15}"
+readonly BLUESKY_MAX_SYNC_MINUTES="${BLUESKY_MAX_SYNC_MINUTES:-10}"
+readonly BLUESKY_MAX_ERROR_MINUTES="${BLUESKY_MAX_ERROR_MINUTES:-10}"
+readonly BLUESKY_ERROR_STATE_FILE="${BLUESKY_ERROR_STATE_FILE:-/run/social-stack-health-bluesky-error-since}"
+readonly CURL_BIN="${CURL_BIN:-/usr/bin/curl}"
+readonly LOGGER_BIN="${LOGGER_BIN:-/usr/bin/logger}"
+readonly SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-/usr/bin/systemctl}"
+readonly DOCKER_BIN="${DOCKER_BIN:-/usr/bin/docker}"
+readonly SLEEP_BIN="${SLEEP_BIN:-/usr/bin/sleep}"
+
+if [[ -r "${SOCIAL_MONITORING_CONFIG}" ]]; then
+  # shellcheck source=/dev/null
+  source "${SOCIAL_MONITORING_CONFIG}"
+fi
+
+healthchecks_ping() {
+  local url="${1:-}"
+  local suffix="${2:-}"
+  local body="${3:-}"
+  [[ -n "${url}" ]] || return 1
+  "${CURL_BIN}" --fail --silent --show-error --max-time 10 \
+    --data-binary "${body}" "${url}${suffix}" >/dev/null 2>&1
+}
+
+diagnostic="Social stack health check failed."
+failure_ping() {
+  local status="$?" ping_failed=0
+  set +e
+  printf '%s\n' "${diagnostic}" >&2
+  healthchecks_ping "${HC_STACK_URL:-}" "/fail" "${diagnostic}" || ping_failed=1
+  "${LOGGER_BIN}" --tag social-stack-health "${diagnostic}" || :
+  if (( ping_failed != 0 )); then
+    "${LOGGER_BIN}" --tag social-stack-monitoring \
+      "Could not deliver Healthchecks.io stack/fail ping" || :
+  fi
+  exit "${status}"
+}
+trap failure_ping ERR
+
+if [[ ! "${HC_STACK_URL:-}" =~ ^https://[^[:space:]]+$ ]]; then
+  diagnostic="Healthchecks.io stack ping URL must be a valid HTTPS URL."
+  false
+fi
+
+check_container() {
+  local container="$1" state health
+  if ! state="$("${DOCKER_BIN}" inspect --format '{{.State.Status}}' "${container}")"; then
+    diagnostic="Could not inspect the ${container} container."
+    return 1
+  fi
+  if ! health="$("${DOCKER_BIN}" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "${container}")"; then
+    diagnostic="Could not inspect the ${container} container health."
+    return 1
+  fi
+  if [[ "${state}" != "running" || "${health}" != "healthy" ]]; then
+    diagnostic="${container} is not healthy: state=${state}, health=${health}."
+    return 1
+  fi
+}
+
+check_bluesky() {
+  local result auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync sync_errors sync_error_accounts
+  if ! result="$(sqlite3 -readonly -separator '|' "${GTS_DATABASE}" "
+    SELECT
+      (SELECT count(*) FROM bluesky_connections
+       WHERE last_sync_error_code = 'auth'
+          OR lower(last_sync_error) LIKE '%invalid_grant%'
+          OR lower(last_sync_error) LIKE '%session expired%'
+          OR lower(last_sync_error) LIKE '%invalid refresh token%'),
+      (SELECT count(*) FROM bluesky_connections
+       WHERE crosspost_public = 1
+         AND (oauth_session_id IS NULL OR oauth_session_id = '' OR oauth_data IS NULL OR length(oauth_data) = 0)),
+      (SELECT count(*) FROM bluesky_deliveries),
+      (SELECT count(*) FROM bluesky_deliveries
+       WHERE julianday(created_at) <= julianday('now', '-${BLUESKY_MAX_PENDING_MINUTES} minutes')),
+      (SELECT count(*) FROM bluesky_deliveries WHERE dead_letter = 1),
+      (SELECT count(*) FROM bluesky_notifications WHERE dead_letter = 1),
+      (SELECT count(*) FROM bluesky_connections
+       WHERE last_sync_error IS NOT NULL AND last_sync_error != ''),
+      (SELECT count(*) FROM bluesky_connections
+       WHERE oauth_session_id IS NOT NULL AND oauth_session_id != ''
+         AND oauth_data IS NOT NULL AND length(oauth_data) > 0
+         AND ((last_sync_at IS NULL AND julianday(updated_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))
+           OR julianday(last_sync_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))),
+      (SELECT coalesce(group_concat(account_id, ','), '')
+       FROM (
+         SELECT hex(id) AS account_id
+         FROM bluesky_connections
+         WHERE last_sync_error IS NOT NULL AND last_sync_error != ''
+         ORDER BY id
+       ));
+  ")"; then
+    diagnostic="Could not inspect the Bluesky sync database."
+    return 1
+  fi
+  IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications sync_errors stale_sync sync_error_accounts <<<"${result}"
+  if (( auth_failures > 0 )); then
+    diagnostic="Bluesky sync authorization expired: reconnect required; ${pending} outgoing post(s) waiting."
+    return 1
+  fi
+  if (( disconnected > 0 )); then
+    diagnostic="Bluesky crossposting is enabled but ${disconnected} account(s) are disconnected; reconnect required; ${pending} outgoing post(s) waiting."
+    return 1
+  fi
+  if (( dead_deliveries + dead_notifications > 0 )); then
+    diagnostic="Bluesky sync has ${dead_deliveries} failed outgoing item(s) and ${dead_notifications} failed incoming item(s); ${pending} outgoing post(s) waiting."
+    return 1
+  fi
+  if (( stale > 0 )); then
+    diagnostic="Bluesky sync is stuck: ${stale} post(s) waiting longer than ${BLUESKY_MAX_PENDING_MINUTES} minutes (${pending} total)."
+    return 1
+  fi
+  if (( stale_sync > 0 )); then
+    diagnostic="Bluesky incoming sync scheduler is stale for ${stale_sync} account(s): no attempt for more than ${BLUESKY_MAX_SYNC_MINUTES} minutes."
+    return 1
+  fi
+  if (( sync_errors > 0 )); then
+    local now account_id error_since state_tmp sustained_errors=0
+    local -a error_accounts
+    now="$(date +%s)"
+    state_tmp="${BLUESKY_ERROR_STATE_FILE}.tmp.$$"
+    : >"${state_tmp}"
+    IFS=',' read -r -a error_accounts <<<"${sync_error_accounts}"
+    for account_id in "${error_accounts[@]}"; do
+      error_since=""
+      if [[ -r "${BLUESKY_ERROR_STATE_FILE}" ]]; then
+        error_since="$(/usr/bin/awk -F '|' -v account="${account_id}" '$1 == account { print $2; exit }' "${BLUESKY_ERROR_STATE_FILE}")"
+      fi
+      if [[ ! "${error_since}" =~ ^[0-9]+$ ]]; then
+        error_since="${now}"
+      fi
+      printf '%s|%s\n' "${account_id}" "${error_since}" >>"${state_tmp}"
+      if (( now - error_since >= BLUESKY_MAX_ERROR_MINUTES * 60 )); then
+        ((sustained_errors += 1))
+      fi
+    done
+    mv -f -- "${state_tmp}" "${BLUESKY_ERROR_STATE_FILE}"
+    if (( sustained_errors > 0 )); then
+      diagnostic="Bluesky incoming sync has failed continuously for more than ${BLUESKY_MAX_ERROR_MINUTES} minutes on ${sustained_errors} of ${sync_errors} erroring account(s)."
+      return 1
+    fi
+  else
+    rm -f -- "${BLUESKY_ERROR_STATE_FILE}"
+  fi
+}
+
+check_stack() {
+  "${SYSTEMCTL_BIN}" is-active --quiet gotosocial.service || { diagnostic="GoToSocial service is not active."; return 1; }
+  check_container caddy || return 1
+  check_container pds || return 1
+  if ! "${CURL_BIN}" --fail --silent --show-error --max-time 15 https://social.fischr.org/api/v1/instance >/dev/null; then
+    diagnostic="GoToSocial API is not reachable."
+    return 1
+  fi
+  if ! "${CURL_BIN}" --fail --silent --show-error --max-time 15 https://pds.fischr.org/xrpc/_health >/dev/null; then
+    diagnostic="Bluesky PDS API is not reachable."
+    return 1
+  fi
+}
+
+if [[ "${SOCIAL_STACK_HEALTH_BLUESKY_ONLY:-false}" != "true" ]]; then
+  for attempt in 1 2 3; do
+    if check_stack; then
+      break
+    fi
+    if [[ "${attempt}" == "3" ]]; then
+      false
+    fi
+    "${SLEEP_BIN}" 30
+  done
+fi
+
+check_bluesky
+if ! healthchecks_ping "${HC_STACK_URL:-}" "" "Social stack and Bluesky sync are healthy."; then
+  diagnostic="Could not deliver Healthchecks.io healthy stack ping."
+  printf '%s\n' "${diagnostic}" >&2
+  "${LOGGER_BIN}" --tag social-stack-health "${diagnostic}"
+  exit 1
+fi
+trap - ERR

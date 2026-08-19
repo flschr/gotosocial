@@ -13,6 +13,7 @@ We consider these topics advanced because applying them incorrectly does have th
 * [Serving and caching assets and media from local storage](caching/assets-media.md)
 * [Process sandboxing](security/sandboxing.md)
 * [Firewall configuration](security/firewall.md)
+* [Monitoring Bluesky sync](bluesky-monitoring.md)
 * [Tracing](tracing.md)
 * [Metrics](metrics.md)
 * [Replicating SQLite](replicating-sqlite.md)
