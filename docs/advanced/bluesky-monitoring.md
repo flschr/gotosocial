@@ -56,3 +56,32 @@ external service.
 
 The error-duration state under `/run` stores only hex-encoded account IDs and
 timestamps. It is deleted automatically after complete recovery.
+
+## End-to-end notification test
+
+Automated checks prove delivery only as far as Healthchecks.io. After initial
+installation and after changing the notification integration, send a clearly
+labelled controlled failure and recovery through the real stack check:
+
+```sh
+sudo bash -c '
+  set -a
+  source /etc/social-stack-monitoring.conf
+  set +a
+  /usr/bin/curl --fail --silent --show-error --max-time 10 \
+    --data-binary "TEST ONLY: controlled Bluesky monitor notification test" \
+    "${HC_STACK_URL}/fail" >/dev/null
+  /usr/bin/curl --fail --silent --show-error --max-time 10 \
+    --data-binary "TEST ONLY: controlled Bluesky monitor recovery" \
+    "${HC_STACK_URL}" >/dev/null
+'
+```
+
+The recipient must confirm that the failure notification reached the expected
+inbox and was not classified as spam. Record the date and receiving channel in
+the operational issue or runbook. Provider-side status alone is not proof of
+last-mile receipt.
+
+For higher assurance, configure a second independent Healthchecks.io
+integration such as ntfy, Signal, Telegram, or a webhook. Assign it to the
+Social Stack check and repeat the controlled test for both channels.
