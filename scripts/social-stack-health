@@ -8,6 +8,7 @@ set -Eeuo pipefail
 readonly SOCIAL_MONITORING_CONFIG="${SOCIAL_MONITORING_CONFIG:-/etc/social-stack-monitoring.conf}"
 readonly GTS_DATABASE="${GTS_DATABASE:-/srv/gotosocial/sqlite.db}"
 readonly BLUESKY_MAX_PENDING_MINUTES="${BLUESKY_MAX_PENDING_MINUTES:-15}"
+readonly BLUESKY_MAX_SYNC_MINUTES="${BLUESKY_MAX_SYNC_MINUTES:-10}"
 
 if [[ -r "${SOCIAL_MONITORING_CONFIG}" ]]; then
   # shellcheck source=/dev/null
@@ -46,30 +47,47 @@ check_container() {
 }
 
 check_bluesky() {
-  local result auth_failures pending stale dead
+  local result auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync
   result="$(sqlite3 -readonly -separator '|' "${GTS_DATABASE}" "
     SELECT
       (SELECT count(*) FROM bluesky_connections
        WHERE last_sync_error_code = 'auth'
-          OR last_sync_error LIKE '%invalid_grant%'
-          OR last_sync_error LIKE '%Session expired%'
-          OR last_sync_error LIKE '%Invalid refresh token%'),
+          OR lower(last_sync_error) LIKE '%invalid_grant%'
+          OR lower(last_sync_error) LIKE '%session expired%'
+          OR lower(last_sync_error) LIKE '%invalid refresh token%'),
+      (SELECT count(*) FROM bluesky_connections
+       WHERE crosspost_public = 1
+         AND (oauth_session_id IS NULL OR oauth_session_id = '' OR oauth_data IS NULL OR length(oauth_data) = 0)),
       (SELECT count(*) FROM bluesky_deliveries),
       (SELECT count(*) FROM bluesky_deliveries
        WHERE julianday(created_at) <= julianday('now', '-${BLUESKY_MAX_PENDING_MINUTES} minutes')),
-      (SELECT count(*) FROM bluesky_deliveries WHERE dead_letter = 1);
+      (SELECT count(*) FROM bluesky_deliveries WHERE dead_letter = 1),
+      (SELECT count(*) FROM bluesky_notifications WHERE dead_letter = 1),
+      (SELECT count(*) FROM bluesky_connections
+       WHERE oauth_session_id IS NOT NULL AND oauth_session_id != ''
+         AND oauth_data IS NOT NULL AND length(oauth_data) > 0
+         AND ((last_sync_at IS NULL AND julianday(updated_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))
+           OR julianday(last_sync_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes')));
   ")"
-  IFS='|' read -r auth_failures pending stale dead <<<"${result}"
+  IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync <<<"${result}"
   if (( auth_failures > 0 )); then
     diagnostic="Bluesky sync authorization expired: reconnect required; ${pending} outgoing post(s) waiting."
     return 1
   fi
-  if (( dead > 0 )); then
-    diagnostic="Bluesky sync has ${dead} failed item(s); ${pending} outgoing post(s) waiting."
+  if (( disconnected > 0 )); then
+    diagnostic="Bluesky crossposting is enabled but ${disconnected} account(s) are disconnected; reconnect required; ${pending} outgoing post(s) waiting."
+    return 1
+  fi
+  if (( dead_deliveries + dead_notifications > 0 )); then
+    diagnostic="Bluesky sync has ${dead_deliveries} failed outgoing item(s) and ${dead_notifications} failed incoming item(s); ${pending} outgoing post(s) waiting."
     return 1
   fi
   if (( stale > 0 )); then
     diagnostic="Bluesky sync is stuck: ${stale} post(s) waiting longer than ${BLUESKY_MAX_PENDING_MINUTES} minutes (${pending} total)."
+    return 1
+  fi
+  if (( stale_sync > 0 )); then
+    diagnostic="Bluesky incoming sync is stale for ${stale_sync} account(s): no successful check for more than ${BLUESKY_MAX_SYNC_MINUTES} minutes."
     return 1
   fi
 }
@@ -82,15 +100,17 @@ check_stack() {
   curl --fail --silent --show-error --max-time 15 https://pds.fischr.org/xrpc/_health >/dev/null
 }
 
-for attempt in 1 2 3; do
-  if check_stack; then
-    break
-  fi
-  if [[ "${attempt}" == "3" ]]; then
-    false
-  fi
-  sleep 30
-done
+if [[ "${SOCIAL_STACK_HEALTH_BLUESKY_ONLY:-false}" != "true" ]]; then
+  for attempt in 1 2 3; do
+    if check_stack; then
+      break
+    fi
+    if [[ "${attempt}" == "3" ]]; then
+      false
+    fi
+    sleep 30
+  done
+fi
 
 check_bluesky
 healthchecks_ping "${HC_STACK_URL:-}" "" "Social stack and Bluesky sync are healthy."

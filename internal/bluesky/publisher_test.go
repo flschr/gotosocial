@@ -73,6 +73,7 @@ func TestOAuthRefreshFailureIsAuthenticationError(t *testing.T) {
 		"token refresh failed: auth server request failed (HTTP 400): invalid_grant",
 		"token refresh failed: Session expired",
 		"token refresh failed: Invalid refresh token",
+		"TOKEN REFRESH FAILED: INVALID_GRANT",
 	} {
 		require.Equal(t, ErrorCodeAuth, errorCode(errors.New(message)))
 	}
