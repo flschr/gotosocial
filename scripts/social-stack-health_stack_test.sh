@@ -34,7 +34,8 @@ printf '%s\n' \
   '[[ -z "${FAIL_URL:-}" || "$*" != *"${FAIL_URL}"* ]]' >"${fake_curl}"
 printf '%s\n' \
   '#!/usr/bin/env bash' \
-  'printf '\''%s\n'\'' "$*" >>"${TEST_LOGGER_OUTPUT}"' >"${fake_logger}"
+  'printf '\''%s\n'\'' "$*" >>"${TEST_LOGGER_OUTPUT}"' \
+  '[[ "${FAIL_LOGGER:-}" != true ]]' >"${fake_logger}"
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'printf '\''%s\n'\'' "$*" >>"${TEST_SLEEP_OUTPUT}"' >"${fake_sleep}"
@@ -78,6 +79,7 @@ run_check() {
   FAIL_CONTAINER="${FAIL_CONTAINER:-}" \
   UNHEALTHY_CONTAINER="${UNHEALTHY_CONTAINER:-}" \
   FAIL_URL="${FAIL_URL:-}" \
+  FAIL_LOGGER="${FAIL_LOGGER:-}" \
   "${SCRIPT_DIR}/social-stack-health" 2>&1
 }
 
@@ -132,5 +134,9 @@ FAIL_CONTAINER=pds expect_failure "Could not inspect the pds container."
 UNHEALTHY_CONTAINER=pds expect_failure "pds is not healthy"
 FAIL_URL=social.fischr.org expect_failure "GoToSocial API is not reachable."
 FAIL_URL=pds.fischr.org expect_failure "Bluesky PDS API is not reachable."
+
+: >"${curl_output}"
+FAIL_SYSTEMCTL=true FAIL_LOGGER=true expect_failure "GoToSocial service is not active."
+[[ "$(grep -Fc 'https://example.invalid/stack-check/fail' "${curl_output}")" -eq 1 ]]
 
 printf 'social-stack-health stack tests passed\n'

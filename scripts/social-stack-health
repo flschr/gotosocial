@@ -33,12 +33,14 @@ healthchecks_ping() {
 
 diagnostic="Social stack health check failed."
 failure_ping() {
-  local status="$?"
+  local status="$?" ping_failed=0
+  set +e
   printf '%s\n' "${diagnostic}" >&2
-  "${LOGGER_BIN}" --tag social-stack-health "${diagnostic}"
-  if ! healthchecks_ping "${HC_STACK_URL:-}" "/fail" "${diagnostic}"; then
+  healthchecks_ping "${HC_STACK_URL:-}" "/fail" "${diagnostic}" || ping_failed=1
+  "${LOGGER_BIN}" --tag social-stack-health "${diagnostic}" || :
+  if (( ping_failed != 0 )); then
     "${LOGGER_BIN}" --tag social-stack-monitoring \
-      "Could not deliver Healthchecks.io stack/fail ping"
+      "Could not deliver Healthchecks.io stack/fail ping" || :
   fi
   exit "${status}"
 }
