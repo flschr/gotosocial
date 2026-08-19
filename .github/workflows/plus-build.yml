@@ -86,7 +86,7 @@ jobs:
             fi
             build_version="${requested_version}"
           else
-            build_version="${PLUS_BASE_VERSION}-plus.${PLUS_DEV_RELEASE}-dev"
+            build_version="${PLUS_BASE_VERSION}-plus.${PLUS_DEV_RELEASE}-dev+git-${GITHUB_SHA:0:9}"
           fi
           echo "BUILD_VERSION=${build_version}" >> "${GITHUB_ENV}"
           echo "BUILD_ARCHIVE=gotosocial_${build_version}_linux_amd64.tar.gz" >> "${GITHUB_ENV}"

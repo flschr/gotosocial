@@ -6,6 +6,7 @@ test_dir="$(mktemp -d)"
 trap 'rm -rf -- "${test_dir}"' EXIT
 readonly database="${test_dir}/sqlite.db"
 readonly config="${test_dir}/empty.conf"
+readonly error_state="${test_dir}/error-since"
 touch "${config}"
 
 sqlite3 "${database}" <<'SQL'
@@ -38,6 +39,7 @@ run_check() {
   SOCIAL_MONITORING_CONFIG="${config}" \
   GTS_DATABASE="${database}" \
   SOCIAL_STACK_HEALTH_BLUESKY_ONLY=true \
+  BLUESKY_ERROR_STATE_FILE="${error_state}" \
   "${SCRIPT_DIR}/social-stack-health" 2>&1
 }
 
@@ -67,5 +69,14 @@ expect_failure "authorization expired"
 
 sqlite3 "${database}" "UPDATE bluesky_connections SET last_sync_error=NULL; INSERT INTO bluesky_deliveries VALUES ('delivery', datetime('now','-16 minutes'), 0);"
 expect_failure "waiting longer than 15 minutes"
+
+sqlite3 "${database}" "DELETE FROM bluesky_deliveries; UPDATE bluesky_connections SET last_sync_error='temporary upstream failure';"
+run_check >/dev/null
+printf '%s\n' "$(( $(date +%s) - 601 ))" >"${error_state}"
+expect_failure "failed continuously"
+
+sqlite3 "${database}" "UPDATE bluesky_connections SET last_sync_error=NULL;"
+run_check >/dev/null
+[[ ! -e "${error_state}" ]]
 
 printf 'social-stack-health tests passed\n'

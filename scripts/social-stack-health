@@ -9,6 +9,8 @@ readonly SOCIAL_MONITORING_CONFIG="${SOCIAL_MONITORING_CONFIG:-/etc/social-stack
 readonly GTS_DATABASE="${GTS_DATABASE:-/srv/gotosocial/sqlite.db}"
 readonly BLUESKY_MAX_PENDING_MINUTES="${BLUESKY_MAX_PENDING_MINUTES:-15}"
 readonly BLUESKY_MAX_SYNC_MINUTES="${BLUESKY_MAX_SYNC_MINUTES:-10}"
+readonly BLUESKY_MAX_ERROR_MINUTES="${BLUESKY_MAX_ERROR_MINUTES:-10}"
+readonly BLUESKY_ERROR_STATE_FILE="${BLUESKY_ERROR_STATE_FILE:-/run/social-stack-health-bluesky-error-since}"
 
 if [[ -r "${SOCIAL_MONITORING_CONFIG}" ]]; then
   # shellcheck source=/dev/null
@@ -47,7 +49,7 @@ check_container() {
 }
 
 check_bluesky() {
-  local result auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync
+  local result auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync sync_errors
   result="$(sqlite3 -readonly -separator '|' "${GTS_DATABASE}" "
     SELECT
       (SELECT count(*) FROM bluesky_connections
@@ -64,12 +66,14 @@ check_bluesky() {
       (SELECT count(*) FROM bluesky_deliveries WHERE dead_letter = 1),
       (SELECT count(*) FROM bluesky_notifications WHERE dead_letter = 1),
       (SELECT count(*) FROM bluesky_connections
+       WHERE last_sync_error IS NOT NULL AND last_sync_error != ''),
+      (SELECT count(*) FROM bluesky_connections
        WHERE oauth_session_id IS NOT NULL AND oauth_session_id != ''
          AND oauth_data IS NOT NULL AND length(oauth_data) > 0
          AND ((last_sync_at IS NULL AND julianday(updated_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))
            OR julianday(last_sync_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes')));
   ")"
-  IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications stale_sync <<<"${result}"
+  IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications sync_errors stale_sync <<<"${result}"
   if (( auth_failures > 0 )); then
     diagnostic="Bluesky sync authorization expired: reconnect required; ${pending} outgoing post(s) waiting."
     return 1
@@ -87,8 +91,24 @@ check_bluesky() {
     return 1
   fi
   if (( stale_sync > 0 )); then
-    diagnostic="Bluesky incoming sync is stale for ${stale_sync} account(s): no successful check for more than ${BLUESKY_MAX_SYNC_MINUTES} minutes."
+    diagnostic="Bluesky incoming sync scheduler is stale for ${stale_sync} account(s): no attempt for more than ${BLUESKY_MAX_SYNC_MINUTES} minutes."
     return 1
+  fi
+  if (( sync_errors > 0 )); then
+    local now error_since
+    now="$(date +%s)"
+    if [[ -r "${BLUESKY_ERROR_STATE_FILE}" ]]; then
+      read -r error_since <"${BLUESKY_ERROR_STATE_FILE}"
+    else
+      error_since="${now}"
+      printf '%s\n' "${error_since}" >"${BLUESKY_ERROR_STATE_FILE}"
+    fi
+    if (( now - error_since >= BLUESKY_MAX_ERROR_MINUTES * 60 )); then
+      diagnostic="Bluesky incoming sync has failed continuously for more than ${BLUESKY_MAX_ERROR_MINUTES} minutes on ${sync_errors} account(s)."
+      return 1
+    fi
+  else
+    rm -f -- "${BLUESKY_ERROR_STATE_FILE}"
   fi
 }
 
