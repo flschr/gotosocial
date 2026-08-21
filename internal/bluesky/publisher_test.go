@@ -363,12 +363,16 @@ func TestShouldUpsertMappedStatusMatrix(t *testing.T) {
 	require.False(t, ShouldUpsertMappedStatus(&quoteByID, active, false))
 	require.False(t, ShouldUpsertMappedStatus(&quoteByID, disconnected, false))
 	require.False(t, ShouldUpsertMappedStatus(&quoteByID, nil, false))
-	require.True(t, ShouldUpsertMappedStatus(&quoteByID, disconnected, true))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByID, disconnected, true))
 
 	quoteByURI := *public
 	quoteByURI.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
 	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, active, false))
 	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, disconnected, false))
 	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, nil, false))
-	require.True(t, ShouldUpsertMappedStatus(&quoteByURI, disconnected, true))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, disconnected, true))
+
+	boost := *public
+	boost.BoostOfID = "boosted-status"
+	require.False(t, ShouldUpsertMappedStatus(&boost, active, true))
 }

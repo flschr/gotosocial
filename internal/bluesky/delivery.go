@@ -26,6 +26,9 @@ const (
 // follow a local edit. A temporarily disconnected account keeps eligible
 // upserts queued; disconnecting must never turn an edit into a deletion.
 func ShouldUpsertMappedStatus(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection, isReply bool) bool {
+	if status.BoostOfID != "" || status.QuoteID != "" || status.QuoteURI != "" {
+		return false
+	}
 	if isReply {
 		return true
 	}

@@ -62,6 +62,7 @@ require (
 	github.com/ncruces/go-sqlite3 v0.35.2
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/pquerna/otp v1.5.0
+	github.com/piprate/json-gold v0.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rivo/uniseg v0.4.7
 	github.com/spf13/cast v1.10.0
@@ -113,6 +114,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
+	github.com/cayleygraph/quad v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
@@ -211,6 +213,7 @@ require (
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
+	github.com/pquerna/cachecontrol v0.2.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/quasoft/memstore v0.0.0-20191010062613-2bce066d2b0b // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect

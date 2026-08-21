@@ -18,10 +18,8 @@
 package typeutils_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"testing"
 
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
@@ -30,8 +28,54 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/uris"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
 	"code.superseriousbusiness.org/gotosocial/testrig"
+	"github.com/piprate/json-gold/ld"
 	"github.com/stretchr/testify/suite"
 )
+
+type quoteContextLoader struct{}
+
+func (quoteContextLoader) LoadDocument(uri string) (*ld.RemoteDocument, error) {
+	var context map[string]any
+	switch uri {
+	case "https://www.w3.org/ns/activitystreams":
+		context = mastodonQuoteContext()
+	case "https://gotosocial.org/ns":
+		context = map[string]any{}
+	default:
+		return nil, errors.New("unexpected JSON-LD context: " + uri)
+	}
+	return &ld.RemoteDocument{
+		DocumentURL: uri,
+		Document:    map[string]any{"@context": context},
+	}, nil
+}
+
+func mastodonQuoteContext() map[string]any {
+	return map[string]any{
+		"@vocab": "https://www.w3.org/ns/activitystreams#",
+		"id":     "@id",
+		"type":   "@type",
+		"content": map[string]any{
+			"@id": "https://www.w3.org/ns/activitystreams#content",
+		},
+		"contentMap": map[string]any{
+			"@id":        "https://www.w3.org/ns/activitystreams#content",
+			"@container": "@language",
+		},
+		"quote": map[string]any{
+			"@id":   "https://w3id.org/fep/044f#quote",
+			"@type": "@id",
+		},
+		"quoteUri": map[string]any{
+			"@id":   "http://fedibird.com/ns#quoteUri",
+			"@type": "@id",
+		},
+		"_misskey_quote": map[string]any{
+			"@id":   "https://misskey-hub.net/ns#_misskey_quote",
+			"@type": "@id",
+		},
+	}
+}
 
 type InternalToASTestSuite struct {
 	TypeUtilsTestSuite
@@ -661,25 +705,27 @@ func (suite *InternalToASTestSuite) TestQuoteStatusToASPreservesContentShape() {
 		inline["_misskey_quote"],
 	)
 
-	// Exercise the same JSON boundary a receiving ActivityPub implementation
-	// sees. This catches context/compaction regressions that are invisible when
-	// only inspecting the map returned directly by Serialize.
-	encoded, err := json.Marshal(serialized)
+	// Run a real JSON-LD expand/compact normalization using the relevant
+	// ActivityStreams and Mastodon quote term definitions. Remote contexts are
+	// supplied locally so the regression test is deterministic and offline.
+	options := ld.NewJsonLdOptions("")
+	options.DocumentLoader = quoteContextLoader{}
+	processor := ld.NewJsonLdProcessor()
+	wire, err := json.Marshal(serialized)
 	suite.NoError(err)
-	roundTripped, err := ap.ResolveStatusable(
-		suite.T().Context(),
-		io.NopCloser(bytes.NewReader(encoded)),
-	)
+	var jsonDocument any
+	suite.NoError(json.Unmarshal(wire, &jsonDocument))
+	expanded, err := processor.Expand(jsonDocument, options)
 	suite.NoError(err)
-	normalized, err := ap.Serialize(roundTripped)
+	compacted, err := processor.Compact(expanded, map[string]any{"@context": mastodonQuoteContext()}, options)
 	suite.NoError(err)
-	suite.IsType("", normalized["content"])
-	suite.Equal("<p>hello everyone!</p>", normalized["content"])
-	suite.IsType(map[string]string{}, normalized["contentMap"])
-	suite.Equal(map[string]string{"en": "<p>hello everyone!</p>"}, normalized["contentMap"])
-	suite.Equal(testStatus.QuoteURI, normalized["quote"])
-	suite.Equal(testStatus.QuoteURI, normalized["quoteUri"])
-	suite.Equal(testStatus.QuoteURI, normalized["_misskey_quote"])
+	suite.IsType("", compacted["content"])
+	suite.Equal("<p>hello everyone!</p>", compacted["content"])
+	suite.IsType(map[string]any{}, compacted["contentMap"])
+	suite.Equal(map[string]any{"en": "<p>hello everyone!</p>"}, compacted["contentMap"])
+	suite.Equal(testStatus.QuoteURI, compacted["quote"])
+	suite.Equal(testStatus.QuoteURI, compacted["quoteUri"])
+	suite.Equal(testStatus.QuoteURI, compacted["_misskey_quote"])
 }
 
 func (suite *InternalToASTestSuite) TestStatusWithTagsToASWithIDs() {

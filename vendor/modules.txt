@@ -863,6 +863,10 @@ github.com/pelletier/go-toml/v2/unstable
 # github.com/philhofer/fwd v1.2.0
 ## explicit; go 1.20
 github.com/philhofer/fwd
+# github.com/piprate/json-gold v0.8.0
+## explicit; go 1.21
+github.com/piprate/json-gold/ld
+github.com/piprate/json-gold/ld/internal/jsoncanonicalizer
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
@@ -875,6 +879,10 @@ github.com/pquerna/otp
 github.com/pquerna/otp/hotp
 github.com/pquerna/otp/internal
 github.com/pquerna/otp/totp
+# github.com/pquerna/cachecontrol v0.2.0
+## explicit
+github.com/pquerna/cachecontrol
+github.com/pquerna/cachecontrol/cacheobject
 # github.com/prometheus/client_golang v1.23.2
 ## explicit; go 1.23.0
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil
@@ -1616,3 +1624,10 @@ modernc.org/sqlite/vtab
 mvdan.cc/xurls/v2
 # modernc.org/sqlite => gitlab.com/NyaaaWhatsUpDoc/sqlite v1.53.0-concurrency-workaround
 # github.com/gin-gonic/gin => codeberg.org/superseriousbusiness/gin v1.11.0-array-binding-fix-2
+# github.com/cayleygraph/quad v1.3.0
+## explicit; go 1.21
+github.com/cayleygraph/quad
+github.com/cayleygraph/quad/nquads
+github.com/cayleygraph/quad/voc
+github.com/cayleygraph/quad/voc/schema
+github.com/cayleygraph/quad/voc/xsd
