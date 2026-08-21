@@ -321,6 +321,22 @@ func TestEligibleForCrosspost(t *testing.T) {
 	require.False(t, EligibleForCrosspost(status, connection))
 }
 
+func TestShouldQueueNewStatusRejectsUnrepresentableReplies(t *testing.T) {
+	connection := &gtsmodel.BlueskyConnection{CrosspostPublic: true, OAuthSessionID: "session", OAuthData: []byte("encrypted")}
+	status := &gtsmodel.Status{Visibility: gtsmodel.VisibilityPublic}
+	status.Flags.SetFederated(true)
+	require.True(t, ShouldQueueNewStatus(status, connection, true))
+
+	status.QuoteID = "quoted-status"
+	require.False(t, ShouldQueueNewStatus(status, connection, true))
+	status.QuoteID = ""
+	status.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	require.False(t, ShouldQueueNewStatus(status, connection, true))
+	status.QuoteURI = ""
+	status.BoostOfID = "boosted-status"
+	require.False(t, ShouldQueueNewStatus(status, connection, true))
+}
+
 func TestEligibleForExistingMappingWhileDisconnected(t *testing.T) {
 	status := &gtsmodel.Status{Visibility: gtsmodel.VisibilityPublic}
 	status.Flags.SetFederated(true)

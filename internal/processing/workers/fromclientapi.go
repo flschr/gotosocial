@@ -296,7 +296,7 @@ func (p *clientAPI) CreateStatus(ctx context.Context, cMsg *messages.FromClientA
 
 	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, status.AccountID)
 	isReply, replyErr := bluesky.IsReplyTarget(ctx, p.state, status)
-	if err == nil && (isReply || bluesky.EligibleForCrosspost(status, connection)) {
+	if err == nil && bluesky.ShouldQueueNewStatus(status, connection, isReply) {
 		_, queueErr := bluesky.QueueStatus(ctx, p.state, status)
 		if queueErr != nil {
 			log.Errorf(ctx, "error queueing Bluesky crosspost: %v", queueErr)

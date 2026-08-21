@@ -92,7 +92,7 @@ func reconcileConnectionOutbox(ctx context.Context, state *state.State, connecti
 		if err != nil {
 			return err
 		}
-		if isReply || EligibleForCrosspost(status, connection) {
+		if ShouldQueueNewStatus(status, connection, isReply) {
 			if _, err := QueueStatus(ctx, state, status); err != nil {
 				return err
 			}
