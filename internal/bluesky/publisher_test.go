@@ -313,6 +313,12 @@ func TestEligibleForCrosspost(t *testing.T) {
 	status.InReplyToID = ""
 	status.MentionIDs = []string{"mention"}
 	require.False(t, EligibleForCrosspost(status, connection))
+	status.MentionIDs = nil
+	status.QuoteID = "quoted-status"
+	require.False(t, EligibleForCrosspost(status, connection))
+	status.QuoteID = ""
+	status.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	require.False(t, EligibleForCrosspost(status, connection))
 }
 
 func TestEligibleForExistingMappingWhileDisconnected(t *testing.T) {

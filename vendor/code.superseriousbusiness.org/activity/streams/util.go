@@ -25,6 +25,18 @@ var asInlines = map[string]any{
 	"Hashtag":                   "as:Hashtag",
 	"manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
 	"sensitive":                 "as:sensitive",
+	"_misskey_quote": map[string]string{
+		"@id":   "https://misskey-hub.net/ns#_misskey_quote",
+		"@type": "@id",
+	},
+	"quote": map[string]string{
+		"@id":   "https://w3id.org/fep/044f#quote",
+		"@type": "@id",
+	},
+	"quoteUri": map[string]string{
+		"@id":   "http://fedibird.com/ns#quoteUri",
+		"@type": "@id",
+	},
 
 	"movedTo": map[string]string{
 		"@id":   "as:movedTo",

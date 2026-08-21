@@ -34,6 +34,8 @@ func EligibleForCrosspost(status *gtsmodel.Status, connection *gtsmodel.BlueskyC
 		!status.LocalOnly() &&
 		status.InReplyToID == "" &&
 		status.BoostOfID == "" &&
+		status.QuoteID == "" &&
+		status.QuoteURI == "" &&
 		status.PollID == "" &&
 		len(status.MentionIDs) == 0
 }

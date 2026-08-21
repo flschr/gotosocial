@@ -614,6 +614,45 @@ func (suite *InternalToASTestSuite) TestStatusToAS() {
 }`, string(bytes))
 }
 
+func (suite *InternalToASTestSuite) TestQuoteStatusToASPreservesContentShape() {
+	testStatus := new(gtsmodel.Status)
+	*testStatus = *suite.testStatuses["local_account_1_status_1"]
+	testStatus.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+
+	asStatus, err := suite.typeconverter.StatusToAS(suite.T().Context(), testStatus)
+	suite.NoError(err)
+
+	serialized, err := ap.Serialize(asStatus)
+	suite.NoError(err)
+	suite.Equal("<p>hello everyone!</p>", serialized["content"])
+	suite.Equal(
+		map[string]string{"en": "<p>hello everyone!</p>"},
+		serialized["contentMap"],
+	)
+	suite.Equal(testStatus.QuoteURI, serialized["quote"])
+	suite.Equal(testStatus.QuoteURI, serialized["quoteUri"])
+	suite.Equal(testStatus.QuoteURI, serialized["_misskey_quote"])
+
+	context, ok := serialized["@context"].([]any)
+	suite.True(ok)
+	inline, ok := context[len(context)-1].(map[string]any)
+	suite.True(ok)
+	suite.Equal(
+		map[string]string{
+			"@id":   "https://w3id.org/fep/044f#quote",
+			"@type": "@id",
+		},
+		inline["quote"],
+	)
+	suite.Equal(
+		map[string]string{
+			"@id":   "http://fedibird.com/ns#quoteUri",
+			"@type": "@id",
+		},
+		inline["quoteUri"],
+	)
+}
+
 func (suite *InternalToASTestSuite) TestStatusWithTagsToASWithIDs() {
 	// use the status with just IDs of attachments and emojis pinned on it
 	testStatus := suite.testStatuses["admin_account_status_1"]
