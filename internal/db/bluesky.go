@@ -47,6 +47,7 @@ type Bluesky interface {
 	GetBlueskyPostByStatusID(context.Context, string) (*gtsmodel.BlueskyPost, error)
 	GetBlueskyPostByURI(context.Context, string) (*gtsmodel.BlueskyPost, error)
 	GetBlueskyPostsByAccountID(context.Context, string) ([]*gtsmodel.BlueskyPost, error)
+	GetIneligibleBlueskyPostsByAccountID(context.Context, string) ([]*gtsmodel.BlueskyPost, error)
 	PutBlueskyPost(context.Context, *gtsmodel.BlueskyPost) error
 	UpdateBlueskyPost(context.Context, *gtsmodel.BlueskyPost, ...string) error
 	DeleteBlueskyPost(context.Context, string) error

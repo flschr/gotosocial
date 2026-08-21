@@ -38,7 +38,7 @@ func (quoteContextLoader) LoadDocument(uri string) (*ld.RemoteDocument, error) {
 	var context map[string]any
 	switch uri {
 	case "https://www.w3.org/ns/activitystreams":
-		context = mastodonQuoteContext()
+		context = activityStreamsContext()
 	case "https://gotosocial.org/ns":
 		context = map[string]any{}
 	default:
@@ -50,7 +50,7 @@ func (quoteContextLoader) LoadDocument(uri string) (*ld.RemoteDocument, error) {
 	}, nil
 }
 
-func mastodonQuoteContext() map[string]any {
+func activityStreamsContext() map[string]any {
 	return map[string]any{
 		"@vocab": "https://www.w3.org/ns/activitystreams#",
 		"id":     "@id",
@@ -62,6 +62,12 @@ func mastodonQuoteContext() map[string]any {
 			"@id":        "https://www.w3.org/ns/activitystreams#content",
 			"@container": "@language",
 		},
+	}
+}
+
+func mastodonQuoteContext() map[string]any {
+	context := activityStreamsContext()
+	for term, definition := range map[string]any{
 		"quote": map[string]any{
 			"@id":   "https://w3id.org/fep/044f#quote",
 			"@type": "@id",
@@ -74,7 +80,10 @@ func mastodonQuoteContext() map[string]any {
 			"@id":   "https://misskey-hub.net/ns#_misskey_quote",
 			"@type": "@id",
 		},
+	} {
+		context[term] = definition
 	}
+	return context
 }
 
 type InternalToASTestSuite struct {

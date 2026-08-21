@@ -84,6 +84,17 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 	if err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
 	}
+	if !EligibleForBlueskyStatus(status) {
+		if _, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); errors.Is(mappingErr, db.ErrNoEntries) {
+			return completeDelivery(ctx, state, delivery)
+		} else if mappingErr != nil {
+			return recordDeliveryFailure(ctx, state, delivery, mappingErr)
+		}
+		if err := deleteStatus(ctx, state, status.ID, false, false); err != nil {
+			return recordDeliveryFailure(ctx, state, delivery, err)
+		}
+		return completeDelivery(ctx, state, delivery)
+	}
 	replyTarget, replyErr := replyTargetForStatus(ctx, state, status)
 	if errors.Is(replyErr, db.ErrNoEntries) {
 		if mapping, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); mappingErr == nil && !ShouldUpsertMappedStatus(status, connection, false) {

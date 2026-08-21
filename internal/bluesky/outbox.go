@@ -34,6 +34,9 @@ func ReconcileOutbox(ctx context.Context, state *state.State) error {
 }
 
 func reconcileConnectionOutbox(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
+	if err := reconcileIneligibleMappings(ctx, state, connection); err != nil {
+		return err
+	}
 	checkedAt := time.Now()
 	if connection.OutboxCheckedAt.IsZero() {
 		connection.OutboxCheckedAt = checkedAt
@@ -100,4 +103,24 @@ func reconcileConnectionOutbox(ctx context.Context, state *state.State, connecti
 	}
 	connection.OutboxCheckedAt = checkedAt
 	return state.DB.UpdateBlueskyConnection(ctx, connection, "outbox_checked_at")
+}
+
+func reconcileIneligibleMappings(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
+	posts, err := state.DB.GetIneligibleBlueskyPostsByAccountID(ctx, connection.AccountID)
+	if err != nil {
+		return err
+	}
+	for _, post := range posts {
+		delivery, err := state.DB.GetBlueskyDeliveryByStatusID(ctx, post.StatusID)
+		if err == nil && delivery.Action == deliveryDelete {
+			continue
+		}
+		if err != nil && !errors.Is(err, db.ErrNoEntries) {
+			return err
+		}
+		if _, err := QueueDelete(ctx, state, post.AccountID, post.StatusID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
