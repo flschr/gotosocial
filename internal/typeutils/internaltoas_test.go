@@ -18,8 +18,10 @@
 package typeutils_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"testing"
 
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
@@ -651,6 +653,33 @@ func (suite *InternalToASTestSuite) TestQuoteStatusToASPreservesContentShape() {
 		},
 		inline["quoteUri"],
 	)
+	suite.Equal(
+		map[string]string{
+			"@id":   "https://misskey-hub.net/ns#_misskey_quote",
+			"@type": "@id",
+		},
+		inline["_misskey_quote"],
+	)
+
+	// Exercise the same JSON boundary a receiving ActivityPub implementation
+	// sees. This catches context/compaction regressions that are invisible when
+	// only inspecting the map returned directly by Serialize.
+	encoded, err := json.Marshal(serialized)
+	suite.NoError(err)
+	roundTripped, err := ap.ResolveStatusable(
+		suite.T().Context(),
+		io.NopCloser(bytes.NewReader(encoded)),
+	)
+	suite.NoError(err)
+	normalized, err := ap.Serialize(roundTripped)
+	suite.NoError(err)
+	suite.IsType("", normalized["content"])
+	suite.Equal("<p>hello everyone!</p>", normalized["content"])
+	suite.IsType(map[string]string{}, normalized["contentMap"])
+	suite.Equal(map[string]string{"en": "<p>hello everyone!</p>"}, normalized["contentMap"])
+	suite.Equal(testStatus.QuoteURI, normalized["quote"])
+	suite.Equal(testStatus.QuoteURI, normalized["quoteUri"])
+	suite.Equal(testStatus.QuoteURI, normalized["_misskey_quote"])
 }
 
 func (suite *InternalToASTestSuite) TestStatusWithTagsToASWithIDs() {

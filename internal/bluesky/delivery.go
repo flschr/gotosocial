@@ -155,7 +155,8 @@ func EligibleForExistingMapping(status *gtsmodel.Status, isReply bool) bool {
 		return true
 	}
 	return status.Visibility == gtsmodel.VisibilityPublic && !status.LocalOnly() &&
-		status.InReplyToID == "" && status.BoostOfID == "" && status.PollID == "" && len(status.MentionIDs) == 0
+		status.InReplyToID == "" && status.BoostOfID == "" && status.PollID == "" &&
+		status.QuoteID == "" && status.QuoteURI == "" && len(status.MentionIDs) == 0
 }
 
 func IsReplyTarget(ctx context.Context, state *state.State, status *gtsmodel.Status) (bool, error) {
