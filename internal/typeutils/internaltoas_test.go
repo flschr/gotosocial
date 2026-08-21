@@ -669,7 +669,7 @@ func (suite *InternalToASTestSuite) TestStatusToAS() {
 }`, string(bytes))
 }
 
-func (suite *InternalToASTestSuite) TestQuoteStatusToASPreservesContentShape() {
+func (suite *InternalToASTestSuite) TestQuoteStatusToASMastodonCompactionPreservesContentString() {
 	testStatus := new(gtsmodel.Status)
 	*testStatus = *suite.testStatuses["local_account_1_status_1"]
 	testStatus.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
@@ -680,10 +680,7 @@ func (suite *InternalToASTestSuite) TestQuoteStatusToASPreservesContentShape() {
 	serialized, err := ap.Serialize(asStatus)
 	suite.NoError(err)
 	suite.Equal("<p>hello everyone!</p>", serialized["content"])
-	suite.Equal(
-		map[string]string{"en": "<p>hello everyone!</p>"},
-		serialized["contentMap"],
-	)
+	suite.NotContains(serialized, "contentMap")
 	suite.Equal(testStatus.QuoteURI, serialized["quote"])
 	suite.Equal(testStatus.QuoteURI, serialized["quoteUri"])
 	suite.Equal(testStatus.QuoteURI, serialized["_misskey_quote"])
@@ -714,9 +711,10 @@ func (suite *InternalToASTestSuite) TestQuoteStatusToASPreservesContentShape() {
 		inline["_misskey_quote"],
 	)
 
-	// Run a real JSON-LD expand/compact normalization using the relevant
-	// ActivityStreams and Mastodon quote term definitions. Remote contexts are
-	// supplied locally so the regression test is deterministic and offline.
+	// Mastodon compacts incoming activities carrying Linked Data signatures.
+	// Run that expand/compact path with Mastodon's relevant term definitions.
+	// If a quote contains both content and contentMap, their shared as:content
+	// IRI compacts into an array and Mastodon renders its string representation.
 	options := ld.NewJsonLdOptions("")
 	options.DocumentLoader = quoteContextLoader{}
 	processor := ld.NewJsonLdProcessor()
@@ -730,8 +728,7 @@ func (suite *InternalToASTestSuite) TestQuoteStatusToASPreservesContentShape() {
 	suite.NoError(err)
 	suite.IsType("", compacted["content"])
 	suite.Equal("<p>hello everyone!</p>", compacted["content"])
-	suite.IsType(map[string]any{}, compacted["contentMap"])
-	suite.Equal(map[string]any{"en": "<p>hello everyone!</p>"}, compacted["contentMap"])
+	suite.NotContains(compacted, "contentMap")
 	suite.Equal(testStatus.QuoteURI, compacted["quote"])
 	suite.Equal(testStatus.QuoteURI, compacted["quoteUri"])
 	suite.Equal(testStatus.QuoteURI, compacted["_misskey_quote"])

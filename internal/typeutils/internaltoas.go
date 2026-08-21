@@ -665,9 +665,16 @@ func (c *Converter) StatusToAS(ctx context.Context, s *gtsmodel.Status) (ap.Stat
 	}
 
 	// `content` and `contentMap` properties.
+	//
+	// Quote activities can carry a Linked Data signature. Mastodon compacts
+	// signed activities as JSON-LD before parsing them. Since ActivityStreams
+	// defines both content and contentMap as aliases for as:content, emitting
+	// both makes that compaction merge them into an array. Mastodon then stores
+	// the array's string representation as the post body. Keep the broadly
+	// compatible content property for quotes and omit its language-map alias.
 	if s.Content != "" {
 		ap.AppendContent(statusable, s.Content)
-		if s.Language != "" {
+		if s.Language != "" && s.QuoteID == "" && s.QuoteURI == "" {
 			ap.AppendContentMap(
 				statusable,
 				map[string]string{
