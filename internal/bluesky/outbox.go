@@ -106,6 +106,9 @@ func reconcileConnectionOutbox(ctx context.Context, state *state.State, connecti
 }
 
 func reconcileIneligibleMappings(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
+	if !connection.QuoteBoostCleanedAt.IsZero() {
+		return nil
+	}
 	posts, err := state.DB.GetIneligibleBlueskyPostsByAccountID(ctx, connection.AccountID)
 	if err != nil {
 		return err
@@ -122,5 +125,6 @@ func reconcileIneligibleMappings(ctx context.Context, state *state.State, connec
 			return err
 		}
 	}
-	return nil
+	connection.QuoteBoostCleanedAt = time.Now()
+	return state.DB.UpdateBlueskyConnection(ctx, connection, "quote_boost_cleaned_at")
 }

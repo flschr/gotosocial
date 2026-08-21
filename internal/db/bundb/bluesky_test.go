@@ -289,12 +289,18 @@ func (suite *BlueskyTestSuite) TestOutboxReconciliationDeletesUnchangedQuoteMapp
 	suite.Require().NoError(err)
 	suite.Equal("delete", delivery.Action)
 	suite.EqualValues(2, delivery.Generation)
+	cleanedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.False(cleanedConnection.QuoteBoostCleanedAt.IsZero())
 
 	suite.Require().NoError(bluesky.ReconcileOutbox(ctx, &suite.state))
 	preserved, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
 	suite.Require().NoError(err)
 	suite.Equal(delivery.ID, preserved.ID)
 	suite.Equal(delivery.Generation, preserved.Generation)
+	preservedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal(cleanedConnection.QuoteBoostCleanedAt, preservedConnection.QuoteBoostCleanedAt)
 }
 
 func (suite *BlueskyTestSuite) TestPersistedQuoteUpsertWithoutMappingIsDiscarded() {
