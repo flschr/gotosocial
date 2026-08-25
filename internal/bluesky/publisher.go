@@ -27,15 +27,25 @@ const (
 )
 
 func EligibleForCrosspost(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection) bool {
-	return connection != nil &&
+	return EligibleForBlueskyStatus(status) &&
+		connection != nil &&
 		connection.Active() &&
 		connection.CrosspostPublic &&
 		status.Visibility == gtsmodel.VisibilityPublic &&
 		!status.LocalOnly() &&
 		status.InReplyToID == "" &&
-		status.BoostOfID == "" &&
 		status.PollID == "" &&
 		len(status.MentionIDs) == 0
+}
+
+// EligibleForBlueskyStatus rejects ActivityPub status forms that cannot be
+// represented faithfully on Bluesky, regardless of how they reach delivery.
+func EligibleForBlueskyStatus(status *gtsmodel.Status) bool {
+	return status.BoostOfID == "" && status.QuoteID == "" && status.QuoteURI == ""
+}
+
+func ShouldQueueNewStatus(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection, isReply bool) bool {
+	return EligibleForBlueskyStatus(status) && (isReply || EligibleForCrosspost(status, connection))
 }
 
 func PublishStatus(ctx context.Context, state *state.State, status *gtsmodel.Status, card *apimodel.Card) error {

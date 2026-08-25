@@ -71,6 +71,17 @@ func (b *blueskyDB) GetBlueskyPostsByAccountID(ctx context.Context, accountID st
 	return posts, err
 }
 
+func (b *blueskyDB) GetIneligibleBlueskyPostsByAccountID(ctx context.Context, accountID string) ([]*gtsmodel.BlueskyPost, error) {
+	posts := make([]*gtsmodel.BlueskyPost, 0)
+	err := b.db.NewSelect().
+		Model(&posts).
+		Join("JOIN statuses AS status ON status.id = bluesky_post.status_id").
+		Where("bluesky_post.account_id = ?", accountID).
+		Where("status.boost_of_id IS NOT NULL OR status.quote_id IS NOT NULL OR status.quote_uri IS NOT NULL").
+		Scan(ctx)
+	return posts, err
+}
+
 func (b *blueskyDB) PutBlueskyPost(ctx context.Context, post *gtsmodel.BlueskyPost) error {
 	_, err := b.db.NewInsert().Model(post).Exec(ctx)
 	return err

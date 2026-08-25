@@ -28,8 +28,63 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/uris"
 	"code.superseriousbusiness.org/gotosocial/internal/util"
 	"code.superseriousbusiness.org/gotosocial/testrig"
+	"github.com/piprate/json-gold/ld"
 	"github.com/stretchr/testify/suite"
 )
+
+type quoteContextLoader struct{}
+
+func (quoteContextLoader) LoadDocument(uri string) (*ld.RemoteDocument, error) {
+	var context map[string]any
+	switch uri {
+	case "https://www.w3.org/ns/activitystreams":
+		context = activityStreamsContext()
+	case "https://gotosocial.org/ns":
+		context = map[string]any{}
+	default:
+		return nil, errors.New("unexpected JSON-LD context: " + uri)
+	}
+	return &ld.RemoteDocument{
+		DocumentURL: uri,
+		Document:    map[string]any{"@context": context},
+	}, nil
+}
+
+func activityStreamsContext() map[string]any {
+	return map[string]any{
+		"@vocab": "https://www.w3.org/ns/activitystreams#",
+		"id":     "@id",
+		"type":   "@type",
+		"content": map[string]any{
+			"@id": "https://www.w3.org/ns/activitystreams#content",
+		},
+		"contentMap": map[string]any{
+			"@id":        "https://www.w3.org/ns/activitystreams#content",
+			"@container": "@language",
+		},
+	}
+}
+
+func mastodonQuoteContext() map[string]any {
+	context := activityStreamsContext()
+	for term, definition := range map[string]any{
+		"quote": map[string]any{
+			"@id":   "https://w3id.org/fep/044f#quote",
+			"@type": "@id",
+		},
+		"quoteUri": map[string]any{
+			"@id":   "http://fedibird.com/ns#quoteUri",
+			"@type": "@id",
+		},
+		"_misskey_quote": map[string]any{
+			"@id":   "https://misskey-hub.net/ns#_misskey_quote",
+			"@type": "@id",
+		},
+	} {
+		context[term] = definition
+	}
+	return context
+}
 
 type InternalToASTestSuite struct {
 	TypeUtilsTestSuite
@@ -612,6 +667,71 @@ func (suite *InternalToASTestSuite) TestStatusToAS() {
   "type": "Note",
   "url": "http://localhost:8080/@the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY"
 }`, string(bytes))
+}
+
+func (suite *InternalToASTestSuite) TestQuoteStatusToASMastodonCompactionPreservesContentString() {
+	testStatus := new(gtsmodel.Status)
+	*testStatus = *suite.testStatuses["local_account_1_status_1"]
+	testStatus.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+
+	asStatus, err := suite.typeconverter.StatusToAS(suite.T().Context(), testStatus)
+	suite.NoError(err)
+
+	serialized, err := ap.Serialize(asStatus)
+	suite.NoError(err)
+	suite.Equal("<p>hello everyone!</p>", serialized["content"])
+	suite.NotContains(serialized, "contentMap")
+	suite.Equal(testStatus.QuoteURI, serialized["quote"])
+	suite.Equal(testStatus.QuoteURI, serialized["quoteUri"])
+	suite.Equal(testStatus.QuoteURI, serialized["_misskey_quote"])
+
+	context, ok := serialized["@context"].([]any)
+	suite.True(ok)
+	inline, ok := context[len(context)-1].(map[string]any)
+	suite.True(ok)
+	suite.Equal(
+		map[string]string{
+			"@id":   "https://w3id.org/fep/044f#quote",
+			"@type": "@id",
+		},
+		inline["quote"],
+	)
+	suite.Equal(
+		map[string]string{
+			"@id":   "http://fedibird.com/ns#quoteUri",
+			"@type": "@id",
+		},
+		inline["quoteUri"],
+	)
+	suite.Equal(
+		map[string]string{
+			"@id":   "https://misskey-hub.net/ns#_misskey_quote",
+			"@type": "@id",
+		},
+		inline["_misskey_quote"],
+	)
+
+	// Mastodon compacts incoming activities carrying Linked Data signatures.
+	// Run that expand/compact path with Mastodon's relevant term definitions.
+	// If a quote contains both content and contentMap, their shared as:content
+	// IRI compacts into an array and Mastodon renders its string representation.
+	options := ld.NewJsonLdOptions("")
+	options.DocumentLoader = quoteContextLoader{}
+	processor := ld.NewJsonLdProcessor()
+	wire, err := json.Marshal(serialized)
+	suite.NoError(err)
+	var jsonDocument any
+	suite.NoError(json.Unmarshal(wire, &jsonDocument))
+	expanded, err := processor.Expand(jsonDocument, options)
+	suite.NoError(err)
+	compacted, err := processor.Compact(expanded, map[string]any{"@context": mastodonQuoteContext()}, options)
+	suite.NoError(err)
+	suite.IsType("", compacted["content"])
+	suite.Equal("<p>hello everyone!</p>", compacted["content"])
+	suite.NotContains(compacted, "contentMap")
+	suite.Equal(testStatus.QuoteURI, compacted["quote"])
+	suite.Equal(testStatus.QuoteURI, compacted["quoteUri"])
+	suite.Equal(testStatus.QuoteURI, compacted["_misskey_quote"])
 }
 
 func (suite *InternalToASTestSuite) TestStatusWithTagsToASWithIDs() {

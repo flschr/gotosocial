@@ -259,6 +259,77 @@ func (suite *BlueskyTestSuite) TestMappedEditWaitsWhileDisconnected() {
 	suite.Require().NoError(err)
 }
 
+func (suite *BlueskyTestSuite) TestOutboxReconciliationDeletesUnchangedQuoteMapping() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := new(gtsmodel.Status)
+	*status = *suite.testStatuses["local_account_1_status_1"]
+	status.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	suite.Require().NoError(suite.db.UpdateStatus(ctx, status, "quote_uri"))
+
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:quote-cleanup",
+		Handle: "quote-cleanup.test", PDSURL: "https://pds.example.test",
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"), CrosspostPublic: true,
+		OutboxCheckedAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	post := &gtsmodel.BlueskyPost{
+		ID: id.NewULID(), ConnectionID: connection.ID, AccountID: account.ID, StatusID: status.ID,
+		URI: "at://did:plc:quote-cleanup/app.bsky.feed.post/root", CID: "quote-cid",
+		RootURI: "at://did:plc:quote-cleanup/app.bsky.feed.post/root", RootCID: "quote-cid",
+		URL: "https://bsky.app/profile/did:plc:quote-cleanup/post/root", UpdatedAt: time.Now(),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyPost(ctx, post))
+	_, err := bluesky.QueueStatus(ctx, &suite.state, status)
+	suite.Require().NoError(err)
+
+	suite.Require().NoError(bluesky.ReconcileOutbox(ctx, &suite.state))
+	delivery, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.Equal("delete", delivery.Action)
+	suite.EqualValues(2, delivery.Generation)
+	cleanedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.False(cleanedConnection.QuoteBoostCleanedAt.IsZero())
+
+	suite.Require().NoError(bluesky.ReconcileOutbox(ctx, &suite.state))
+	preserved, err := suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Require().NoError(err)
+	suite.Equal(delivery.ID, preserved.ID)
+	suite.Equal(delivery.Generation, preserved.Generation)
+	preservedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal(cleanedConnection.QuoteBoostCleanedAt, preservedConnection.QuoteBoostCleanedAt)
+}
+
+func (suite *BlueskyTestSuite) TestPersistedQuoteUpsertWithoutMappingIsDiscarded() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	status := new(gtsmodel.Status)
+	*status = *suite.testStatuses["local_account_1_status_1"]
+	status.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	suite.Require().NoError(suite.db.UpdateStatus(ctx, status, "quote_uri"))
+
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:stale-quote",
+		Handle: "stale-quote.test", PDSURL: "https://pds.example.test",
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"), CrosspostPublic: true,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	_, err := bluesky.QueueStatus(ctx, &suite.state, status)
+	suite.Require().NoError(err)
+	claimed, err := suite.db.ClaimDueBlueskyDeliveries(ctx, time.Now().Add(time.Second), time.Now().Add(time.Minute), 1)
+	suite.Require().NoError(err)
+	suite.Require().Len(claimed, 1)
+
+	suite.Require().NoError(bluesky.ProcessDelivery(ctx, &suite.state, typeutils.NewConverter(&suite.state), claimed[0]))
+	_, err = suite.db.GetBlueskyDeliveryByStatusID(ctx, status.ID)
+	suite.Error(err)
+	_, err = suite.db.GetBlueskyPostByStatusID(ctx, status.ID)
+	suite.Error(err)
+}
+
 func (suite *BlueskyTestSuite) TestOutboxReconciliationRestoresMissingEditJob() {
 	ctx := suite.T().Context()
 	account := suite.testAccounts["local_account_1"]

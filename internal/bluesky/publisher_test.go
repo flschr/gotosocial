@@ -313,6 +313,28 @@ func TestEligibleForCrosspost(t *testing.T) {
 	status.InReplyToID = ""
 	status.MentionIDs = []string{"mention"}
 	require.False(t, EligibleForCrosspost(status, connection))
+	status.MentionIDs = nil
+	status.QuoteID = "quoted-status"
+	require.False(t, EligibleForCrosspost(status, connection))
+	status.QuoteID = ""
+	status.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	require.False(t, EligibleForCrosspost(status, connection))
+}
+
+func TestShouldQueueNewStatusRejectsUnrepresentableReplies(t *testing.T) {
+	connection := &gtsmodel.BlueskyConnection{CrosspostPublic: true, OAuthSessionID: "session", OAuthData: []byte("encrypted")}
+	status := &gtsmodel.Status{Visibility: gtsmodel.VisibilityPublic}
+	status.Flags.SetFederated(true)
+	require.True(t, ShouldQueueNewStatus(status, connection, true))
+
+	status.QuoteID = "quoted-status"
+	require.False(t, ShouldQueueNewStatus(status, connection, true))
+	status.QuoteID = ""
+	status.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	require.False(t, ShouldQueueNewStatus(status, connection, true))
+	status.QuoteURI = ""
+	status.BoostOfID = "boosted-status"
+	require.False(t, ShouldQueueNewStatus(status, connection, true))
 }
 
 func TestEligibleForExistingMappingWhileDisconnected(t *testing.T) {
@@ -323,6 +345,13 @@ func TestEligibleForExistingMappingWhileDisconnected(t *testing.T) {
 	status.Visibility = gtsmodel.VisibilityFollowersOnly
 	require.False(t, EligibleForExistingMapping(status, false))
 	require.True(t, EligibleForExistingMapping(status, true))
+
+	status.Visibility = gtsmodel.VisibilityPublic
+	status.QuoteID = "quoted-status"
+	require.False(t, EligibleForExistingMapping(status, false))
+	status.QuoteID = ""
+	status.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	require.False(t, EligibleForExistingMapping(status, false))
 }
 
 func TestShouldUpsertMappedStatusMatrix(t *testing.T) {
@@ -344,4 +373,22 @@ func TestShouldUpsertMappedStatusMatrix(t *testing.T) {
 	require.False(t, ShouldUpsertMappedStatus(&private, active, false))
 	require.False(t, ShouldUpsertMappedStatus(&private, disconnected, false))
 	require.True(t, ShouldUpsertMappedStatus(&private, disconnected, true))
+
+	quoteByID := *public
+	quoteByID.QuoteID = "quoted-status"
+	require.False(t, ShouldUpsertMappedStatus(&quoteByID, active, false))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByID, disconnected, false))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByID, nil, false))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByID, disconnected, true))
+
+	quoteByURI := *public
+	quoteByURI.QuoteURI = "https://remote.example/users/alice/statuses/quoted"
+	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, active, false))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, disconnected, false))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, nil, false))
+	require.False(t, ShouldUpsertMappedStatus(&quoteByURI, disconnected, true))
+
+	boost := *public
+	boost.BoostOfID = "boosted-status"
+	require.False(t, ShouldUpsertMappedStatus(&boost, active, true))
 }

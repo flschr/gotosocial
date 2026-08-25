@@ -25,14 +25,8 @@ const (
 // ShouldUpsertMappedStatus decides how an existing remote mapping should
 // follow a local edit. A temporarily disconnected account keeps eligible
 // upserts queued; disconnecting must never turn an edit into a deletion.
-func ShouldUpsertMappedStatus(status *gtsmodel.Status, connection *gtsmodel.BlueskyConnection, isReply bool) bool {
-	if isReply {
-		return true
-	}
-	if connection == nil {
-		return EligibleForExistingMapping(status, false)
-	}
-	return EligibleForExistingMapping(status, false)
+func ShouldUpsertMappedStatus(status *gtsmodel.Status, _ *gtsmodel.BlueskyConnection, isReply bool) bool {
+	return EligibleForExistingMapping(status, isReply)
 }
 
 func QueueStatus(ctx context.Context, state *state.State, status *gtsmodel.Status) (*gtsmodel.BlueskyDelivery, error) {
@@ -89,6 +83,17 @@ func ProcessDelivery(ctx context.Context, state *state.State, converter *typeuti
 	}
 	if err != nil {
 		return recordDeliveryFailure(ctx, state, delivery, err)
+	}
+	if !EligibleForBlueskyStatus(status) {
+		if _, mappingErr := state.DB.GetBlueskyPostByStatusID(ctx, status.ID); errors.Is(mappingErr, db.ErrNoEntries) {
+			return completeDelivery(ctx, state, delivery)
+		} else if mappingErr != nil {
+			return recordDeliveryFailure(ctx, state, delivery, mappingErr)
+		}
+		if err := deleteStatus(ctx, state, status.ID, false, false); err != nil {
+			return recordDeliveryFailure(ctx, state, delivery, err)
+		}
+		return completeDelivery(ctx, state, delivery)
 	}
 	replyTarget, replyErr := replyTargetForStatus(ctx, state, status)
 	if errors.Is(replyErr, db.ErrNoEntries) {
@@ -151,11 +156,14 @@ func replyTargetForStatus(ctx context.Context, state *state.State, status *gtsmo
 }
 
 func EligibleForExistingMapping(status *gtsmodel.Status, isReply bool) bool {
+	if !EligibleForBlueskyStatus(status) {
+		return false
+	}
 	if isReply {
 		return true
 	}
 	return status.Visibility == gtsmodel.VisibilityPublic && !status.LocalOnly() &&
-		status.InReplyToID == "" && status.BoostOfID == "" && status.PollID == "" && len(status.MentionIDs) == 0
+		status.InReplyToID == "" && status.PollID == "" && len(status.MentionIDs) == 0
 }
 
 func IsReplyTarget(ctx context.Context, state *state.State, status *gtsmodel.Status) (bool, error) {
