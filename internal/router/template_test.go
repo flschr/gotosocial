@@ -26,7 +26,9 @@ import (
 
 	apimodel "code.superseriousbusiness.org/gotosocial/internal/api/model"
 	"code.superseriousbusiness.org/gotosocial/internal/config"
+	"code.superseriousbusiness.org/gotosocial/internal/language"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/net/html"
 )
 
 func TestRemoteFollowCloseButtonDoesNotSubmitForm(t *testing.T) {
@@ -129,6 +131,147 @@ func TestStatusAttachmentMarkupIsScopedAndCSPCompatible(t *testing.T) {
 	if strings.Contains(videoHTML, "image-media-wrapper") {
 		t.Fatalf("video attachment received image-specific class:\n%s", videoHTML)
 	}
+}
+
+// newMinimalWebStatus builds a bare-bones *apimodel.WebStatus with just
+// enough fields set for status.tmpl (and the sub-templates it includes)
+// to render without panicking on a nil dereference.
+func newMinimalWebStatus(id string) *apimodel.WebStatus {
+	return &apimodel.WebStatus{
+		Status: &apimodel.Status{
+			ID:         id,
+			CreatedAt:  "2024-01-01T00:00:00.000Z",
+			Content:    "<p>hello from " + id + "</p>",
+			URL:        "https://example.org/@user_" + id + "/statuses/" + id,
+			Visibility: apimodel.VisibilityPublic,
+		},
+		Account: &apimodel.WebAccount{
+			Account: &apimodel.Account{
+				ID:          "account_" + id,
+				Username:    "user_" + id,
+				Acct:        "user_" + id,
+				DisplayName: "User " + id,
+				URL:         "https://example.org/@user_" + id,
+				Avatar:      "https://example.org/avatar_" + id + ".png",
+			},
+		},
+		LanguageTag: new(language.Language),
+		Local:       true,
+	}
+}
+
+// maxAnchorNestingDepth returns how deeply <a> tags are nested in the
+// raw markup, by tokenizing it (html.NewTokenizer) rather than building
+// a DOM via html.Parse.
+//
+// This distinction matters: the HTML5 parsing algorithm's "adoption
+// agency" step actively repairs a literally nested <a>...<a> by closing
+// the outer anchor early and starting a new sibling one, so a DOM walk
+// over html.Parse's output would never observe the nesting at all -- it
+// self-heals before a walk could see it (verified: parsing
+// `<a>outer <a>inner</a> more</a>` yields two *sibling* <a> nodes and an
+// orphaned "more" text node outside any anchor, not a nested pair). That
+// auto-repair is exactly the bug worth catching -- it silently splits
+// one link into two and strands trailing text outside any anchor -- so
+// detecting it means looking at the tag stream as the template actually
+// emitted it, before a parser "fixes" it up.
+func maxAnchorNestingDepth(body string) int {
+	z := html.NewTokenizer(strings.NewReader(body))
+	depth, max := 0, 0
+	for {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			return max
+		}
+		tok := z.Token()
+		if tok.Data != "a" {
+			continue
+		}
+		switch tt {
+		case html.StartTagToken, html.SelfClosingTagToken:
+			depth++
+			if depth > max {
+				max = depth
+			}
+		case html.EndTagToken:
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+}
+
+// TestMaxAnchorNestingDepthCatchesActualNesting is a meta-test proving
+// maxAnchorNestingDepth actually detects genuine nesting, since an
+// html.Parse-based DOM walk (the first, wrong approach tried here) would
+// not: see maxAnchorNestingDepth's comment for why that approach is a
+// placebo check that always reports "no nesting found".
+func TestMaxAnchorNestingDepthCatchesActualNesting(t *testing.T) {
+	nested := `<a href="/outer">outer <a href="/inner">inner</a> more</a>`
+	if depth := maxAnchorNestingDepth(nested); depth != 2 {
+		t.Fatalf("expected nested anchors to report depth 2, got %d", depth)
+	}
+
+	siblings := `<a href="/outer">outer</a><a href="/inner">inner</a>`
+	if depth := maxAnchorNestingDepth(siblings); depth != 1 {
+		t.Fatalf("expected sibling anchors to report depth 1, got %d", depth)
+	}
+}
+
+// assertNoNestedAnchors fails the test if the raw rendered markup ever
+// opens an <a> tag before a previously-opened one has closed.
+func assertNoNestedAnchors(t *testing.T, body string) {
+	t.Helper()
+
+	if depth := maxAnchorNestingDepth(body); depth > 1 {
+		t.Fatalf("found <a> opened while another <a> was still open (rendered markup splits/nests links) in:\n%s", body)
+	}
+}
+
+// TestStatusQuoteRendersWithoutNestedAnchorsOrDepth actually executes
+// status.tmpl (via html/template, not just string-matching the template
+// source) with a WebStatus that has an accepted, rendered .Quote, the way
+// StatusToWebStatus populates it. Neither of these existing test suites
+// caught template-execution errors before: internaltofrontend_test.go
+// only exercises the Go model (never runs it through html/template), and
+// this file previously only string-matched template source. This closes
+// that gap for the specific concern raised in review: recursively
+// including status.tmpl for .Quote nests a full interactive status
+// (its own header <a> and footer <a>) inside another one, which would be
+// invalid, broken-click-target markup if the two ever ended up nested
+// rather than siblings.
+//
+// See TestMaxAnchorNestingDepthCatchesActualNesting for proof that the
+// helper this test relies on actually fails on genuinely nested anchors
+// (an html.Parse-based DOM walk would not: see that test's comment).
+func TestStatusQuoteRendersWithoutNestedAnchorsOrDepth(t *testing.T) {
+	oldTemplateDir := config.GetWebTemplateBaseDir()
+	config.SetWebTemplateBaseDir("../../web/template")
+	t.Cleanup(func() { config.SetWebTemplateBaseDir(oldTemplateDir) })
+
+	engine := gin.New()
+	if err := LoadTemplates(engine); err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+
+	quoted := newMinimalWebStatus("quoted")
+	outer := newMinimalWebStatus("outer")
+	outer.Quote = &apimodel.WebQuote{WebStatus: quoted}
+
+	output := httptest.NewRecorder()
+	if err := engine.HTMLRender.Instance("status.tmpl", outer).Render(output); err != nil {
+		t.Fatalf("render status.tmpl with quote: %v", err)
+	}
+
+	body := output.Body.String()
+	if !strings.Contains(body, "status-quote") {
+		t.Fatalf("rendered status is missing the .status-quote wrapper:\n%s", body)
+	}
+	if strings.Count(body, `class="status status-quote h-cite"`) != 1 {
+		t.Fatalf("expected exactly one rendered quote card:\n%s", body)
+	}
+
+	assertNoNestedAnchors(t, body)
 }
 
 func TestPublicVersion(t *testing.T) {

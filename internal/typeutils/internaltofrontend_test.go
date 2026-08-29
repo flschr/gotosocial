@@ -4127,6 +4127,207 @@ func (suite *InternalToFrontendTestSuite) TestStatusToFrontendQuoteHandshakeStat
 	suite.Equal("revoked", apiStatus.Quote.State)
 }
 
+// TestStatusToWebStatusAcceptedQuote checks that an accepted, visible
+// quote is rendered as a fully populated nested WebStatus.Quote in the
+// plain (anonymous, no-JS) web view, mirroring the JSON API's
+// quoted_status inlining (see TestStatusToFrontendNativeQuote).
+func (suite *InternalToFrontendTestSuite) TestStatusToWebStatusAcceptedQuote() {
+	ctx := suite.T().Context()
+
+	quoted := suite.testStatuses["admin_account_status_1"]
+
+	// Copy a status and turn it into a native quote of `quoted`,
+	// without mutating the shared fixture.
+	quoter := new(gtsmodel.Status)
+	*quoter = *suite.testStatuses["local_account_1_status_1"]
+	quoter.QuoteID = quoted.ID
+	quoter.QuoteURI = quoted.URI
+	quoter.QuoteAccountID = quoted.AccountID
+
+	webStatus, err := suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+
+	if suite.NotNil(webStatus.Quote) {
+		suite.Equal(quoted.ID, webStatus.Quote.ID)
+		suite.Equal(quoted.Content, webStatus.Quote.Content)
+
+		// Regression guard: the quoted status needs its web account
+		// (avatar, display name, acct) set, otherwise status_header.tmpl
+		// can't render it.
+		if suite.NotNil(webStatus.Quote.Account) {
+			suite.Equal(quoted.AccountID, webStatus.Quote.Account.ID)
+		}
+
+		// A single-level quote has no quote of its own.
+		suite.Nil(webStatus.Quote.Quote)
+	}
+}
+
+// TestStatusToWebStatusNonAcceptedQuoteStatesHideEverything walks through
+// the same non-accepted quote states as
+// TestStatusToFrontendQuoteHandshakeStates (pending, rejected, revoked via
+// unauthorized handshake, revoked via tombstone) and checks that, unlike
+// the JSON API's quote field, the anonymous web view never renders
+// anything for them: WebStatus.Quote stays nil throughout, so an
+// anonymous visitor sees no hint that any quote relationship exists.
+func (suite *InternalToFrontendTestSuite) TestStatusToWebStatusNonAcceptedQuoteStatesHideEverything() {
+	ctx := suite.T().Context()
+	quoter := suite.testStatuses["local_account_1_status_1"]
+	// remote_account_2_status_1's author (remote_account_2) doesn't hide
+	// Unlocked-visibility statuses from unauthenticated web viewers, so
+	// the "fully accepted" step below is expected to render for anon.
+	quoted := suite.testStatuses["remote_account_2_status_1"]
+	quoter.QuoteID = quoted.ID
+	quoter.Quote = quoted
+	quoter.QuoteURI = quoted.URI
+	quoter.QuoteAccountID = quoted.AccountID
+	quoter.QuoteAccount = suite.testAccounts["remote_account_2"]
+	suite.NoError(suite.state.DB.UpdateStatus(
+		ctx,
+		quoter,
+		"quote_id",
+		"quote_uri",
+		"quote_account_id",
+	))
+
+	req := &gtsmodel.InteractionRequest{
+		ID:                    "01K4STEH5NWAXBZ4TFNGQQQ989",
+		TargetStatusID:        quoted.ID,
+		TargetStatus:          quoted,
+		TargetAccountID:       quoted.AccountID,
+		TargetAccount:         suite.testAccounts["remote_account_2"],
+		InteractingAccountID:  quoter.AccountID,
+		InteractingAccount:    suite.testAccounts["local_account_1"],
+		InteractionRequestURI: uris.GenerateURIForQuoteRequest(suite.testAccounts["local_account_1"].Username, "01K4STEH5NWAXBZ4TFNGQQQ989"),
+		InteractionURI:        quoter.URI,
+		InteractionType:       gtsmodel.InteractionQuote,
+		Polite:                util.Ptr(true),
+		Quote:                 quoter,
+	}
+	suite.NoError(suite.state.DB.PutInteractionRequest(ctx, req))
+
+	// Pending handshake: nothing rendered.
+	webStatus, err := suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+	suite.Nil(webStatus.Quote)
+
+	// Rejected handshake: nothing rendered.
+	req.RejectedAt = time.Now()
+	suite.NoError(suite.state.DB.UpdateInteractionRequest(ctx, req, "rejected_at"))
+	webStatus, err = suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+	suite.Nil(webStatus.Quote)
+
+	// Accepted handshake but no quote-approval URI yet ("revoked" from
+	// the anonymous viewer's perspective): nothing rendered.
+	req.RejectedAt = time.Time{}
+	req.AcceptedAt = time.Now()
+	suite.NoError(suite.state.DB.UpdateInteractionRequest(
+		ctx,
+		req,
+		"rejected_at",
+		"accepted_at",
+	))
+	webStatus, err = suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+	suite.Nil(webStatus.Quote)
+
+	// Now fully accepted: this one *should* render.
+	quoter.QuoteApprovalURI = "https://remote.example/authorizations/quote-2"
+	suite.NoError(suite.state.DB.UpdateStatus(ctx, quoter, "quote_approval_uri"))
+	webStatus, err = suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+	suite.NotNil(webStatus.Quote)
+
+	// Tombstoned quote-approval URI revokes it again: nothing rendered.
+	suite.NoError(suite.state.DB.PutTombstone(ctx, &gtsmodel.Tombstone{
+		ID:     "01K1FATQQQQQQQQQQQQQQQQQQR",
+		Domain: "remote.example",
+		URI:    quoter.QuoteApprovalURI,
+	}))
+	webStatus, err = suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+	suite.Nil(webStatus.Quote)
+}
+
+// TestStatusToWebStatusDeletedQuoteHidesEverything checks that a quote
+// relationship pointing at a status ID we no longer have (state
+// "deleted" in the JSON API) renders nothing in the web view.
+func (suite *InternalToFrontendTestSuite) TestStatusToWebStatusDeletedQuoteHidesEverything() {
+	ctx := suite.T().Context()
+
+	quoter := new(gtsmodel.Status)
+	*quoter = *suite.testStatuses["local_account_1_status_1"]
+	quoter.QuoteID = "01AAAAAAAAAAAAAAAAAAAAAAAA" // not a real, known status
+	quoter.QuoteURI = ""
+	quoter.QuoteAccountID = ""
+
+	webStatus, err := suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+	suite.Nil(webStatus.Quote)
+}
+
+// TestStatusToWebStatusSelfQuoteGuard checks that a status which
+// (erroneously) quotes itself is never rendered as its own quote,
+// mirroring the self-quote guard in resolveQuote used by the JSON API.
+func (suite *InternalToFrontendTestSuite) TestStatusToWebStatusSelfQuoteGuard() {
+	ctx := suite.T().Context()
+
+	quoter := new(gtsmodel.Status)
+	*quoter = *suite.testStatuses["local_account_1_status_2"]
+	quoter.QuoteID = quoter.ID
+	quoter.QuoteURI = quoter.URI
+	quoter.QuoteAccountID = quoter.AccountID
+
+	webStatus, err := suite.typeconverter.StatusToWebStatus(ctx, quoter)
+	suite.NoError(err)
+	suite.Nil(webStatus.Quote)
+}
+
+// TestStatusToWebStatusQuoteDepthBounding checks that a quote-of-a-quote
+// is bounded to the same one-level depth as the JSON API
+// (quoteToAPIQuote's maxQuoteDepth): the outer status's quote renders in
+// full, but that quoted status's own quote does not get expanded a
+// second level deep, so WebStatus.Quote.Quote.Quote never occurs.
+func (suite *InternalToFrontendTestSuite) TestStatusToWebStatusQuoteDepthBounding() {
+	ctx := suite.T().Context()
+
+	// Innermost quoted status: never itself a quote.
+	innermost := suite.testStatuses["admin_account_status_1"]
+
+	// Middle status: persist a quote of `innermost` to the DB, since
+	// resolving the outer status's quote loads it fresh via GetStatusByID.
+	middle := suite.testStatuses["local_account_2_status_1"]
+	middle.QuoteID = innermost.ID
+	middle.QuoteURI = innermost.URI
+	middle.QuoteAccountID = innermost.AccountID
+	suite.NoError(suite.state.DB.UpdateStatus(
+		ctx,
+		middle,
+		"quote_id",
+		"quote_uri",
+		"quote_account_id",
+	))
+
+	// Outer status: quotes `middle`. Not persisted; passed directly.
+	outer := new(gtsmodel.Status)
+	*outer = *suite.testStatuses["local_account_1_status_1"]
+	outer.QuoteID = middle.ID
+	outer.QuoteURI = middle.URI
+	outer.QuoteAccountID = middle.AccountID
+
+	webStatus, err := suite.typeconverter.StatusToWebStatus(ctx, outer)
+	suite.NoError(err)
+
+	if suite.NotNil(webStatus.Quote) {
+		suite.Equal(middle.ID, webStatus.Quote.ID)
+
+		// Depth-bounded: the middle status's own quote of `innermost`
+		// must NOT be expanded into a second nested WebStatus.Quote.
+		suite.Nil(webStatus.Quote.Quote)
+	}
+}
+
 func TestInternalToFrontendTestSuite(t *testing.T) {
 	suite.Run(t, new(InternalToFrontendTestSuite))
 }

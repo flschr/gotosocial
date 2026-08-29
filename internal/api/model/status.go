@@ -338,11 +338,25 @@ type WebStatus struct {
 
 	// Set if this is a boost.
 	Reblog *WebStatusReblogged `json:"-"`
+
+	// Set if this status quotes another status, and the quote is
+	// accepted, visible to anonymous web visitors, and not nested
+	// too deeply to render (see maxQuoteDepth in internaltofrontend.go).
+	// nil for every other quote state (pending/rejected/revoked/
+	// deleted/unauthorized), so anonymous visitors see no hint that
+	// a non-accepted quote relationship exists.
+	Quote *WebQuote `json:"-"`
 }
 
 // WebStatusReblogged represents
 // a reblogged status.
 type WebStatusReblogged struct {
+	*WebStatus
+}
+
+// WebQuote represents a quoted status, rendered
+// fully (like a normal status) in the web view.
+type WebQuote struct {
 	*WebStatus
 }
 

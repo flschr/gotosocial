@@ -473,7 +473,41 @@
 
 	&.reblog {
 		margin: 0 0.75rem 0.75rem 0.75rem;
-		border-top-left-radius: $br !important; 
+		border-top-left-radius: $br !important;
 		border-top-right-radius: $br !important;
+	}
+
+	/*
+		A quoted status, rendered fully (like a normal
+		status) but visually nested inside the quoting
+		status's body, so it reads as a distinct, bordered
+		card rather than a continuation of the outer post.
+	*/
+	&.status-quote {
+		background: $gray2;
+		box-shadow: none;
+		border: $boxshadow-border;
+	}
+
+	/*
+		The server marks the leading "RE: <link>" fallback
+		paragraph with class "quote-inline" (non-destructively,
+		in served content only) whenever a status has an accepted
+		quote, so that native-quote-aware clients can hide the
+		now-redundant fallback line via their own CSS. Now that
+		the plain web view renders the quote in full as
+		.status-quote below, it's such a client too: hide the
+		fallback line whenever that full card is actually present.
+
+		Scoped with :has() rather than applied unconditionally,
+		because a quote nested past the one-level depth bound has
+		no .status-quote card at all -- there the fallback link is
+		the *only* remaining clue that a quote relationship exists,
+		and must stay visible. Browsers without :has() support
+		simply keep showing both representations, same as before
+		this rule existed: a no-op, not a regression.
+	*/
+	.status-body:has(> .status-quote) .quote-inline {
+		display: none;
 	}
 }

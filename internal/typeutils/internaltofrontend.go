@@ -929,15 +929,38 @@ const maxQuoteDepth = 1
 // this value.
 const mastodonAPIVersion = 7
 
-// quoteToAPIQuote builds the Mastodon-API `quote` object for status, or
-// nil if status is not a quote. It resolves the quoted status, checks the
-// requester is permitted to see it, and bounds nesting depth by returning
-// a shallow quote (quoted_status_id only) past maxQuoteDepth.
-func (c *Converter) quoteToAPIQuote(
+// quoteResolution is the outcome of resolving a status's quote
+// relationship via resolveQuote. It is the single audited source of
+// truth for "is this a real, visible, accepted quote" shared by the
+// JSON API's quote field (quoteToAPIQuote) and the plain web view
+// (quotedStatusForWeb), so neither surface can independently drift on
+// visibility, revocation, or self-quote handling.
+type quoteResolution struct {
+	// state is the empty string if status is not a quote at all
+	// (no relationship, unresolvable RE: fallback, or a self-quote).
+	// Otherwise one of the apimodel.QuoteState* constants.
+	state string
+
+	// quoted is the resolved quoted status. Only
+	// set when state is apimodel.QuoteStateAccepted.
+	quoted *gtsmodel.Status
+}
+
+// resolveQuote resolves status's quote relationship (if any): it derives
+// or loads the quoted status, checks quote-authorization revocation via
+// tombstones, checks FEP-044f handshake state for local quotes of remote
+// posts, guards against self-quotes, and checks the requester is permitted
+// to see the quoted status.
+//
+// It deliberately does NOT apply quote-depth bounding: that's a concern
+// of each caller's own recursive conversion (quoteToAPIQuote for the JSON
+// API, quotedStatusForWeb for the web view), since both need to increment
+// the same shared depth counter around their own recursive call.
+func (c *Converter) resolveQuote(
 	ctx context.Context,
 	status *gtsmodel.Status,
 	requester *gtsmodel.Account,
-) (*apimodel.Quote, error) {
+) (*quoteResolution, error) {
 	// Start from any persisted quote relationship.
 	quoted := status.Quote
 	quoteID := status.QuoteID
@@ -950,17 +973,17 @@ func (c *Converter) quoteToAPIQuote(
 	if !haveRelationship && quoted == nil {
 		if !strings.Contains(status.Content, "RE:") {
 			// Cheap reject before parsing HTML: not a quote.
-			return nil, nil
+			return &quoteResolution{}, nil
 		}
 		url, ok := text.ExtractQuoteFallbackURL(status.Content)
 		if !ok {
-			return nil, nil
+			return &quoteResolution{}, nil
 		}
 		derived := c.resolveQuotedByURL(ctx, url)
 		if derived == nil {
 			// Link doesn't resolve to a status we know: leave it
 			// as an ordinary link rather than fabricating a quote.
-			return nil, nil
+			return &quoteResolution{}, nil
 		}
 		quoted = derived
 		quoteID = derived.ID
@@ -987,11 +1010,11 @@ func (c *Converter) quoteToAPIQuote(
 		if quoteID == "" {
 			// We only know a URI; the target hasn't
 			// been dereferenced into our db yet.
-			return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+			return &quoteResolution{state: apimodel.QuoteStatePending}, nil
 		}
 		// We had a quoted status ID, but the
 		// target is no longer in the database.
-		return &apimodel.Quote{State: apimodel.QuoteStateDeleted}, nil
+		return &quoteResolution{state: apimodel.QuoteStateDeleted}, nil
 	}
 
 	// A Delete of a QuoteAuthorization revokes the quote for every
@@ -1006,7 +1029,7 @@ func (c *Converter) quoteToAPIQuote(
 			return nil, gtserror.Newf("db error checking quote authorization tombstone: %w", err)
 		}
 		if revoked {
-			return &apimodel.Quote{State: apimodel.QuoteStateRevoked}, nil
+			return &quoteResolution{state: apimodel.QuoteStateRevoked}, nil
 		}
 	}
 
@@ -1022,21 +1045,21 @@ func (c *Converter) quoteToAPIQuote(
 		if req != nil {
 			switch {
 			case req.IsRejected():
-				return &apimodel.Quote{State: apimodel.QuoteStateRejected}, nil
+				return &quoteResolution{state: apimodel.QuoteStateRejected}, nil
 			case req.IsPending():
-				return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+				return &quoteResolution{state: apimodel.QuoteStatePending}, nil
 			case req.IsAccepted() && status.QuoteApprovalURI == "":
-				return &apimodel.Quote{State: apimodel.QuoteStateRevoked}, nil
+				return &quoteResolution{state: apimodel.QuoteStateRevoked}, nil
 			}
 		} else if status.QuoteApprovalURI == "" {
-			return &apimodel.Quote{State: apimodel.QuoteStatePending}, nil
+			return &quoteResolution{state: apimodel.QuoteStatePending}, nil
 		}
 	}
 
 	// Never let a status quote itself (e.g. a self-referential RE: link);
 	// combined with maxQuoteDepth this bounds recursion.
 	if quoted.ID == status.ID {
-		return nil, nil
+		return &quoteResolution{}, nil
 	}
 
 	// Check the requesting account may see the quoted status.
@@ -1045,7 +1068,37 @@ func (c *Converter) quoteToAPIQuote(
 		return nil, gtserror.Newf("error checking quoted status visibility: %w", err)
 	}
 	if !visible {
-		return &apimodel.Quote{State: apimodel.QuoteStateUnauthorized}, nil
+		return &quoteResolution{state: apimodel.QuoteStateUnauthorized}, nil
+	}
+
+	return &quoteResolution{
+		state:  apimodel.QuoteStateAccepted,
+		quoted: quoted,
+	}, nil
+}
+
+// quoteToAPIQuote builds the Mastodon-API `quote` object for status, or
+// nil if status is not a quote. It resolves the quoted status via
+// resolveQuote, checks the requester is permitted to see it, and bounds
+// nesting depth by returning a shallow quote (quoted_status_id only)
+// past maxQuoteDepth.
+func (c *Converter) quoteToAPIQuote(
+	ctx context.Context,
+	status *gtsmodel.Status,
+	requester *gtsmodel.Account,
+) (*apimodel.Quote, error) {
+	rq, err := c.resolveQuote(ctx, status, requester)
+	if err != nil {
+		return nil, err
+	}
+
+	if rq.state == "" {
+		// Not a quote.
+		return nil, nil
+	}
+
+	if rq.state != apimodel.QuoteStateAccepted {
+		return &apimodel.Quote{State: rq.state}, nil
 	}
 
 	if quoteDepth(ctx) >= maxQuoteDepth {
@@ -1053,7 +1106,7 @@ func (c *Converter) quoteToAPIQuote(
 		// (ID reference only) to bound recursion.
 		return &apimodel.Quote{
 			State:          apimodel.QuoteStateAccepted,
-			QuotedStatusID: util.Ptr(quoted.ID),
+			QuotedStatusID: util.Ptr(rq.quoted.ID),
 		}, nil
 	}
 
@@ -1063,15 +1116,58 @@ func (c *Converter) quoteToAPIQuote(
 	// account and other caller-populated fields are set — otherwise clients
 	// receive quoted_status.account == null and can't render the card.
 	ctx = context.WithValue(ctx, quoteDepthCtxKey{}, quoteDepth(ctx)+1)
-	apiQuoted, err := c.StatusToAPIStatus(ctx, quoted, requester)
+	apiQuoted, err := c.StatusToAPIStatus(ctx, rq.quoted, requester)
 	if err != nil {
-		return nil, gtserror.Newf("error converting quoted status %s: %w", quoted.ID, err)
+		return nil, gtserror.Newf("error converting quoted status %s: %w", rq.quoted.ID, err)
 	}
 
 	return &apimodel.Quote{
 		State:        apimodel.QuoteStateAccepted,
 		QuotedStatus: apiQuoted,
 	}, nil
+}
+
+// quotedStatusForWeb resolves the quoted status for status, for use by
+// the plain (anonymous, no-JS) web view, reusing the exact same
+// resolution as the JSON API's quote field (resolveQuote) so the web
+// view can never diverge from the API on visibility, revocation, or
+// self-quote handling.
+//
+// It returns a nil status when there's nothing to render: no quote
+// relationship, a non-accepted state (pending/rejected/revoked/deleted/
+// unauthorized), a self-quote, or a quote nested past maxQuoteDepth.
+// Anonymous web visitors never see a hint that a non-accepted quote
+// relationship exists.
+//
+// Web pages are always served anonymously, so the requester passed to
+// resolveQuote is always nil, matching StatusToWebStatus's own anonymous
+// conversion of the outer status.
+//
+// On success with a non-nil status, the returned context carries the
+// incremented quote-depth counter that the caller must use for its own
+// recursive StatusToWebStatus call, so a quote-of-a-quote is bounded by
+// the same maxQuoteDepth limit as the JSON API.
+func (c *Converter) quotedStatusForWeb(
+	ctx context.Context,
+	status *gtsmodel.Status,
+) (*gtsmodel.Status, context.Context, error) {
+	rq, err := c.resolveQuote(ctx, status, nil)
+	if err != nil {
+		return nil, ctx, err
+	}
+
+	if rq.state != apimodel.QuoteStateAccepted {
+		return nil, ctx, nil
+	}
+
+	if quoteDepth(ctx) >= maxQuoteDepth {
+		// Too deeply nested: render nothing here, matching the
+		// JSON API's shallow (ID-only) quote at this depth.
+		return nil, ctx, nil
+	}
+
+	ctx = context.WithValue(ctx, quoteDepthCtxKey{}, quoteDepth(ctx)+1)
+	return rq.quoted, ctx, nil
 }
 
 // resolveQuotedByURL looks up a locally-known status by web URL or AP URI.
@@ -1369,6 +1465,23 @@ func (c *Converter) StatusToWebStatus(
 			PreviewMIMEType:  ogAttachment.Thumbnail.ContentType,
 			ParentStatusLink: apiStatus.URL,
 		}
+	}
+
+	// If this status has an accepted, visible, depth-bounded quote,
+	// render it fully as a nested WebStatus (mirroring how Reblog is
+	// handled above), reusing the same resolution as the JSON API's
+	// quote field so the web view can't render anything for a
+	// pending/rejected/revoked/deleted/unauthorized quote relationship.
+	quoted, quoteCtx, err := c.quotedStatusForWeb(ctx, s)
+	if err != nil {
+		return nil, gtserror.Newf("error resolving quote for web: %w", err)
+	}
+	if quoted != nil {
+		quotedWeb, err := c.StatusToWebStatus(quoteCtx, quoted)
+		if err != nil {
+			return nil, gtserror.Newf("error converting quoted status for web: %w", err)
+		}
+		webStatus.Quote = &apimodel.WebQuote{WebStatus: quotedWeb}
 	}
 
 	return webStatus, nil
