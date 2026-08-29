@@ -241,7 +241,7 @@ func assertNoNestedAnchors(t *testing.T, body string) {
 // invalid, broken-click-target markup if the two ever ended up nested
 // rather than siblings.
 //
-// See TestAssertNoNestedAnchorsCatchesActualNesting for proof that the
+// See TestMaxAnchorNestingDepthCatchesActualNesting for proof that the
 // helper this test relies on actually fails on genuinely nested anchors
 // (an html.Parse-based DOM walk would not: see that test's comment).
 func TestStatusQuoteRendersWithoutNestedAnchorsOrDepth(t *testing.T) {
