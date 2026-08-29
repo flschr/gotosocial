@@ -160,31 +160,72 @@ func newMinimalWebStatus(id string) *apimodel.WebStatus {
 	}
 }
 
-// assertNoNestedAnchors parses rendered HTML and fails the test if any
-// <a> element has another <a> as a descendant. Nested anchors are invalid
-// HTML and break click targets/accessibility in every browser: the outer
-// link swallows clicks intended for the inner one.
+// maxAnchorNestingDepth returns how deeply <a> tags are nested in the
+// raw markup, by tokenizing it (html.NewTokenizer) rather than building
+// a DOM via html.Parse.
+//
+// This distinction matters: the HTML5 parsing algorithm's "adoption
+// agency" step actively repairs a literally nested <a>...<a> by closing
+// the outer anchor early and starting a new sibling one, so a DOM walk
+// over html.Parse's output would never observe the nesting at all -- it
+// self-heals before a walk could see it (verified: parsing
+// `<a>outer <a>inner</a> more</a>` yields two *sibling* <a> nodes and an
+// orphaned "more" text node outside any anchor, not a nested pair). That
+// auto-repair is exactly the bug worth catching -- it silently splits
+// one link into two and strands trailing text outside any anchor -- so
+// detecting it means looking at the tag stream as the template actually
+// emitted it, before a parser "fixes" it up.
+func maxAnchorNestingDepth(body string) int {
+	z := html.NewTokenizer(strings.NewReader(body))
+	depth, max := 0, 0
+	for {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			return max
+		}
+		tok := z.Token()
+		if tok.Data != "a" {
+			continue
+		}
+		switch tt {
+		case html.StartTagToken, html.SelfClosingTagToken:
+			depth++
+			if depth > max {
+				max = depth
+			}
+		case html.EndTagToken:
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+}
+
+// TestMaxAnchorNestingDepthCatchesActualNesting is a meta-test proving
+// maxAnchorNestingDepth actually detects genuine nesting, since an
+// html.Parse-based DOM walk (the first, wrong approach tried here) would
+// not: see maxAnchorNestingDepth's comment for why that approach is a
+// placebo check that always reports "no nesting found".
+func TestMaxAnchorNestingDepthCatchesActualNesting(t *testing.T) {
+	nested := `<a href="/outer">outer <a href="/inner">inner</a> more</a>`
+	if depth := maxAnchorNestingDepth(nested); depth != 2 {
+		t.Fatalf("expected nested anchors to report depth 2, got %d", depth)
+	}
+
+	siblings := `<a href="/outer">outer</a><a href="/inner">inner</a>`
+	if depth := maxAnchorNestingDepth(siblings); depth != 1 {
+		t.Fatalf("expected sibling anchors to report depth 1, got %d", depth)
+	}
+}
+
+// assertNoNestedAnchors fails the test if the raw rendered markup ever
+// opens an <a> tag before a previously-opened one has closed.
 func assertNoNestedAnchors(t *testing.T, body string) {
 	t.Helper()
 
-	doc, err := html.Parse(strings.NewReader(body))
-	if err != nil {
-		t.Fatalf("parse rendered HTML: %v", err)
+	if depth := maxAnchorNestingDepth(body); depth > 1 {
+		t.Fatalf("found <a> opened while another <a> was still open (rendered markup splits/nests links) in:\n%s", body)
 	}
-
-	var walk func(n *html.Node, inAnchor bool)
-	walk = func(n *html.Node, inAnchor bool) {
-		if n.Type == html.ElementNode && n.Data == "a" {
-			if inAnchor {
-				t.Fatalf("found <a> nested inside another <a> in rendered output:\n%s", body)
-			}
-			inAnchor = true
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c, inAnchor)
-		}
-	}
-	walk(doc, false)
 }
 
 // TestStatusQuoteRendersWithoutNestedAnchorsOrDepth actually executes
@@ -199,6 +240,10 @@ func assertNoNestedAnchors(t *testing.T, body string) {
 // (its own header <a> and footer <a>) inside another one, which would be
 // invalid, broken-click-target markup if the two ever ended up nested
 // rather than siblings.
+//
+// See TestAssertNoNestedAnchorsCatchesActualNesting for proof that the
+// helper this test relies on actually fails on genuinely nested anchors
+// (an html.Parse-based DOM walk would not: see that test's comment).
 func TestStatusQuoteRendersWithoutNestedAnchorsOrDepth(t *testing.T) {
 	oldTemplateDir := config.GetWebTemplateBaseDir()
 	config.SetWebTemplateBaseDir("../../web/template")
