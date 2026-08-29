@@ -4,6 +4,51 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
+## v0.22.1-plus.6 — 2026-08-29
+
+### Bluesky sync monitoring
+
+- Add an active health check for the Bluesky connection: expired or missing
+  OAuth sessions, stuck outgoing deliveries, dead incoming or outgoing jobs,
+  and a stalled interaction scheduler are all detected instead of only
+  process-level liveness.
+- Classify terminal OAuth refresh failures as authentication errors so the
+  settings application correctly asks for reconnection instead of reporting a
+  healthy, syncing connection.
+- Alert through the existing Healthchecks.io integration with secret-free
+  diagnostics that name the failing condition; the check reports healthy
+  again once the condition clears.
+
+### Quote federation fix
+
+- Declare the FEP-044f, Fedibird, and Misskey quote terms in outgoing
+  ActivityPub JSON-LD so Mastodon-compatible servers no longer merge
+  `content` and `contentMap` into visible technical text on federated quote
+  posts.
+- Exclude quote posts from automatic Bluesky crossposting.
+- Clean up stale Bluesky quote and boost delivery state left over before this
+  fix.
+
+### Quote posts in the web view
+
+- Render an accepted, publicly visible quote inside the plain server-rendered
+  web view (`/@user/statuses/:id`, profile pages) for anonymous, no-JS
+  visitors, matching what Mastodon-compatible API clients already show
+  through the `quote` API field.
+- The quoted post appears with its own avatar, display name, content, media,
+  and content warning, nested in a bordered card, at the same one-level depth
+  limit as the API.
+- No hint of a quote is shown to anonymous visitors for pending, rejected,
+  revoked, deleted, or otherwise unauthorized quote states.
+
+### Upgrade notes
+
+- This release remains based on GoToSocial 0.22.1.
+- A database migration adds tracking for a one-time Bluesky quote and boost
+  delivery cleanup; it runs automatically on startup.
+- No new configuration key is required.
+- Deploy the binary, web assets, and templates from the same release archive.
+
 ## v0.22.1-plus.5 — 2026-07-30
 
 ### Native quote posts

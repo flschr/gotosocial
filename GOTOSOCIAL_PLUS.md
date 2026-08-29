@@ -123,6 +123,12 @@ The permission controls are standard interaction-policy settings rather than
 a separate Plus configuration flag. The display-only
 `statuses-hide-quote-fallback` option is independent of quote authorization.
 
+An accepted, publicly visible quote is also rendered in the plain
+server-rendered web view of a status (`/@user/statuses/:id`, profile pages),
+not only through the Mastodon API. Anonymous, no-JS visitors see the same
+quoted status, and no hint of a quote is shown for any state other than
+accepted.
+
 ## Display-name emoji control
 
 The optional display-name setting removes Unicode emoji sequences and known
