@@ -92,6 +92,11 @@ media photoswipe-gallery {{ (len .) | oddOrEven }} {{ if eq (len .) 1 }}single{{
     {{- if .Card }}
     {{- include "status_card.tmpl" .Card | indent 1 }}
     {{- end }}
+    {{- if .Quote }}
+    <article class="status status-quote h-cite">
+        {{- include "status.tmpl" .Quote | indent 2 }}
+    </article>
+    {{- end }}
 </div>
 <aside class="status-info">
     {{- include "status_info.tmpl" . | indent 1 }}

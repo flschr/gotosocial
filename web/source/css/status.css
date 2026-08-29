@@ -473,7 +473,19 @@
 
 	&.reblog {
 		margin: 0 0.75rem 0.75rem 0.75rem;
-		border-top-left-radius: $br !important; 
+		border-top-left-radius: $br !important;
 		border-top-right-radius: $br !important;
+	}
+
+	/*
+		A quoted status, rendered fully (like a normal
+		status) but visually nested inside the quoting
+		status's body, so it reads as a distinct, bordered
+		card rather than a continuation of the outer post.
+	*/
+	&.status-quote {
+		background: $gray2;
+		box-shadow: none;
+		border: $boxshadow-border;
 	}
 }
