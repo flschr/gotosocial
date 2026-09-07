@@ -41,10 +41,7 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 	defer lockAccount(accountID)()
 	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
 	if errors.Is(err, db.ErrNoEntries) {
-		if err := stubProxyStatuses(ctx, state, accountID); err != nil {
-			return err
-		}
-		return state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID)
+		return stubProxyStatuses(ctx, state, accountID)
 	}
 	if err != nil {
 		return err
@@ -66,9 +63,8 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 		}
 		connection, err = state.DB.GetBlueskyConnectionByAccountID(cleanupCtx, accountID)
 		if errors.Is(err, db.ErrNoEntries) {
-			err = state.DB.DeleteBlueskyConnectionDataByAccountID(cleanupCtx, accountID)
 			cancel()
-			return err
+			return nil
 		}
 		cancel()
 		if err != nil {
@@ -108,7 +104,7 @@ func Forget(ctx context.Context, state *state.State, accountID string) error {
 	for range 3 {
 		connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
 		if errors.Is(err, db.ErrNoEntries) {
-			return state.DB.DeleteBlueskyDataByAccountID(ctx, accountID)
+			return nil
 		}
 		if err != nil {
 			return err

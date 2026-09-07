@@ -190,6 +190,18 @@ func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 	require.Equal(t, 2, requests)
 }
 
+func TestAppPasswordPathPrefixOnlyAppliesToPDSRequests(t *testing.T) {
+	pdsRequest, err := http.NewRequest(http.MethodPost, "https://pds.example.test/xrpc/app.test.endpoint", nil)
+	require.NoError(t, err)
+	applyAppPasswordPathPrefix(pdsRequest, "https://pds.example.test/pds")
+	require.Equal(t, "/pds/xrpc/app.test.endpoint", pdsRequest.URL.Path)
+
+	appViewRequest, err := http.NewRequest(http.MethodGet, "https://api.bsky.app/xrpc/app.bsky.notification.listNotifications", nil)
+	require.NoError(t, err)
+	applyAppPasswordPathPrefix(appViewRequest, "https://pds.example.test/pds")
+	require.Equal(t, "/xrpc/app.bsky.notification.listNotifications", appViewRequest.URL.Path)
+}
+
 func TestAppPasswordAuthRecreatesExpiredSession(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

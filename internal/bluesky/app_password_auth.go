@@ -96,6 +96,9 @@ func applyAppPasswordPathPrefix(request *http.Request, host string) {
 	if err != nil {
 		return
 	}
+	if request.URL.Scheme != u.Scheme || request.URL.Host != u.Host {
+		return
+	}
 	prefix := strings.TrimRight(u.Path, "/")
 	if prefix == "" || !strings.HasPrefix(request.URL.Path, "/xrpc/") {
 		return
