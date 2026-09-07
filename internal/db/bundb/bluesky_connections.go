@@ -62,10 +62,13 @@ func (b *blueskyDB) PutBlueskyConnection(ctx context.Context, connection *gtsmod
 func (b *blueskyDB) PutBlueskyConnectionIfAccountExists(ctx context.Context, connection *gtsmodel.BlueskyConnection) (bool, error) {
 	inserted := false
 	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		query := tx.NewSelect().Model((*gtsmodel.Account)(nil)).Where("id = ?", connection.AccountID)
+		query := tx.NewSelect().Model((*gtsmodel.Account)(nil)).
+			Where("id = ?", connection.AccountID).
+			Where("suspended_at IS NULL")
 		if b.db.Dialect().Name() != dialect.SQLite {
-			// Serialize first-time connection creation with account deletion.
-			query = query.For("KEY SHARE")
+			// Serialize first-time connection creation with the suspension marker
+			// written at the start of account deletion.
+			query = query.For("UPDATE")
 		}
 		exists, err := query.Exists(ctx)
 		if err != nil || !exists {

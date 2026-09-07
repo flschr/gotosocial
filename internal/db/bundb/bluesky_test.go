@@ -441,7 +441,7 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotRecreateForgottenCo
 	}
 }
 
-func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotOutliveAccount() {
+func (suite *BlueskyTestSuite) TestActivateAppPasswordRejectsSuspendedAccount() {
 	previousKey := config.GetBlueskyOAuthEncryptionKey()
 	defer config.SetBlueskyOAuthEncryptionKey(previousKey)
 	config.SetBlueskyOAuthEncryptionKey(base64.StdEncoding.EncodeToString(make([]byte, 32)))
@@ -474,7 +474,8 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotOutliveAccount() {
 		"did:plc:deleted-account-activation", "test-app-password",
 	)
 	suite.Require().NoError(err)
-	suite.Require().NoError(suite.db.DeleteAccount(ctx, account.ID))
+	account.SuspendedAt = time.Now()
+	suite.Require().NoError(suite.db.UpdateAccount(ctx, account, "suspended_at"))
 
 	candidate := &gtsmodel.BlueskyConnection{
 		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:deleted-account-activation",
@@ -482,6 +483,8 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotOutliveAccount() {
 	}
 	_, err = bluesky.ActivateAppPassword(ctx, &suite.state, candidate, nil, encrypted)
 	suite.ErrorIs(err, bluesky.ErrCredentialsChanged)
+	_, err = suite.db.GetAccountByID(ctx, account.ID)
+	suite.Require().NoError(err)
 	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Error(err)
 	select {
