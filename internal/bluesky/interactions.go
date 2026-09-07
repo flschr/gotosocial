@@ -118,7 +118,8 @@ func syncConnection(ctx context.Context, state *state.State, connection *gtsmode
 			connection.LastSyncError = ""
 			connection.LastSyncErrorCode = ""
 		}
-		if err := state.DB.UpdateBlueskyConnection(ctx, connection, "last_sync_at", "last_sync_error", "last_sync_error_code"); err != nil && syncErr == nil {
+		_, err := state.DB.UpdateBlueskyConnectionSyncStatus(ctx, connection)
+		if err != nil && syncErr == nil {
 			syncErr = err
 		}
 	}()

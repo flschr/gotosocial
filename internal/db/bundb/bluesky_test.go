@@ -165,10 +165,10 @@ func (suite *BlueskyTestSuite) TestAppPasswordSessionCompareAndSwap() {
 		Handle: "cas.example", PDSURL: "https://pds.example.test", AppPasswordData: []byte("first"),
 	}
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
-	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, account.ID, []byte("first"), []byte("second"))
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, connection, []byte("first"), []byte("second"))
 	suite.Require().NoError(err)
 	suite.True(updated)
-	updated, err = suite.db.UpdateBlueskyAppPasswordData(ctx, account.ID, []byte("first"), []byte("stale"))
+	updated, err = suite.db.UpdateBlueskyAppPasswordData(ctx, connection, []byte("first"), []byte("stale"))
 	suite.Require().NoError(err)
 	suite.False(updated)
 	stored, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
@@ -215,6 +215,60 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordCASRejectsReplacedConnecti
 	suite.Empty(stored.AppPasswordData)
 }
 
+func (suite *BlueskyTestSuite) TestSessionCASRejectsReplacedConnectionRow() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	stale := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:stale-session-row",
+		Handle: "stale-session.example", PDSURL: "https://stale.example.test",
+		AppPasswordData: []byte("same-generation"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, stale))
+	suite.Require().NoError(suite.db.DeleteBlueskyConnection(ctx, stale.ID))
+	replacement := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:replacement-session-row",
+		Handle: "replacement-session.example", PDSURL: "https://replacement.example.test",
+		AppPasswordData: []byte("same-generation"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, replacement))
+
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, stale, []byte("same-generation"), []byte("rotated"))
+	suite.Require().NoError(err)
+	suite.False(updated)
+	suite.Require().NoError(suite.db.DeleteBlueskyConnection(ctx, replacement.ID))
+	replacement.AppPasswordData = nil
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, replacement))
+	updated, err = suite.db.UpdateBlueskyOAuthSession(ctx, stale, "", nil, "oauth-session", []byte("encrypted-oauth"))
+	suite.Require().NoError(err)
+	suite.False(updated)
+}
+
+func (suite *BlueskyTestSuite) TestSyncStatusRequiresLoadedCredentialGeneration() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:sync-status-cas",
+		Handle: "sync-status.example", PDSURL: "https://pds.example.test",
+		AppPasswordData: []byte("first-generation"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	loaded, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"))
+	suite.Require().NoError(err)
+	suite.True(updated)
+
+	loaded.LastSyncAt = time.Now()
+	loaded.LastSyncError = "stale authentication failure"
+	loaded.LastSyncErrorCode = bluesky.ErrorCodeAuth
+	updated, err = suite.db.UpdateBlueskyConnectionSyncStatus(ctx, loaded)
+	suite.Require().NoError(err)
+	suite.False(updated)
+	current, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Empty(current.LastSyncError)
+}
+
 func (suite *BlueskyTestSuite) TestClearBlueskyConnectionDataRequiresLoadedCredentialGeneration() {
 	ctx := suite.T().Context()
 	account := suite.testAccounts["local_account_1"]
@@ -226,7 +280,7 @@ func (suite *BlueskyTestSuite) TestClearBlueskyConnectionDataRequiresLoadedCrede
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
 	loaded, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
-	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, account.ID, []byte("first-generation"), []byte("second-generation"))
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"))
 	suite.Require().NoError(err)
 	suite.True(updated)
 
@@ -242,6 +296,34 @@ func (suite *BlueskyTestSuite) TestClearBlueskyConnectionDataRequiresLoadedCrede
 	current, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
 	suite.False(current.Active())
+}
+
+func (suite *BlueskyTestSuite) TestDeleteBlueskyDataRequiresLoadedCredentialGeneration() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:delete-cas",
+		Handle: "delete-cas.example", PDSURL: "https://pds.example.test",
+		AppPasswordData: []byte("first-generation"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	loaded, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"))
+	suite.Require().NoError(err)
+	suite.True(updated)
+
+	deleted, err := suite.db.DeleteBlueskyData(ctx, loaded)
+	suite.Require().NoError(err)
+	suite.False(deleted)
+	current, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal([]byte("second-generation"), current.AppPasswordData)
+	deleted, err = suite.db.DeleteBlueskyData(ctx, current)
+	suite.Require().NoError(err)
+	suite.True(deleted)
+	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Error(err)
 }
 
 func (suite *BlueskyTestSuite) TestActivateAppPasswordRevokesAfterCanceledActivation() {
@@ -691,6 +773,55 @@ func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndRese
 	suite.Require().NoError(err)
 	_, err = suite.db.GetBlueskyDeliveryByStatusID(ctx, delivery.StatusID)
 	suite.Error(err)
+}
+
+func (suite *BlueskyTestSuite) TestDisconnectClearsCredentialsAfterRequestCancellation() {
+	previousKey := config.GetBlueskyOAuthEncryptionKey()
+	defer config.SetBlueskyOAuthEncryptionKey(previousKey)
+	config.SetBlueskyOAuthEncryptionKey(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	previousHTTPClient := suite.state.HTTPClient
+	defer func() { suite.state.HTTPClient = previousHTTPClient }()
+	suite.state.HTTPClient = httpclient.New(httpclient.Config{
+		AllowRanges: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
+		Timeout:     time.Second,
+	})
+
+	var cancelRequest context.CancelFunc
+	accessToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"scope":"com.atproto.appPass"}`)) + ".signature"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/com.atproto.server.createSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"` + accessToken + `","refreshJwt":"disconnect-refresh","did":"did:plc:canceled-disconnect"}`))
+		case "/xrpc/com.atproto.server.deleteSession":
+			if cancelRequest != nil {
+				cancelRequest()
+			}
+			_, _ = response.Write([]byte(`{}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+
+	account := suite.testAccounts["local_account_1"]
+	appPasswordData, err := bluesky.CreateAppPasswordData(
+		suite.T().Context(), &suite.state, account.ID, server.URL,
+		"did:plc:canceled-disconnect", "test-app-password",
+	)
+	suite.Require().NoError(err)
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:canceled-disconnect",
+		Handle: "canceled-disconnect.example", PDSURL: server.URL,
+		AppPasswordData: appPasswordData,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(suite.T().Context(), connection))
+	requestCtx, cancel := context.WithCancel(suite.T().Context())
+	cancelRequest = cancel
+	suite.Require().NoError(bluesky.Disconnect(requestCtx, &suite.state, account.ID))
+	stored, err := suite.db.GetBlueskyConnectionByAccountID(suite.T().Context(), account.ID)
+	suite.Require().NoError(err)
+	suite.False(stored.Active())
 }
 
 func (suite *BlueskyTestSuite) TestDisconnectDeletesProxyBeforeItsMapping() {

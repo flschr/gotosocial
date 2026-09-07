@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -174,12 +175,12 @@ func (a *appPasswordAuth) refresh(ctx context.Context, client *http.Client) (atc
 	}, nil
 }
 
-func persistAppPasswordSession(ctx context.Context, state *state.State, accountID, password string, expected []byte, session atclient.PasswordSessionData) ([]byte, error) {
-	encrypted, err := encodeAppPassword(accountID, password, session)
+func persistAppPasswordSession(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection, password string, expected []byte, session atclient.PasswordSessionData) ([]byte, error) {
+	encrypted, err := encodeAppPassword(connection.AccountID, password, session)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
 	}
-	updated, err := state.DB.UpdateBlueskyAppPasswordData(ctx, accountID, expected, encrypted)
+	updated, err := state.DB.UpdateBlueskyAppPasswordData(ctx, connection, expected, encrypted)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeData, Err: err}
 	}

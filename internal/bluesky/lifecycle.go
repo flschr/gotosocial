@@ -19,6 +19,8 @@ import (
 
 var accountLocks sync.Map
 
+var ErrConnectionActive = errors.New("Bluesky account is connected")
+
 func lockAccount(accountID string) func() {
 	value, _ := accountLocks.LoadOrStore(accountID, new(sync.Mutex))
 	mutex := value.(*sync.Mutex)
@@ -52,17 +54,23 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 	}
 	for range 3 {
 		revokeConnectionCredentialsDetached(ctx, state, connection)
-		cleared, err := state.DB.ClearBlueskyConnectionData(ctx, connection)
+		cleanupCtx, cancel := credentialCleanupContext(ctx)
+		cleared, err := state.DB.ClearBlueskyConnectionData(cleanupCtx, connection)
 		if err != nil {
+			cancel()
 			return err
 		}
 		if cleared {
+			cancel()
 			return nil
 		}
-		connection, err = state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
+		connection, err = state.DB.GetBlueskyConnectionByAccountID(cleanupCtx, accountID)
 		if errors.Is(err, db.ErrNoEntries) {
-			return state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID)
+			err = state.DB.DeleteBlueskyConnectionDataByAccountID(cleanupCtx, accountID)
+			cancel()
+			return err
 		}
+		cancel()
 		if err != nil {
 			return err
 		}
@@ -97,10 +105,29 @@ func revokeConnectionCredentialsDetached(ctx context.Context, state *state.State
 // It intentionally leaves previously published records on Bluesky untouched.
 func Forget(ctx context.Context, state *state.State, accountID string) error {
 	defer lockAccount(accountID)()
-	if err := stubProxyStatuses(ctx, state, accountID); err != nil {
-		return err
+	for range 3 {
+		connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
+		if errors.Is(err, db.ErrNoEntries) {
+			return state.DB.DeleteBlueskyDataByAccountID(ctx, accountID)
+		}
+		if err != nil {
+			return err
+		}
+		if connection.Active() {
+			return ErrConnectionActive
+		}
+		if err := stubProxyStatuses(ctx, state, accountID); err != nil {
+			return err
+		}
+		deleted, err := state.DB.DeleteBlueskyData(ctx, connection)
+		if err != nil {
+			return err
+		}
+		if deleted {
+			return nil
+		}
 	}
-	return state.DB.DeleteBlueskyDataByAccountID(ctx, accountID)
+	return ErrCredentialsChanged
 }
 
 // DeleteAccount removes crossposts created by GoToSocial before revoking and
@@ -133,16 +160,34 @@ func DeleteAccount(ctx context.Context, state *state.State, accountID string) er
 			}
 		}
 	}
-	if len(connection.AppPasswordData) != 0 {
-		_ = logoutAppPassword(ctx, state, connection)
-	}
-	if app, _, appErr := NewOAuthClient(state, accountID); appErr == nil && connection.OAuthSessionID != "" {
-		if did, parseErr := syntax.ParseDID(connection.DID); parseErr == nil {
-			_ = app.Logout(ctx, did, connection.OAuthSessionID)
+	remoteErrors = append(remoteErrors, deleteProxyStatuses(ctx, state, accountID))
+	for range 3 {
+		cleanupCtx, cancel := credentialCleanupContext(ctx)
+		connection, err = state.DB.GetBlueskyConnectionByAccountID(cleanupCtx, accountID)
+		if errors.Is(err, db.ErrNoEntries) {
+			remoteErrors = append(remoteErrors, state.DB.DeleteBlueskyDataByAccountID(cleanupCtx, accountID))
+			cancel()
+			return errors.Join(remoteErrors...)
+		}
+		if err != nil {
+			cancel()
+			remoteErrors = append(remoteErrors, err)
+			return errors.Join(remoteErrors...)
+		}
+		cancel()
+		revokeConnectionCredentialsDetached(ctx, state, connection)
+		cleanupCtx, cancel = credentialCleanupContext(ctx)
+		deleted, err := state.DB.DeleteBlueskyData(cleanupCtx, connection)
+		cancel()
+		if err != nil {
+			remoteErrors = append(remoteErrors, err)
+			return errors.Join(remoteErrors...)
+		}
+		if deleted {
+			return errors.Join(remoteErrors...)
 		}
 	}
-	remoteErrors = append(remoteErrors, deleteProxyStatuses(ctx, state, accountID))
-	remoteErrors = append(remoteErrors, state.DB.DeleteBlueskyDataByAccountID(ctx, accountID))
+	remoteErrors = append(remoteErrors, ErrCredentialsChanged)
 	return errors.Join(remoteErrors...)
 }
 

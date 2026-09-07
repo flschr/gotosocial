@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"strings"
 
-	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -114,14 +113,6 @@ func createAppPasswordSession(ctx context.Context, state *state.State, pdsURL, d
 		AccessToken: response.AccessJWT, RefreshToken: response.RefreshJWT,
 		AccountDID: accountDID, Host: strings.TrimRight(pdsURL, "/"),
 	}, nil
-}
-
-func logoutAppPassword(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) error {
-	credentials, err := decodeAppPassword(connection.AccountID, connection.AppPasswordData)
-	if err != nil {
-		return err
-	}
-	return deleteAppPasswordSession(ctx, state, credentials.Session.Host, credentials.Session.RefreshToken)
 }
 
 func deleteAppPasswordSession(ctx context.Context, state *state.State, host, refreshToken string) error {

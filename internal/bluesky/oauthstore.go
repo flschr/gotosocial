@@ -129,7 +129,7 @@ func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessio
 		s.discardRotatedSession(ctx, session)
 		return err
 	}
-	updated, err := s.db.UpdateBlueskyOAuthSession(ctx, s.accountID, expectedSessionID, expectedData, session.SessionID, encrypted)
+	updated, err := s.db.UpdateBlueskyOAuthSession(ctx, connection, expectedSessionID, expectedData, session.SessionID, encrypted)
 	if err != nil {
 		s.discardRotatedSession(ctx, session)
 		return err

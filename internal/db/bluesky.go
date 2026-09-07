@@ -19,14 +19,16 @@ type Bluesky interface {
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	ActivateBlueskyAppPassword(context.Context, *gtsmodel.BlueskyConnection, string, []byte, []byte) (bool, error)
-	UpdateBlueskyAppPasswordData(context.Context, string, []byte, []byte) (bool, error)
-	UpdateBlueskyOAuthSession(context.Context, string, string, []byte, string, []byte) (bool, error)
+	UpdateBlueskyAppPasswordData(context.Context, *gtsmodel.BlueskyConnection, []byte, []byte) (bool, error)
+	UpdateBlueskyOAuthSession(context.Context, *gtsmodel.BlueskyConnection, string, []byte, string, []byte) (bool, error)
+	UpdateBlueskyConnectionSyncStatus(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	DeleteBlueskyConnection(context.Context, string) error
 	DeleteInactiveBlueskyConnection(context.Context, string) (bool, error)
 	ClaimBlueskyConnection(context.Context, string, time.Time, time.Time) (bool, error)
 	RenewBlueskyConnectionClaim(context.Context, string, time.Time, time.Time) (bool, error)
 	ReleaseBlueskyConnectionClaim(context.Context, string, time.Time) error
 	DeleteBlueskyDataByAccountID(context.Context, string) error
+	DeleteBlueskyData(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	DeleteBlueskyConnectionDataByAccountID(context.Context, string) error
 	ClearBlueskyConnectionData(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	GetBlueskyHealth(context.Context, string) (*gtsmodel.BlueskyHealth, error)

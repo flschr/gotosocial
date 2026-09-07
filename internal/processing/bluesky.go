@@ -26,14 +26,10 @@ func (p *Processor) BlueskyDisconnect(ctx context.Context, accountID string) gts
 }
 
 func (p *Processor) BlueskyForget(ctx context.Context, accountID string) gtserror.WithCode {
-	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
-	if err != nil && !errors.Is(err, db.ErrNoEntries) {
-		return gtserror.NewErrorInternalError(err)
-	}
-	if err == nil && connection.Active() {
-		return gtserror.NewErrorConflict(errors.New("Bluesky account is connected"), "disconnect Bluesky before forgetting the saved account")
-	}
 	if err := bluesky.Forget(ctx, p.state, accountID); err != nil {
+		if errors.Is(err, bluesky.ErrConnectionActive) {
+			return gtserror.NewErrorConflict(err, "disconnect Bluesky before forgetting the saved account")
+		}
 		return gtserror.NewErrorInternalError(err)
 	}
 	return nil

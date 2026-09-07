@@ -68,7 +68,7 @@ func CreateAppPasswordData(ctx context.Context, state *state.State, accountID, p
 	}
 	encrypted, err := encodeAppPassword(accountID, password, session)
 	if err != nil {
-		_ = deleteAppPasswordSession(ctx, state, session.Host, session.RefreshToken)
+		deleteAppPasswordSessionDetached(ctx, state, session.Host, session.RefreshToken)
 		return nil, err
 	}
 	return encrypted, nil
@@ -156,7 +156,7 @@ func newAppPasswordClient(state *state.State, connection *gtsmodel.BlueskyConnec
 			return createAppPasswordSession(ctx, state, credentials.Session.Host, credentials.Session.AccountDID.String(), credentials.Password)
 		},
 		persist: func(ctx context.Context, session atclient.PasswordSessionData) error {
-			replacement, err := persistAppPasswordSession(ctx, state, connection.AccountID, credentials.Password, expectedData, session)
+			replacement, err := persistAppPasswordSession(ctx, state, connection, credentials.Password, expectedData, session)
 			if err == nil {
 				expectedData = replacement
 			}

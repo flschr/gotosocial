@@ -95,10 +95,12 @@ func (b *blueskyDB) ActivateBlueskyAppPassword(ctx context.Context, connection *
 	return affected == 1, err
 }
 
-func (b *blueskyDB) UpdateBlueskyAppPasswordData(ctx context.Context, accountID string, expected, replacement []byte) (bool, error) {
+func (b *blueskyDB) UpdateBlueskyAppPasswordData(ctx context.Context, connection *gtsmodel.BlueskyConnection, expected, replacement []byte) (bool, error) {
 	result, err := b.db.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).
 		Set("app_password_data = ?", replacement).
-		Where("account_id = ?", accountID).
+		Where("account_id = ?", connection.AccountID).
+		Where("id = ?", connection.ID).
+		Where("did = ?", connection.DID).
 		Where("app_password_data = ?", expected).
 		Exec(ctx)
 	if err != nil {
@@ -108,10 +110,12 @@ func (b *blueskyDB) UpdateBlueskyAppPasswordData(ctx context.Context, accountID 
 	return affected == 1, err
 }
 
-func (b *blueskyDB) UpdateBlueskyOAuthSession(ctx context.Context, accountID, expectedSessionID string, expectedData []byte, sessionID string, data []byte) (bool, error) {
+func (b *blueskyDB) UpdateBlueskyOAuthSession(ctx context.Context, connection *gtsmodel.BlueskyConnection, expectedSessionID string, expectedData []byte, sessionID string, data []byte) (bool, error) {
 	query := b.db.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).
 		Set("oauth_session_id = ?, oauth_data = ?", sessionID, data).
-		Where("account_id = ?", accountID).
+		Where("account_id = ?", connection.AccountID).
+		Where("id = ?", connection.ID).
+		Where("did = ?", connection.DID).
 		Where("app_password_data IS NULL")
 	if expectedSessionID == "" {
 		query = query.Where("oauth_session_id IS NULL")
@@ -122,6 +126,37 @@ func (b *blueskyDB) UpdateBlueskyOAuthSession(ctx context.Context, accountID, ex
 		query = query.Where("oauth_data IS NULL")
 	} else {
 		query = query.Where("oauth_data = ?", expectedData)
+	}
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
+func (b *blueskyDB) UpdateBlueskyConnectionSyncStatus(ctx context.Context, connection *gtsmodel.BlueskyConnection) (bool, error) {
+	query := b.db.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).
+		Set("last_sync_at = ?", connection.LastSyncAt).
+		Set("last_sync_error = ?", connection.LastSyncError).
+		Set("last_sync_error_code = ?", connection.LastSyncErrorCode).
+		Where("account_id = ?", connection.AccountID).
+		Where("id = ?", connection.ID).
+		Where("did = ?", connection.DID)
+	if connection.OAuthSessionID == "" {
+		query = query.Where("oauth_session_id IS NULL")
+	} else {
+		query = query.Where("oauth_session_id = ?", connection.OAuthSessionID)
+	}
+	if len(connection.OAuthData) == 0 {
+		query = query.Where("oauth_data IS NULL")
+	} else {
+		query = query.Where("oauth_data = ?", connection.OAuthData)
+	}
+	if len(connection.AppPasswordData) == 0 {
+		query = query.Where("app_password_data IS NULL")
+	} else {
+		query = query.Where("app_password_data = ?", connection.AppPasswordData)
 	}
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -179,6 +214,50 @@ func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID 
 		(*gtsmodel.BlueskyDelivery)(nil), (*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyPost)(nil),
 		(*gtsmodel.BlueskyInteraction)(nil), (*gtsmodel.BlueskyOAuthState)(nil), (*gtsmodel.BlueskyConnection)(nil),
 	})
+}
+
+func (b *blueskyDB) DeleteBlueskyData(ctx context.Context, connection *gtsmodel.BlueskyConnection) (bool, error) {
+	deleted := false
+	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		query := tx.NewDelete().Model((*gtsmodel.BlueskyConnection)(nil)).
+			Where("account_id = ?", connection.AccountID).
+			Where("id = ?", connection.ID).
+			Where("did = ?", connection.DID)
+		if connection.OAuthSessionID == "" {
+			query = query.Where("oauth_session_id IS NULL")
+		} else {
+			query = query.Where("oauth_session_id = ?", connection.OAuthSessionID)
+		}
+		if len(connection.OAuthData) == 0 {
+			query = query.Where("oauth_data IS NULL")
+		} else {
+			query = query.Where("oauth_data = ?", connection.OAuthData)
+		}
+		if len(connection.AppPasswordData) == 0 {
+			query = query.Where("app_password_data IS NULL")
+		} else {
+			query = query.Where("app_password_data = ?", connection.AppPasswordData)
+		}
+		result, err := query.Exec(ctx)
+		if err != nil {
+			return err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil || affected != 1 {
+			return err
+		}
+		deleted = true
+		for _, model := range []any{
+			(*gtsmodel.BlueskyDelivery)(nil), (*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyPost)(nil),
+			(*gtsmodel.BlueskyInteraction)(nil), (*gtsmodel.BlueskyOAuthState)(nil),
+		} {
+			if _, err := tx.NewDelete().Model(model).Where("account_id = ?", connection.AccountID).Exec(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return deleted, err
 }
 
 func (b *blueskyDB) DeleteBlueskyConnectionDataByAccountID(ctx context.Context, accountID string) error {
