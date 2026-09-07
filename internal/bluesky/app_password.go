@@ -115,7 +115,11 @@ func ActivateAppPassword(ctx context.Context, state *state.State, candidate, exp
 		if err != nil {
 			return nil, err
 		}
-		if expected == nil || existing.ID != expected.ID {
+		if expected == nil ||
+			existing.ID != expected.ID ||
+			existing.OAuthSessionID != expected.OAuthSessionID ||
+			!bytes.Equal(existing.OAuthData, expected.OAuthData) ||
+			!bytes.Equal(existing.AppPasswordData, expected.AppPasswordData) {
 			return nil, ErrCredentialsChanged
 		}
 		if existing.DID != candidate.DID {

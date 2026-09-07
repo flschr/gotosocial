@@ -441,6 +441,65 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotRecreateForgottenCo
 	}
 }
 
+func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotUndoDisconnect() {
+	previousKey := config.GetBlueskyOAuthEncryptionKey()
+	defer config.SetBlueskyOAuthEncryptionKey(previousKey)
+	config.SetBlueskyOAuthEncryptionKey(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	revoked := make(chan struct{}, 1)
+	accessToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"scope":"com.atproto.appPass"}`)) + ".signature"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/com.atproto.server.createSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"` + accessToken + `","refreshJwt":"disconnect-race-refresh","did":"did:plc:disconnect-race"}`))
+		case "/xrpc/com.atproto.server.deleteSession":
+			revoked <- struct{}{}
+			_, _ = response.Write([]byte(`{}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	previousHTTPClient := suite.state.HTTPClient
+	defer func() { suite.state.HTTPClient = previousHTTPClient }()
+	suite.state.HTTPClient = httpclient.New(httpclient.Config{
+		AllowRanges: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
+		Timeout:     time.Second,
+	})
+
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	expected := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:disconnect-race",
+		Handle: "disconnect-race.example", PDSURL: server.URL,
+		AppPasswordData: []byte("previous-generation"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, expected))
+	encrypted, err := bluesky.CreateAppPasswordData(
+		ctx, &suite.state, account.ID, server.URL,
+		expected.DID, "test-app-password",
+	)
+	suite.Require().NoError(err)
+	disconnected, err := suite.db.ClearBlueskyConnectionData(ctx, expected)
+	suite.Require().NoError(err)
+	suite.True(disconnected)
+
+	candidate := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: expected.DID,
+		Handle: expected.Handle, PDSURL: server.URL,
+	}
+	_, err = bluesky.ActivateAppPassword(ctx, &suite.state, candidate, expected, encrypted)
+	suite.ErrorIs(err, bluesky.ErrCredentialsChanged)
+	stored, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.False(stored.Active())
+	select {
+	case <-revoked:
+	default:
+		suite.Fail("session rejected after disconnect was not revoked")
+	}
+}
+
 func (suite *BlueskyTestSuite) TestActivateAppPasswordRejectsSuspendedAccount() {
 	previousKey := config.GetBlueskyOAuthEncryptionKey()
 	defer config.SetBlueskyOAuthEncryptionKey(previousKey)
