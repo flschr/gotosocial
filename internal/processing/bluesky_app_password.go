@@ -84,9 +84,12 @@ func (p *Processor) BlueskyAppPasswordConnect(ctx context.Context, accountID str
 		Handle: identity.Handle.String(), PDSURL: pdsURL, NotificationsSeenAt: now, OutboxCheckedAt: now,
 		CrosspostPublic: false, ShowProfileFollow: true,
 	}
-	if _, err := bluesky.ActivateAppPassword(ctx, p.state, candidate, encrypted); err != nil {
+	if _, err := bluesky.ActivateAppPassword(ctx, p.state, candidate, existing, encrypted); err != nil {
 		if errors.Is(err, bluesky.ErrIdentityMismatch) {
 			return nil, gtserror.NewErrorConflict(err, "Use an app password for the previously linked Bluesky account, or forget the saved account first")
+		}
+		if errors.Is(err, bluesky.ErrCredentialsChanged) {
+			return nil, gtserror.NewErrorConflict(err, "The saved Bluesky connection changed while the app password was being verified. Reload and try again")
 		}
 		return nil, gtserror.NewErrorInternalError(err)
 	}

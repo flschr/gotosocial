@@ -76,7 +76,10 @@ func CreateAppPasswordData(ctx context.Context, state *state.State, accountID, p
 
 // ActivateAppPassword atomically switches the saved connection to app-password
 // authentication after the password has already been verified and encrypted.
-func ActivateAppPassword(ctx context.Context, state *state.State, candidate *gtsmodel.BlueskyConnection, encrypted []byte) (*gtsmodel.BlueskyConnection, error) {
+// expected is the connection observed before remote verification, or nil when
+// the account had no connection. A disappeared or replaced expected row must
+// not be recreated: it may have been forgotten while verification was running.
+func ActivateAppPassword(ctx context.Context, state *state.State, candidate, expected *gtsmodel.BlueskyConnection, encrypted []byte) (*gtsmodel.BlueskyConnection, error) {
 	defer lockAccount(candidate.AccountID)()
 	activated := false
 	defer func() {
@@ -87,17 +90,30 @@ func ActivateAppPassword(ctx context.Context, state *state.State, candidate *gts
 	for range 3 {
 		existing, err := state.DB.GetBlueskyConnectionByAccountID(ctx, candidate.AccountID)
 		if errors.Is(err, db.ErrNoEntries) {
+			if expected != nil {
+				return nil, ErrCredentialsChanged
+			}
 			candidate.AppPasswordData = encrypted
 			if putErr := state.DB.PutBlueskyConnection(ctx, candidate); putErr == nil {
 				activated = true
 				return candidate, nil
-			} else if _, getErr := state.DB.GetBlueskyConnectionByAccountID(ctx, candidate.AccountID); getErr != nil {
-				return nil, putErr
+			} else {
+				_, getErr := state.DB.GetBlueskyConnectionByAccountID(ctx, candidate.AccountID)
+				switch {
+				case errors.Is(getErr, db.ErrNoEntries):
+					return nil, putErr
+				case getErr != nil:
+					return nil, getErr
+				default:
+					return nil, ErrCredentialsChanged
+				}
 			}
-			continue
 		}
 		if err != nil {
 			return nil, err
+		}
+		if expected == nil || existing.ID != expected.ID {
+			return nil, ErrCredentialsChanged
 		}
 		if existing.DID != candidate.DID {
 			return nil, ErrIdentityMismatch

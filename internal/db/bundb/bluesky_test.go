@@ -364,12 +364,67 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordRevokesAfterCanceledActiva
 		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:canceled-activation",
 		Handle: "canceled.example", PDSURL: server.URL,
 	}
-	_, err = bluesky.ActivateAppPassword(canceledCtx, &suite.state, candidate, encrypted)
+	_, err = bluesky.ActivateAppPassword(canceledCtx, &suite.state, candidate, nil, encrypted)
 	suite.Error(err)
 	select {
 	case <-revoked:
 	default:
 		suite.Fail("unpersisted session was not revoked")
+	}
+}
+
+func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotRecreateForgottenConnection() {
+	previousKey := config.GetBlueskyOAuthEncryptionKey()
+	defer config.SetBlueskyOAuthEncryptionKey(previousKey)
+	config.SetBlueskyOAuthEncryptionKey(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	revoked := make(chan struct{}, 1)
+	accessToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"scope":"com.atproto.appPass"}`)) + ".signature"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/com.atproto.server.createSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"` + accessToken + `","refreshJwt":"forgotten-refresh","did":"did:plc:forgotten-activation"}`))
+		case "/xrpc/com.atproto.server.deleteSession":
+			revoked <- struct{}{}
+			_, _ = response.Write([]byte(`{}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	previousHTTPClient := suite.state.HTTPClient
+	defer func() { suite.state.HTTPClient = previousHTTPClient }()
+	suite.state.HTTPClient = httpclient.New(httpclient.Config{
+		AllowRanges: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
+		Timeout:     time.Second,
+	})
+
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	expected := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:forgotten-activation",
+		Handle: "forgotten.example", PDSURL: server.URL,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, expected))
+	encrypted, err := bluesky.CreateAppPasswordData(
+		ctx, &suite.state, account.ID, server.URL,
+		expected.DID, "test-app-password",
+	)
+	suite.Require().NoError(err)
+	suite.Require().NoError(suite.db.DeleteBlueskyConnection(ctx, expected.ID))
+
+	candidate := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: expected.DID,
+		Handle: expected.Handle, PDSURL: server.URL,
+	}
+	_, err = bluesky.ActivateAppPassword(ctx, &suite.state, candidate, expected, encrypted)
+	suite.ErrorIs(err, bluesky.ErrCredentialsChanged)
+	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Error(err)
+	select {
+	case <-revoked:
+	default:
+		suite.Fail("session for forgotten connection was not revoked")
 	}
 }
 
@@ -431,7 +486,7 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordReplacesOAuthAndPreservesS
 		ID: id.NewULID(), AccountID: account.ID, DID: existing.DID,
 		Handle: "new.example", PDSURL: "https://new-pds.example.test",
 	}
-	activated, err := bluesky.ActivateAppPassword(ctx, &suite.state, candidate, []byte("encrypted-app-password"))
+	activated, err := bluesky.ActivateAppPassword(ctx, &suite.state, candidate, existing, []byte("encrypted-app-password"))
 	suite.Require().NoError(err)
 	suite.Equal(existing.ID, activated.ID)
 	suite.Equal("app_password", activated.AuthMethod())
