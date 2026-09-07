@@ -81,6 +81,7 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 		_ = p.state.DB.DeleteBlueskyOAuthState(ctx, state)
 		return "", gtserror.NewErrorBadRequest(errors.New("expired OAuth state"), "Bluesky authorization expired; please try again")
 	}
+	defer bluesky.LockAccount(storedState.AccountID)()
 
 	app, store, err := p.blueskyOAuthApp(storedState.AccountID)
 	if err != nil {
@@ -90,6 +91,11 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 	if existingErr != nil && !errors.Is(existingErr, db.ErrNoEntries) {
 		return "", gtserror.NewErrorInternalError(existingErr)
 	}
+	if existingErr == nil && existing.Active() {
+		_ = p.state.DB.DeleteBlueskyOAuthState(ctx, state)
+		baseURL, _, _ := bluesky.OAuthURLs()
+		return baseURL + "/settings/user/bluesky?connected=true", nil
+	}
 	store.DeferSessionPersistence()
 	session, err := app.ProcessCallback(ctx, params)
 	if err != nil {
@@ -98,14 +104,18 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 		}
 		return "", gtserror.NewErrorBadRequest(err, "Bluesky authorization failed")
 	}
+	persisted := false
+	defer func() {
+		if !persisted {
+			_ = bluesky.RevokeOAuthSession(ctx, app, *session)
+		}
+	}()
 	identity, err := app.Dir.LookupDID(ctx, session.AccountDID)
 	if err != nil {
 		return "", gtserror.NewErrorUnprocessableEntity(err, "could not resolve the connected Bluesky identity")
 	}
 
 	if existingErr == nil && !sameBlueskyIdentity(existing, session.AccountDID.String()) {
-		_ = app.Logout(ctx, session.AccountDID, session.SessionID)
-		_ = store.DeleteSession(ctx, session.AccountDID, session.SessionID)
 		return "", gtserror.NewErrorConflict(errors.New("different Bluesky identity"), "Reconnect the previously linked Bluesky account before switching identities")
 	}
 	now := time.Now()
@@ -122,15 +132,32 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 		if err := p.state.DB.UpdateBlueskyConnection(ctx, connection, "handle", "pds_url"); err != nil {
 			return "", gtserror.NewErrorInternalError(err)
 		}
-	} else if err := p.state.DB.PutBlueskyConnection(ctx, connection); err != nil {
-		return "", gtserror.NewErrorInternalError(err)
+	} else if putErr := p.state.DB.PutBlueskyConnection(ctx, connection); putErr != nil {
+		current, currentErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, storedState.AccountID)
+		if currentErr == nil && current.Active() {
+			baseURL, _, _ := bluesky.OAuthURLs()
+			return baseURL + "/settings/user/bluesky?connected=true", nil
+		}
+		if currentErr == nil {
+			return "", gtserror.NewErrorConflict(putErr, "Another Bluesky connection is finishing; reload and try again if needed")
+		}
+		return "", gtserror.NewErrorInternalError(errors.Join(putErr, currentErr))
 	}
 	if err := store.PersistSession(ctx, *session); err != nil {
 		if existingErr != nil {
-			_ = p.state.DB.DeleteBlueskyConnection(ctx, connection.ID)
+			_, _ = p.state.DB.DeleteInactiveBlueskyConnection(ctx, connection.ID)
+		}
+		if errors.Is(err, bluesky.ErrCredentialsChanged) {
+			current, currentErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, storedState.AccountID)
+			if currentErr == nil && current.Active() {
+				baseURL, _, _ := bluesky.OAuthURLs()
+				return baseURL + "/settings/user/bluesky?connected=true", nil
+			}
+			return "", gtserror.NewErrorConflict(err, "Another Bluesky connection completed first; reload and try again if needed")
 		}
 		return "", gtserror.NewErrorInternalError(err)
 	}
+	persisted = true
 
 	baseURL, _, _ := bluesky.OAuthURLs()
 	return baseURL + "/settings/user/bluesky?connected=true", nil

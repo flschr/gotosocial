@@ -151,6 +151,38 @@ func (suite *BlueskyTestSuite) TestActiveConnectionsIncludeAppPasswordAuthentica
 	suite.Equal(active.ID, connections[0].ID)
 }
 
+func (suite *BlueskyTestSuite) TestAppPasswordSessionCompareAndSwap() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:app-password-cas",
+		Handle: "cas.example", PDSURL: "https://pds.example.test", AppPasswordData: []byte("first"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, account.ID, []byte("first"), []byte("second"))
+	suite.Require().NoError(err)
+	suite.True(updated)
+	updated, err = suite.db.UpdateBlueskyAppPasswordData(ctx, account.ID, []byte("first"), []byte("stale"))
+	suite.Require().NoError(err)
+	suite.False(updated)
+	stored, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal([]byte("second"), stored.AppPasswordData)
+	stored.Handle = "updated.example"
+	stored.PDSURL = "https://new-pds.example.test"
+	stored.AppPasswordData = []byte("activated")
+	activated, err := suite.db.ActivateBlueskyAppPassword(ctx, stored, "", nil, []byte("stale"))
+	suite.Require().NoError(err)
+	suite.False(activated)
+	activated, err = suite.db.ActivateBlueskyAppPassword(ctx, stored, "", nil, []byte("second"))
+	suite.Require().NoError(err)
+	suite.True(activated)
+	stored, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal("updated.example", stored.Handle)
+	suite.Equal([]byte("activated"), stored.AppPasswordData)
+}
+
 func (suite *BlueskyTestSuite) TestActivateAppPasswordReplacesOAuthAndPreservesSettings() {
 	ctx := suite.T().Context()
 	account := suite.testAccounts["local_account_1"]
@@ -586,9 +618,34 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	storedSession, err = store.GetSession(ctx, did, deferredSession.SessionID)
 	suite.Require().NoError(err)
 	suite.Equal(session.RefreshToken, storedSession.RefreshToken)
+	staleStore := bluesky.NewOAuthStore(suite.db, crypter, account.ID)
+	_, err = staleStore.GetSession(ctx, did, deferredSession.SessionID)
+	suite.Require().NoError(err)
+	freshSession := deferredSession
+	freshSession.RefreshToken = "fresh-refresh-token"
+	suite.Require().NoError(store.SaveSession(ctx, freshSession))
+	staleRefresh := deferredSession
+	staleRefresh.RefreshToken = "stale-refresh-token"
+	suite.ErrorIs(staleStore.SaveSession(ctx, staleRefresh), bluesky.ErrCredentialsChanged)
+	storedSession, err = store.GetSession(ctx, did, deferredSession.SessionID)
+	suite.Require().NoError(err)
+	suite.Equal(freshSession.RefreshToken, storedSession.RefreshToken)
 
 	storedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
+	storedConnection.OAuthSessionID = ""
+	storedConnection.OAuthData = nil
+	storedConnection.AppPasswordData = []byte("new-app-password")
+	suite.Require().NoError(suite.db.UpdateBlueskyConnection(ctx, storedConnection, "oauth_session_id", "oauth_data", "app_password_data"))
+	appPasswordRaceSession := deferredSession
+	appPasswordRaceSession.AccessToken = "stale-oauth-access"
+	suite.ErrorIs(store.SaveSession(ctx, appPasswordRaceSession), bluesky.ErrCredentialsChanged)
+	storedConnection, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Empty(storedConnection.OAuthSessionID)
+	suite.Empty(storedConnection.OAuthData)
+	suite.Equal([]byte("new-app-password"), storedConnection.AppPasswordData)
+
 	suite.NotContains(string(storedConnection.OAuthData), session.RefreshToken)
 }
 

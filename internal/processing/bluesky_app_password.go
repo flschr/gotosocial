@@ -7,6 +7,7 @@ package processing
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -32,6 +33,9 @@ func (p *Processor) BlueskyAppPasswordConnect(ctx context.Context, accountID str
 	password := strings.TrimSpace(form.AppPassword)
 	if password == "" {
 		return nil, gtserror.NewErrorBadRequest(errors.New("empty Bluesky app password"), "Enter the app password created in Bluesky settings")
+	}
+	if len(password) > 256 {
+		return nil, gtserror.NewErrorBadRequest(errors.New("Bluesky app password exceeds 256 bytes"), "Enter the app password created in Bluesky settings")
 	}
 
 	app, _, err := p.blueskyOAuthApp(accountID)
@@ -60,7 +64,19 @@ func (p *Processor) BlueskyAppPasswordConnect(ctx context.Context, accountID str
 		if errors.Is(err, bluesky.ErrIdentityMismatch) {
 			return nil, gtserror.NewErrorConflict(err, "The app password belongs to a different Bluesky account")
 		}
-		return nil, gtserror.NewErrorUnauthorized(err, "Bluesky rejected that app password. Create a new app password in Bluesky settings and try again")
+		if errors.Is(err, bluesky.ErrNotAppPassword) {
+			return nil, gtserror.NewErrorUnprocessableEntity(err, "That is your main Bluesky password, not an app password. Create a separate app password in Bluesky settings")
+		}
+		if errors.Is(err, bluesky.ErrPrivilegedAppPassword) {
+			return nil, gtserror.NewErrorUnprocessableEntity(err, "Create a Bluesky app password with ‘Allow access to your direct messages’ turned off and try again")
+		}
+		if bluesky.IsAppPasswordAccountUnavailable(err) {
+			return nil, gtserror.NewErrorUnprocessableEntity(err, "That Bluesky account is not currently available for app-password connections")
+		}
+		if bluesky.IsAppPasswordRejected(err) {
+			return nil, gtserror.NewErrorUnprocessableEntity(err, "Bluesky rejected that app password. Create a new app password in Bluesky settings and try again")
+		}
+		return nil, gtserror.NewWithCodeSafe(http.StatusBadGateway, err, "Bluesky could not verify the app password right now. Try again shortly")
 	}
 	now := time.Now()
 	candidate := &gtsmodel.BlueskyConnection{

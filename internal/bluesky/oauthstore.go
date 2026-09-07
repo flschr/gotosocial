@@ -9,31 +9,43 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-var ErrIdentityMismatch = errors.New("Bluesky identity does not match saved account")
+var (
+	ErrIdentityMismatch   = errors.New("Bluesky identity does not match saved account")
+	ErrCredentialsChanged = errors.New("Bluesky credentials changed concurrently")
+)
 
 type OAuthStore struct {
 	db                      db.DB
 	crypter                 *Crypter
 	accountID               string
+	mu                      sync.Mutex
 	deferSessionPersistence bool
+	expectedSessionID       string
+	expectedData            []byte
 }
 
 // DeferSessionPersistence keeps ProcessCallback from activating a reconnect
 // before the caller has completed identity and PDS validation.
 func (s *OAuthStore) DeferSessionPersistence() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deferSessionPersistence = true
 }
 
 func (s *OAuthStore) PersistSession(ctx context.Context, session oauth.ClientSessionData) error {
+	s.mu.Lock()
 	s.deferSessionPersistence = false
+	s.mu.Unlock()
 	return s.SaveSession(ctx, session)
 }
 
@@ -61,10 +73,16 @@ func (s *OAuthStore) GetSession(ctx context.Context, _ syntax.DID, sessionID str
 	if err := json.Unmarshal(plaintext, &session); err != nil {
 		return nil, fmt.Errorf("decode Bluesky OAuth session: %w", err)
 	}
+	s.mu.Lock()
+	s.expectedSessionID = connection.OAuthSessionID
+	s.expectedData = append(s.expectedData[:0], connection.OAuthData...)
+	s.mu.Unlock()
 	return &session, nil
 }
 
 func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessionData) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	connection, err := s.db.GetBlueskyConnectionByAccountID(ctx, s.accountID)
 	if errors.Is(err, db.ErrNoEntries) {
 		// ProcessCallback returns this session to the caller, which creates the
@@ -80,6 +98,15 @@ func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessio
 	if s.deferSessionPersistence {
 		return nil
 	}
+	if len(connection.AppPasswordData) != 0 || (connection.OAuthSessionID != "" && connection.OAuthSessionID != session.SessionID) {
+		return ErrCredentialsChanged
+	}
+	expectedSessionID := connection.OAuthSessionID
+	expectedData := connection.OAuthData
+	if s.expectedSessionID == session.SessionID {
+		expectedSessionID = s.expectedSessionID
+		expectedData = s.expectedData
+	}
 	encoded, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("encode Bluesky OAuth session: %w", err)
@@ -88,9 +115,32 @@ func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessio
 	if err != nil {
 		return err
 	}
-	connection.OAuthSessionID = session.SessionID
-	connection.OAuthData = encrypted
-	return s.db.UpdateBlueskyConnection(ctx, connection, "oauth_session_id", "oauth_data")
+	updated, err := s.db.UpdateBlueskyOAuthSession(ctx, s.accountID, expectedSessionID, expectedData, session.SessionID, encrypted)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		return ErrCredentialsChanged
+	}
+	s.expectedSessionID = session.SessionID
+	s.expectedData = append(s.expectedData[:0], encrypted...)
+	return nil
+}
+
+// RevokeOAuthSession revokes a callback session that was deliberately not
+// persisted, for example after an identity or concurrent-connection check.
+func RevokeOAuthSession(ctx context.Context, app *oauth.ClientApp, data oauth.ClientSessionData) error {
+	if data.AuthServerRevocationEndpoint == "" {
+		return nil
+	}
+	privateKey, err := atcrypto.ParsePrivateMultibase(data.DPoPPrivateKeyMultibase)
+	if err != nil {
+		return err
+	}
+	session := &oauth.ClientSession{
+		Client: app.Client, Config: app.Config, Data: &data, DPoPPrivateKey: privateKey,
+	}
+	return session.RevokeSession(ctx)
 }
 
 func (s *OAuthStore) DeleteSession(ctx context.Context, _ syntax.DID, sessionID string) error {

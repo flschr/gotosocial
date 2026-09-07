@@ -39,6 +39,13 @@ func testPasswordSession(t *testing.T, host, access, refresh string) atclient.Pa
 	return atclient.PasswordSessionData{AccessToken: access, RefreshToken: refresh, AccountDID: did, Host: host}
 }
 
+func testAccessToken(t *testing.T, scope string) string {
+	t.Helper()
+	payload, err := json.Marshal(accessTokenClaims{Scope: scope})
+	require.NoError(t, err)
+	return "header." + base64.RawURLEncoding.EncodeToString(payload) + ".signature"
+}
+
 func TestAppPasswordCredentialsAreEncrypted(t *testing.T) {
 	useAppPasswordTestKey(t)
 	session := testPasswordSession(t, "https://pds.example.test", "access-secret", "refresh-secret")
@@ -71,7 +78,7 @@ func TestCreateAppPasswordSessionUsesResolvedDID(t *testing.T) {
 		require.Equal(t, "did:plc:apppasswordtest", body.Identifier)
 		require.Equal(t, password, body.Password)
 		response.Header().Set("Content-Type", "application/json")
-		_, _ = response.Write([]byte(`{"accessJwt":"access","refreshJwt":"refresh","did":"did:plc:apppasswordtest"}`))
+		_, _ = response.Write([]byte(`{"accessJwt":"` + testAccessToken(t, "com.atproto.appPass") + `","refreshJwt":"refresh","did":"did:plc:apppasswordtest"}`))
 	}))
 	defer server.Close()
 	loopback := netip.MustParsePrefix("127.0.0.0/8")
@@ -79,9 +86,33 @@ func TestCreateAppPasswordSessionUsesResolvedDID(t *testing.T) {
 
 	session, err := createAppPasswordSession(t.Context(), testState, server.URL, "did:plc:apppasswordtest", password)
 	require.NoError(t, err)
-	require.Equal(t, "access", session.AccessToken)
+	require.Equal(t, testAccessToken(t, "com.atproto.appPass"), session.AccessToken)
 	require.Equal(t, "refresh", session.RefreshToken)
 	require.Equal(t, server.URL, session.Host)
+}
+
+func TestCreateAppPasswordSessionRejectsMainPasswordScopeAndRevokesSession(t *testing.T) {
+	revoked := false
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/com.atproto.server.createSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"` + testAccessToken(t, "com.atproto.access") + `","refreshJwt":"main-password-refresh","did":"did:plc:apppasswordtest"}`))
+		case "/xrpc/com.atproto.server.deleteSession":
+			require.Equal(t, "Bearer main-password-refresh", request.Header.Get("Authorization"))
+			revoked = true
+			_, _ = response.Write([]byte(`{}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	loopback := netip.MustParsePrefix("127.0.0.0/8")
+	testState := &state.State{HTTPClient: httpclient.New(httpclient.Config{AllowRanges: []netip.Prefix{loopback}, Timeout: time.Second})}
+
+	_, err := createAppPasswordSession(t.Context(), testState, server.URL, "did:plc:apppasswordtest", "main-password")
+	require.ErrorIs(t, err, ErrNotAppPassword)
+	require.True(t, revoked)
 }
 
 func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
@@ -196,4 +227,77 @@ func TestAppPasswordAuthReportsRevokedPasswordWithoutSecret(t *testing.T) {
 	require.Equal(t, ErrorCodeAuth, errorCode(err))
 	require.NotContains(t, err.Error(), "password-secret")
 	require.Contains(t, err.Error(), "no longer valid")
+}
+
+func TestAppPasswordAuthPreservesTransientRecreationError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusBadRequest)
+		if strings.HasSuffix(request.URL.Path, "refreshSession") {
+			_, _ = response.Write([]byte(`{"error":"InvalidToken"}`))
+			return
+		}
+		_, _ = response.Write([]byte(`{"error":"ExpiredToken"}`))
+	}))
+	defer server.Close()
+
+	transient := &atclient.APIError{StatusCode: http.StatusServiceUnavailable, Name: "UpstreamFailure"}
+	auth := &appPasswordAuth{
+		session: testPasswordSession(t, server.URL, "old-access", "old-refresh"),
+		recreate: func(context.Context) (atclient.PasswordSessionData, error) {
+			return atclient.PasswordSessionData{}, transient
+		},
+		persist: func(context.Context, atclient.PasswordSessionData) error { return nil },
+	}
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/xrpc/app.test.endpoint", nil)
+	require.NoError(t, err)
+	_, err = auth.DoWithAuth(server.Client(), request, syntax.NSID("app.test.endpoint"))
+	require.ErrorIs(t, err, transient)
+	require.Equal(t, ErrorCodeRemote, errorCode(err))
+}
+
+func TestAppPasswordAuthDoesNotReplayNonReplayableBody(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/app.test.endpoint":
+			requests++
+			response.WriteHeader(http.StatusBadRequest)
+			_, _ = response.Write([]byte(`{"error":"ExpiredToken"}`))
+		case "/xrpc/com.atproto.server.refreshSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"new-access","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
+		}
+	}))
+	defer server.Close()
+
+	auth := &appPasswordAuth{
+		session: testPasswordSession(t, server.URL, "old-access", "old-refresh"),
+		recreate: func(context.Context) (atclient.PasswordSessionData, error) {
+			return atclient.PasswordSessionData{}, errors.New("unexpected recreation")
+		},
+		persist: func(context.Context, atclient.PasswordSessionData) error { return nil },
+	}
+	body := struct{ *strings.Reader }{strings.NewReader("not-replayable")}
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/xrpc/app.test.endpoint", body)
+	require.NoError(t, err)
+	require.Nil(t, request.GetBody)
+	_, err = auth.DoWithAuth(server.Client(), request, syntax.NSID("app.test.endpoint"))
+	require.ErrorIs(t, err, ErrRequestNotReplayable)
+	require.Equal(t, 1, requests)
+}
+
+func TestIsAppPasswordRejected(t *testing.T) {
+	require.True(t, IsAppPasswordRejected(ErrNotAppPassword))
+	require.True(t, IsAppPasswordRejected(ErrPrivilegedAppPassword))
+	require.True(t, IsAppPasswordRejected(&atclient.APIError{StatusCode: http.StatusUnauthorized, Name: "AuthenticationRequired"}))
+	require.True(t, IsAppPasswordRejected(&atclient.APIError{StatusCode: http.StatusBadRequest, Name: "InvalidLogin"}))
+	require.False(t, IsAppPasswordRejected(&atclient.APIError{StatusCode: http.StatusUnauthorized, Name: "AccountTakedown"}))
+	require.False(t, IsAppPasswordRejected(&atclient.APIError{StatusCode: http.StatusTooManyRequests, Name: "RateLimitExceeded"}))
+	require.False(t, IsAppPasswordRejected(&atclient.APIError{StatusCode: http.StatusServiceUnavailable}))
+	require.True(t, IsAppPasswordAccountUnavailable(&atclient.APIError{StatusCode: http.StatusUnauthorized, Name: "AccountTakedown"}))
+}
+
+func TestValidateAppPasswordAccessTokenRejectsPrivilegedScope(t *testing.T) {
+	require.ErrorIs(t, validateAppPasswordAccessToken(testAccessToken(t, "com.atproto.appPassPrivileged")), ErrPrivilegedAppPassword)
 }

@@ -38,6 +38,11 @@ the app password to create a new session automatically. The connection keeps
 working until the app password is revoked, becomes invalid, or the provider
 stops supporting password-based sessions.
 
+GoToSocial verifies that the provider returned a standard app-password-scoped
+session. Leave **Allow access to your direct messages** turned off when creating
+it. Main account passwords and app passwords with direct-message access are
+refused; the newly created session is revoked and the password is never saved.
+
 The [AT Protocol client documentation](https://github.com/bluesky-social/atproto/tree/main/packages/api#session-management)
 recommends OAuth for new applications and describes password-based session
 management as deprecated. The app-password option therefore remains an

@@ -25,6 +25,12 @@ func lockAccount(accountID string) func() {
 	return mutex.Unlock
 }
 
+// LockAccount serializes connection transitions with sync work in this process.
+// Database compare-and-swap guards cover concurrent GoToSocial processes.
+func LockAccount(accountID string) func() {
+	return lockAccount(accountID)
+}
+
 // Disconnect first removes private proxy statuses, then revokes the active
 // remote session when possible and removes local credentials. Post mappings
 // remain so a later reconnect can resume exact edits and deletions.

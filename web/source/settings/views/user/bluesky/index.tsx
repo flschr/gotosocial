@@ -60,6 +60,18 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 		showProfileFollow: useBoolInput("show_profile_follow", { source: connection }),
 	};
 	const [submitForm, result] = useFormSubmit(form, useUpdateBlueskySettingsMutation());
+	const canSubmitAppPassword = connection.configured &&
+		(connection.connected || Boolean(identifier || connection.handle)) &&
+		Boolean(appPassword) &&
+		!appPasswordResult.isLoading;
+	const submitAppPasswordOnEnter = (event: React.KeyboardEvent<HTMLInputElement>) => {
+		if (event.key === "Enter") {
+			event.preventDefault();
+			if (canSubmitAppPassword) {
+				void startAppPasswordConnection();
+			}
+		}
+	};
 
 	return (
 		<form className="bluesky-settings" onSubmit={submitForm}>
@@ -96,10 +108,10 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 						: "OAuth sessions can expire. A dedicated app password lets GoToSocial create a new session automatically."}</p>
 					<label>
 						Bluesky app password
-						<input type="password" value={appPassword} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" onChange={(event) => setAppPassword(event.target.value)} />
+						<input name="bluesky_app_password" type="password" value={appPassword} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" onKeyDown={submitAppPasswordOnEnter} onChange={(event) => setAppPassword(event.target.value)} />
 					</label>
-					<button type="button" disabled={!connection.configured || !appPassword || appPasswordResult.isLoading} onClick={() => void startAppPasswordConnection()}>{connection.auth_method === "app_password" ? "Replace app password" : "Use app password"}</button>
-					<small>Create a separate password in <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noreferrer">Bluesky app-password settings</a>. Never enter your main Bluesky password here.</small>
+					<button type="button" disabled={!canSubmitAppPassword} onClick={() => void startAppPasswordConnection()}>{connection.auth_method === "app_password" ? "Replace app password" : "Use app password"}</button>
+					<small>Create it in <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noreferrer">Bluesky app-password settings</a> and leave “Allow access to your direct messages” off. Main Bluesky passwords are refused and never saved.</small>
 				</div>
 				{confirmDisconnect ? <div className="info">
 					<p>Disconnect Bluesky? Crossposting and reply import will stop, and stored Bluesky credentials will be removed.</p>
@@ -124,10 +136,10 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 					<p>This lets GoToSocial automatically create a new session when the current one expires.</p>
 					<label>
 						Bluesky app password
-						<input type="password" value={appPassword} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" onChange={(event) => setAppPassword(event.target.value)} />
+						<input name="bluesky_app_password" type="password" value={appPassword} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" onKeyDown={submitAppPasswordOnEnter} onChange={(event) => setAppPassword(event.target.value)} />
 					</label>
-					<button type="button" disabled={!connection.configured || (!identifier && !connection.handle) || !appPassword || appPasswordResult.isLoading} onClick={() => void startAppPasswordConnection()}>Connect with app password</button>
-					<small>Create it in <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noreferrer">Bluesky app-password settings</a>. It is separate from your main password and can be revoked at any time.</small>
+					<button type="button" disabled={!canSubmitAppPassword} onClick={() => void startAppPasswordConnection()}>Connect with app password</button>
+					<small>Create it in <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noreferrer">Bluesky app-password settings</a> and leave “Allow access to your direct messages” off. Main Bluesky passwords are refused and never saved.</small>
 				</div>
 				{connection.handle && (confirmForget ? <div className="info">
 					<p>Forget this saved account and all post mappings? Existing posts will stay on Bluesky, but GoToSocial will no longer be able to edit or delete them.</p>

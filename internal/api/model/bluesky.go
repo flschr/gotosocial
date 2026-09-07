@@ -35,7 +35,7 @@ type BlueskyConnectRequest struct {
 
 type BlueskyAppPasswordRequest struct {
 	Identifier  string `form:"identifier" json:"identifier" binding:"required"`
-	AppPassword string `form:"app_password" json:"app_password" binding:"required"`
+	AppPassword string `form:"app_password" json:"app_password" binding:"required,max=256"`
 }
 
 type BlueskyConnectResponse struct {
