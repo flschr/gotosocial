@@ -17,6 +17,7 @@ type Bluesky interface {
 	GetBlueskyConnections(context.Context) ([]*gtsmodel.BlueskyConnection, error)
 	GetBlueskyStatusesChangedBetween(context.Context, string, time.Time, time.Time) ([]*gtsmodel.Status, error)
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
+	PutBlueskyConnectionIfAccountExists(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	ActivateBlueskyAppPassword(context.Context, *gtsmodel.BlueskyConnection, string, []byte, []byte) (bool, error)
 	UpdateBlueskyAppPasswordData(context.Context, *gtsmodel.BlueskyConnection, []byte, []byte) (bool, error)

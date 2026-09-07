@@ -157,6 +157,19 @@ func (suite *BlueskyTestSuite) TestActiveConnectionsIncludeAppPasswordAuthentica
 	suite.Equal(active.ID, connections[0].ID)
 }
 
+func (suite *BlueskyTestSuite) TestDeleteAccountRemovesBlueskyConnectionInTransaction() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:account-delete-cleanup",
+		Handle: "delete-cleanup.example", PDSURL: "https://pds.example.test", AppPasswordData: []byte("encrypted"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	suite.Require().NoError(suite.db.DeleteAccount(ctx, account.ID))
+	_, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Error(err)
+}
+
 func (suite *BlueskyTestSuite) TestAppPasswordSessionCompareAndSwap() {
 	ctx := suite.T().Context()
 	account := suite.testAccounts["local_account_1"]
@@ -425,6 +438,56 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotRecreateForgottenCo
 	case <-revoked:
 	default:
 		suite.Fail("session for forgotten connection was not revoked")
+	}
+}
+
+func (suite *BlueskyTestSuite) TestActivateAppPasswordDoesNotOutliveAccount() {
+	previousKey := config.GetBlueskyOAuthEncryptionKey()
+	defer config.SetBlueskyOAuthEncryptionKey(previousKey)
+	config.SetBlueskyOAuthEncryptionKey(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	revoked := make(chan struct{}, 1)
+	accessToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"scope":"com.atproto.appPass"}`)) + ".signature"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/com.atproto.server.createSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"` + accessToken + `","refreshJwt":"deleted-account-refresh","did":"did:plc:deleted-account-activation"}`))
+		case "/xrpc/com.atproto.server.deleteSession":
+			revoked <- struct{}{}
+			_, _ = response.Write([]byte(`{}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	previousHTTPClient := suite.state.HTTPClient
+	defer func() { suite.state.HTTPClient = previousHTTPClient }()
+	suite.state.HTTPClient = httpclient.New(httpclient.Config{
+		AllowRanges: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
+		Timeout:     time.Second,
+	})
+
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	encrypted, err := bluesky.CreateAppPasswordData(
+		ctx, &suite.state, account.ID, server.URL,
+		"did:plc:deleted-account-activation", "test-app-password",
+	)
+	suite.Require().NoError(err)
+	suite.Require().NoError(suite.db.DeleteAccount(ctx, account.ID))
+
+	candidate := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:deleted-account-activation",
+		Handle: "deleted-account.example", PDSURL: server.URL,
+	}
+	_, err = bluesky.ActivateAppPassword(ctx, &suite.state, candidate, nil, encrypted)
+	suite.ErrorIs(err, bluesky.ErrCredentialsChanged)
+	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Error(err)
+	select {
+	case <-revoked:
+	default:
+		suite.Fail("session for deleted account was not revoked")
 	}
 }
 

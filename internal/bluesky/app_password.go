@@ -94,10 +94,12 @@ func ActivateAppPassword(ctx context.Context, state *state.State, candidate, exp
 				return nil, ErrCredentialsChanged
 			}
 			candidate.AppPasswordData = encrypted
-			if putErr := state.DB.PutBlueskyConnection(ctx, candidate); putErr == nil {
+			inserted, putErr := state.DB.PutBlueskyConnectionIfAccountExists(ctx, candidate)
+			if putErr == nil && inserted {
 				activated = true
 				return candidate, nil
-			} else {
+			}
+			if putErr != nil {
 				_, getErr := state.DB.GetBlueskyConnectionByAccountID(ctx, candidate.AccountID)
 				switch {
 				case errors.Is(getErr, db.ErrNoEntries):
@@ -108,6 +110,7 @@ func ActivateAppPassword(ctx context.Context, state *state.State, candidate, exp
 					return nil, ErrCredentialsChanged
 				}
 			}
+			return nil, ErrCredentialsChanged
 		}
 		if err != nil {
 			return nil, err

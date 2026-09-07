@@ -11,6 +11,7 @@ import (
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect"
 )
 
 type blueskyDB struct {
@@ -56,6 +57,27 @@ func (b *blueskyDB) GetBlueskyStatusesChangedBetween(ctx context.Context, accoun
 func (b *blueskyDB) PutBlueskyConnection(ctx context.Context, connection *gtsmodel.BlueskyConnection) error {
 	_, err := b.db.NewInsert().Model(connection).Exec(ctx)
 	return err
+}
+
+func (b *blueskyDB) PutBlueskyConnectionIfAccountExists(ctx context.Context, connection *gtsmodel.BlueskyConnection) (bool, error) {
+	inserted := false
+	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		query := tx.NewSelect().Model((*gtsmodel.Account)(nil)).Where("id = ?", connection.AccountID)
+		if b.db.Dialect().Name() != dialect.SQLite {
+			// Serialize first-time connection creation with account deletion.
+			query = query.For("KEY SHARE")
+		}
+		exists, err := query.Exists(ctx)
+		if err != nil || !exists {
+			return err
+		}
+		if _, err := tx.NewInsert().Model(connection).Exec(ctx); err != nil {
+			return err
+		}
+		inserted = true
+		return nil
+	})
+	return inserted, err
 }
 
 func (b *blueskyDB) UpdateBlueskyConnection(ctx context.Context, connection *gtsmodel.BlueskyConnection, columns ...string) error {
@@ -210,10 +232,7 @@ func (b *blueskyDB) ReleaseBlueskyConnectionClaim(ctx context.Context, id string
 }
 
 func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID string) error {
-	return b.deleteBlueskyModels(ctx, accountID, []any{
-		(*gtsmodel.BlueskyDelivery)(nil), (*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyPost)(nil),
-		(*gtsmodel.BlueskyInteraction)(nil), (*gtsmodel.BlueskyOAuthState)(nil), (*gtsmodel.BlueskyConnection)(nil),
-	})
+	return b.deleteBlueskyModels(ctx, accountID, allBlueskyModels())
 }
 
 func (b *blueskyDB) DeleteBlueskyData(ctx context.Context, connection *gtsmodel.BlueskyConnection) (bool, error) {
@@ -330,13 +349,24 @@ func (b *blueskyDB) ClearBlueskyConnectionData(ctx context.Context, connection *
 
 func (b *blueskyDB) deleteBlueskyModels(ctx context.Context, accountID string, models []any) error {
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		for _, model := range models {
-			if _, err := tx.NewDelete().Model(model).Where("account_id = ?", accountID).Exec(ctx); err != nil {
-				return err
-			}
-		}
-		return nil
+		return deleteBlueskyModelsWithDB(ctx, tx, accountID, models)
 	})
+}
+
+func allBlueskyModels() []any {
+	return []any{
+		(*gtsmodel.BlueskyDelivery)(nil), (*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyPost)(nil),
+		(*gtsmodel.BlueskyInteraction)(nil), (*gtsmodel.BlueskyOAuthState)(nil), (*gtsmodel.BlueskyConnection)(nil),
+	}
+}
+
+func deleteBlueskyModelsWithDB(ctx context.Context, db bun.IDB, accountID string, models []any) error {
+	for _, model := range models {
+		if _, err := db.NewDelete().Model(model).Where("account_id = ?", accountID).Exec(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (b *blueskyDB) GetBlueskyHealth(ctx context.Context, accountID string) (*gtsmodel.BlueskyHealth, error) {
