@@ -22,6 +22,7 @@ type BlueskyConnection struct {
 	PDSURL              string    `bun:"pds_url,nullzero,notnull"`
 	OAuthSessionID      string    `bun:"oauth_session_id,nullzero"`
 	OAuthData           []byte    `bun:"oauth_data,nullzero"`
+	AppPasswordData     []byte    `bun:"app_password_data,nullzero"`
 	NotificationsSeenAt time.Time `bun:"type:timestamptz,nullzero"`
 	LastSyncAt          time.Time `bun:"type:timestamptz,nullzero"`
 	LastSyncError       string    `bun:",nullzero"`
@@ -35,7 +36,20 @@ type BlueskyConnection struct {
 }
 
 func (b *BlueskyConnection) Active() bool {
-	return b != nil && b.OAuthSessionID != "" && len(b.OAuthData) != 0
+	return b != nil && (len(b.AppPasswordData) != 0 || (b.OAuthSessionID != "" && len(b.OAuthData) != 0))
+}
+
+func (b *BlueskyConnection) AuthMethod() string {
+	if b == nil {
+		return ""
+	}
+	if len(b.AppPasswordData) != 0 {
+		return "app_password"
+	}
+	if b.OAuthSessionID != "" && len(b.OAuthData) != 0 {
+		return "oauth"
+	}
+	return ""
 }
 
 type BlueskyHealth struct {

@@ -50,10 +50,10 @@ export default function BlueskySettings() {
 function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) {
 	const controller = useBlueskyController(connection);
 	const {
-		identifier, setIdentifier, confirmDisconnect, setConfirmDisconnect,
+		identifier, setIdentifier, appPassword, setAppPassword, confirmDisconnect, setConfirmDisconnect,
 		confirmForget, setConfirmForget, disconnect, disconnectResult,
 		forget, forgetResult, retry, retryResult, connectResult,
-		startConnection, callbackErrorMessage,
+		startConnection, appPasswordResult, startAppPasswordConnection, callbackErrorMessage,
 	} = controller;
 	const form = {
 		crosspostPublic: useBoolInput("crosspost_public", { source: connection }),
@@ -68,13 +68,14 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				<p>Connect your existing Bluesky account to publish eligible public posts and handle Bluesky replies from Mastodon clients.</p>
 			</div>
 			{connectResult.isError && <ErrorC error={connectResult.error} />}
+			{appPasswordResult.isError && <ErrorC error={appPasswordResult.error} />}
 			{disconnectResult.isError && <ErrorC error={disconnectResult.error} />}
 			{forgetResult.isError && <ErrorC error={forgetResult.error} />}
 			{retryResult.isError && <ErrorC error={retryResult.error} />}
 			{callbackErrorMessage && <ErrorC error={new Error(callbackErrorMessage)} />}
 			{connection.connected ? <>
 				<div className="info">
-					Connected as <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a>
+					Connected as <a href={connection.profile_url} target="_blank" rel="noreferrer">@{connection.handle}</a> using {connection.auth_method === "app_password" ? "an app password" : "OAuth"}.
 				</div>
 				<Checkbox field={form.crosspostPublic} label="Automatically publish public posts to Bluesky" />
 				<small>Replies, mentions, boosts, polls, and non-public posts are not crossposted. Turning this off stops new crossposts. Deleting an original post also removes its Bluesky crosspost; edits may not appear in Bluesky clients.</small>
@@ -88,6 +89,18 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 				{(connection.pending_deliveries > 0 || connection.dead_deliveries > 0 || connection.dead_notifications > 0) &&
 					<button type="button" disabled={retryResult.isLoading} onClick={() => void retry()}>Retry Bluesky sync</button>}
 				<MutationButton disabled={false} label="Save settings" result={result} />
+				<div className="info">
+					<strong>{connection.auth_method === "app_password" ? "Replace saved app password" : "Keep this connection active with an app password"}</strong>
+					<p>{connection.auth_method === "app_password"
+						? "Enter a newly created app password if you revoked or want to rotate the current one."
+						: "OAuth sessions can expire. A dedicated app password lets GoToSocial create a new session automatically."}</p>
+					<label>
+						Bluesky app password
+						<input type="password" value={appPassword} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" onChange={(event) => setAppPassword(event.target.value)} />
+					</label>
+					<button type="button" disabled={!connection.configured || !appPassword || appPasswordResult.isLoading} onClick={() => void startAppPasswordConnection()}>{connection.auth_method === "app_password" ? "Replace app password" : "Use app password"}</button>
+					<small>Create a separate password in <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noreferrer">Bluesky app-password settings</a>. Never enter your main Bluesky password here.</small>
+				</div>
 				{confirmDisconnect ? <div className="info">
 					<p>Disconnect Bluesky? Crossposting and reply import will stop, and stored Bluesky credentials will be removed.</p>
 					<button type="button" className="button danger" disabled={disconnectResult.isLoading} onClick={() => void disconnect()}>Yes, disconnect Bluesky</button>
@@ -103,9 +116,19 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 					<input value={identifier} placeholder="fischr.org" autoCapitalize="none" autoCorrect="off" onChange={(event) => setIdentifier(event.target.value)} />
 					<small>We use your handle once to find the correct Bluesky login provider. You can enter it with or without @.</small>
 				</label>}
-				<button type="button" disabled={!connection.configured || (!identifier && !connection.handle) || connectResult.isLoading} onClick={() => void startConnection()}>{connection.handle ? "Reconnect saved Bluesky account" : "Connect Bluesky account"}</button>
+				<button type="button" disabled={!connection.configured || (!identifier && !connection.handle) || connectResult.isLoading} onClick={() => void startConnection()}>{connection.handle ? "Reconnect saved Bluesky account with OAuth" : "Connect Bluesky account with OAuth"}</button>
 				{!connection.configured && <small>Bluesky connections are not configured by this server administrator.</small>}
 				<small>You will be redirected to your Bluesky provider to approve access. Your password is never shared with GoToSocial.</small>
+				<div className="info">
+					<strong>Or connect with an app password</strong>
+					<p>This lets GoToSocial automatically create a new session when the current one expires.</p>
+					<label>
+						Bluesky app password
+						<input type="password" value={appPassword} autoComplete="new-password" autoCapitalize="none" autoCorrect="off" onChange={(event) => setAppPassword(event.target.value)} />
+					</label>
+					<button type="button" disabled={!connection.configured || (!identifier && !connection.handle) || !appPassword || appPasswordResult.isLoading} onClick={() => void startAppPasswordConnection()}>Connect with app password</button>
+					<small>Create it in <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noreferrer">Bluesky app-password settings</a>. It is separate from your main password and can be revoked at any time.</small>
+				</div>
 				{connection.handle && (confirmForget ? <div className="info">
 					<p>Forget this saved account and all post mappings? Existing posts will stay on Bluesky, but GoToSocial will no longer be able to edit or delete them.</p>
 					<button type="button" className="button danger" disabled={forgetResult.isLoading} onClick={() => void forget()}>Yes, forget saved account</button>

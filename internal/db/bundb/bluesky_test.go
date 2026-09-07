@@ -131,6 +131,55 @@ func (suite *BlueskyTestSuite) TestConnectionSettingsAndMappings() {
 	suite.Empty(dueInbox)
 }
 
+func (suite *BlueskyTestSuite) TestActiveConnectionsIncludeAppPasswordAuthentication() {
+	ctx := suite.T().Context()
+	activeAccount := suite.testAccounts["local_account_1"]
+	inactiveAccount := suite.testAccounts["local_account_2"]
+	active := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: activeAccount.ID, DID: "did:plc:app-password-active",
+		Handle: "active.example", PDSURL: "https://pds.example.test", AppPasswordData: []byte("encrypted"),
+	}
+	inactive := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: inactiveAccount.ID, DID: "did:plc:app-password-inactive",
+		Handle: "inactive.example", PDSURL: "https://pds.example.test",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, active))
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, inactive))
+	connections, err := suite.db.GetBlueskyConnections(ctx)
+	suite.Require().NoError(err)
+	suite.Require().Len(connections, 1)
+	suite.Equal(active.ID, connections[0].ID)
+}
+
+func (suite *BlueskyTestSuite) TestActivateAppPasswordReplacesOAuthAndPreservesSettings() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	existing := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:switch-auth",
+		Handle: "old.example", PDSURL: "https://old-pds.example.test",
+		OAuthSessionID: "oauth-session", OAuthData: []byte("oauth-data"),
+		CrosspostPublic: true, ShowProfileFollow: false,
+		LastSyncError: "expired", LastSyncErrorCode: bluesky.ErrorCodeAuth,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, existing))
+	existing.ShowProfileFollow = false
+	suite.Require().NoError(suite.db.UpdateBlueskyConnection(ctx, existing, "show_profile_follow"))
+	candidate := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: existing.DID,
+		Handle: "new.example", PDSURL: "https://new-pds.example.test",
+	}
+	activated, err := bluesky.ActivateAppPassword(ctx, &suite.state, candidate, []byte("encrypted-app-password"))
+	suite.Require().NoError(err)
+	suite.Equal(existing.ID, activated.ID)
+	suite.Equal("app_password", activated.AuthMethod())
+	suite.Empty(activated.OAuthSessionID)
+	suite.Empty(activated.OAuthData)
+	suite.True(activated.CrosspostPublic)
+	suite.False(activated.ShowProfileFollow)
+	suite.Empty(activated.LastSyncError)
+	suite.Empty(activated.LastSyncErrorCode)
+}
+
 func (suite *BlueskyTestSuite) TestDurableDeliveryQueue() {
 	ctx := suite.T().Context()
 	status := suite.testStatuses["local_account_1_status_1"]
@@ -393,7 +442,7 @@ func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndRese
 	connection := &gtsmodel.BlueskyConnection{
 		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:preserve",
 		Handle: "preserve.test", PDSURL: "https://pds.example.test",
-		OAuthSessionID: "session", OAuthData: []byte("encrypted"),
+		OAuthSessionID: "session", OAuthData: []byte("encrypted"), AppPasswordData: []byte("encrypted-app-password"),
 		NotificationsSeenAt: time.Now().Add(-time.Hour), CrosspostPublic: true, ShowProfileFollow: false,
 	}
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
@@ -449,6 +498,7 @@ func (suite *BlueskyTestSuite) TestDisconnectCleanupPreservesPostMappingsAndRese
 	preservedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
 	suite.False(preservedConnection.Active())
+	suite.Empty(preservedConnection.AppPasswordData)
 	suite.Equal(connection.NotificationsSeenAt.Unix(), preservedConnection.NotificationsSeenAt.Unix())
 	suite.True(preservedConnection.CrosspostPublic)
 	suite.False(preservedConnection.ShowProfileFollow)

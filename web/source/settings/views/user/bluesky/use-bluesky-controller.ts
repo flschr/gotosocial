@@ -21,6 +21,7 @@ import { useState } from "react";
 import type { BlueskyConnection } from "../../../lib/types/bluesky";
 import {
 	useConnectBlueskyMutation,
+	useConnectBlueskyAppPasswordMutation,
 	useDisconnectBlueskyMutation,
 	useForgetBlueskyMutation,
 	useRetryBlueskyMutation,
@@ -28,9 +29,11 @@ import {
 
 export default function useBlueskyController(connection: BlueskyConnection) {
 	const [identifier, setIdentifier] = useState("");
+	const [appPassword, setAppPassword] = useState("");
 	const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 	const [confirmForget, setConfirmForget] = useState(false);
 	const [connect, connectResult] = useConnectBlueskyMutation();
+	const [connectAppPassword, appPasswordResult] = useConnectBlueskyAppPasswordMutation();
 	const [disconnect, disconnectResult] = useDisconnectBlueskyMutation();
 	const [forget, forgetResult] = useForgetBlueskyMutation();
 	const [retry, retryResult] = useRetryBlueskyMutation();
@@ -44,15 +47,23 @@ export default function useBlueskyController(connection: BlueskyConnection) {
 		const response = await connect({ identifier: normalizedIdentifier || connection.handle || "" }).unwrap();
 		window.location.assign(response.authorization_url);
 	};
+	const startAppPasswordConnection = async () => {
+		const normalizedIdentifier = identifier.trim().replace(/^@/, "");
+		await connectAppPassword({
+			identifier: normalizedIdentifier || connection.handle || "",
+			app_password: appPassword,
+		}).unwrap();
+		setAppPassword("");
+	};
 
 	return {
-		identifier, setIdentifier,
+		identifier, setIdentifier, appPassword, setAppPassword,
 		confirmDisconnect, setConfirmDisconnect,
 		confirmForget, setConfirmForget,
 		disconnect, disconnectResult,
 		forget, forgetResult,
 		retry, retryResult,
-		connectResult, startConnection,
+		connectResult, startConnection, appPasswordResult, startAppPasswordConnection,
 		callbackErrorMessage,
 	};
 }

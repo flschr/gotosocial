@@ -26,7 +26,7 @@ func lockAccount(accountID string) func() {
 }
 
 // Disconnect first removes private proxy statuses, then revokes the active
-// OAuth session when possible and removes local credentials. Post mappings
+// remote session when possible and removes local credentials. Post mappings
 // remain so a later reconnect can resume exact edits and deletions.
 func Disconnect(ctx context.Context, state *state.State, accountID string) error {
 	defer lockAccount(accountID)()
@@ -42,6 +42,9 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 	}
 	if err := stubProxyStatuses(ctx, state, accountID); err != nil {
 		return err
+	}
+	if len(connection.AppPasswordData) != 0 {
+		_ = logoutAppPassword(ctx, state, connection)
 	}
 	if app, _, appErr := NewOAuthClient(state, accountID); appErr == nil && connection.OAuthSessionID != "" {
 		if did, parseErr := syntax.ParseDID(connection.DID); parseErr == nil {
@@ -90,6 +93,9 @@ func DeleteAccount(ctx context.Context, state *state.State, accountID string) er
 				remoteErrors = append(remoteErrors, fmt.Errorf("delete %s: %w", post.URI, err))
 			}
 		}
+	}
+	if len(connection.AppPasswordData) != 0 {
+		_ = logoutAppPassword(ctx, state, connection)
 	}
 	if app, _, appErr := NewOAuthClient(state, accountID); appErr == nil && connection.OAuthSessionID != "" {
 		if did, parseErr := syntax.ParseDID(connection.DID); parseErr == nil {

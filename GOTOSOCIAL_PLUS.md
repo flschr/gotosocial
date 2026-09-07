@@ -32,6 +32,11 @@ Each user can optionally connect an existing Bluesky account. GoToSocial Plus
 can then publish eligible original public posts to Bluesky with text, links,
 up to four images, and available alt text.
 
+Users can authenticate with OAuth or with a separate, revocable Bluesky app
+password. App passwords are stored encrypted and let GoToSocial create a new
+session automatically after the current access and refresh tokens expire.
+The main Bluesky account password must never be entered.
+
 Replies, mentions, boosts, polls, and non-public posts are not crossposted
 automatically. Existing mapped posts keep their lifecycle when automatic
 crossposting is later disabled. Deleting a mapped GoToSocial post also deletes

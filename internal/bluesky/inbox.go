@@ -57,6 +57,9 @@ func processNotificationInbox(ctx context.Context, state *state.State, connectio
 }
 
 func authenticatedClient(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (*atclient.APIClient, error) {
+	if connection.AuthMethod() == "app_password" {
+		return newAppPasswordClient(state, connection)
+	}
 	app, _, err := NewOAuthClient(state, connection.AccountID)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}

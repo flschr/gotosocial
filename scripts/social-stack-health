@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # Production health check used by social.fischr.org. Besides process and HTTP
 # health, this deliberately checks durable Bluesky state so a live server
-# cannot hide an expired OAuth session or a stuck crosspost queue.
+# cannot hide invalid Bluesky credentials or a stuck crosspost queue.
 
 readonly SOCIAL_MONITORING_CONFIG="${SOCIAL_MONITORING_CONFIG:-/etc/social-stack-monitoring.conf}"
 readonly GTS_DATABASE="${GTS_DATABASE:-/srv/gotosocial/sqlite.db}"
@@ -78,6 +78,7 @@ check_bluesky() {
           OR lower(last_sync_error) LIKE '%invalid refresh token%'),
       (SELECT count(*) FROM bluesky_connections
        WHERE crosspost_public = 1
+         AND (app_password_data IS NULL OR length(app_password_data) = 0)
          AND (oauth_session_id IS NULL OR oauth_session_id = '' OR oauth_data IS NULL OR length(oauth_data) = 0)),
       (SELECT count(*) FROM bluesky_deliveries),
       (SELECT count(*) FROM bluesky_deliveries
@@ -87,8 +88,9 @@ check_bluesky() {
       (SELECT count(*) FROM bluesky_connections
        WHERE last_sync_error IS NOT NULL AND last_sync_error != ''),
       (SELECT count(*) FROM bluesky_connections
-       WHERE oauth_session_id IS NOT NULL AND oauth_session_id != ''
-         AND oauth_data IS NOT NULL AND length(oauth_data) > 0
+       WHERE ((app_password_data IS NOT NULL AND length(app_password_data) > 0)
+         OR (oauth_session_id IS NOT NULL AND oauth_session_id != ''
+           AND oauth_data IS NOT NULL AND length(oauth_data) > 0))
          AND ((last_sync_at IS NULL AND julianday(updated_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))
            OR julianday(last_sync_at) <= julianday('now', '-${BLUESKY_MAX_SYNC_MINUTES} minutes'))),
       (SELECT coalesce(group_concat(account_id, ','), '')
@@ -104,7 +106,7 @@ check_bluesky() {
   fi
   IFS='|' read -r auth_failures disconnected pending stale dead_deliveries dead_notifications sync_errors stale_sync sync_error_accounts <<<"${result}"
   if (( auth_failures > 0 )); then
-    diagnostic="Bluesky sync authorization expired: reconnect required; ${pending} outgoing post(s) waiting."
+    diagnostic="Bluesky sync authorization is invalid: action required; ${pending} outgoing post(s) waiting."
     return 1
   fi
   if (( disconnected > 0 )); then

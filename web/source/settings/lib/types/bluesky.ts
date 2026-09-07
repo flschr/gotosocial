@@ -19,6 +19,7 @@
 
 export interface BlueskyConnection {
 	connected: boolean;
+	auth_method?: "oauth" | "app_password";
 	handle?: string;
 	profile_url?: string;
 	crosspost_public: boolean;

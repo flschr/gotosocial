@@ -8,6 +8,7 @@ import "time"
 
 type BlueskyConnection struct {
 	Connected         bool      `json:"connected"`
+	AuthMethod        string    `json:"auth_method,omitempty"`
 	Handle            string    `json:"handle,omitempty"`
 	ProfileURL        string    `json:"profile_url,omitempty"`
 	CrosspostPublic   bool      `json:"crosspost_public"`
@@ -30,6 +31,11 @@ type BlueskySettingsUpdateRequest struct {
 
 type BlueskyConnectRequest struct {
 	Identifier string `form:"identifier" json:"identifier" binding:"required"`
+}
+
+type BlueskyAppPasswordRequest struct {
+	Identifier  string `form:"identifier" json:"identifier" binding:"required"`
+	AppPassword string `form:"app_password" json:"app_password" binding:"required"`
 }
 
 type BlueskyConnectResponse struct {

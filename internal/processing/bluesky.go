@@ -60,6 +60,7 @@ func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) 
 	status, statusMessage, needsReconnect := blueskyConnectionStatus(connection, health, config.GetBlueskyOAuthEncryptionKey() != "")
 	return &apimodel.BlueskyConnection{
 		Connected:         connection.Active(),
+		AuthMethod:        connection.AuthMethod(),
 		Configured:        config.GetBlueskyOAuthEncryptionKey() != "",
 		Status:            status,
 		StatusMessage:     statusMessage,
@@ -84,6 +85,9 @@ func blueskyConnectionStatus(connection *gtsmodel.BlueskyConnection, health *gts
 		return "disconnected", "Bluesky is disconnected. Reconnect the saved account to resume syncing.", true
 	}
 	if health.LastErrorCode == bluesky.ErrorCodeAuth {
+		if connection.AuthMethod() == "app_password" {
+			return "action_required", "The saved Bluesky app password is no longer valid. Replace it to resume syncing.", true
+		}
 		return "action_required", "Bluesky authorization is no longer valid. Disconnect and reconnect the account to resume syncing.", true
 	}
 	if health.LastErrorCode == bluesky.ErrorCodeConfiguration {

@@ -67,6 +67,25 @@ func (m *Module) BlueskyConnectPOSTHandler(c *gin.Context) {
 	apiutil.JSON(c, http.StatusOK, response)
 }
 
+func (m *Module) BlueskyAppPasswordPOSTHandler(c *gin.Context) {
+	authed, errWithCode := apiutil.TokenAuth(c, true, true, true, true, apiutil.ScopeWriteAccounts)
+	if errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+	form := new(apimodel.BlueskyAppPasswordRequest)
+	if err := c.ShouldBind(form); err != nil {
+		apiutil.ErrorHandler(c, gtserror.NewErrorBadRequest(err, "A Bluesky handle and app password are required"), m.processor.InstanceGetV1)
+		return
+	}
+	connection, errWithCode := m.processor.BlueskyAppPasswordConnect(c.Request.Context(), authed.Account.ID, form)
+	if errWithCode != nil {
+		apiutil.ErrorHandler(c, errWithCode, m.processor.InstanceGetV1)
+		return
+	}
+	apiutil.JSON(c, http.StatusOK, connection)
+}
+
 func (m *Module) BlueskyCallbackGETHandler(c *gin.Context) {
 	redirectURL, errWithCode := m.processor.BlueskyConnectCallback(c.Request.Context(), c.Request.URL.Query())
 	if errWithCode != nil {

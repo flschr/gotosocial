@@ -42,6 +42,16 @@ func TestBlueskyConnectionStatusUsesFriendlyMessages(t *testing.T) {
 	require.Contains(t, message, "server administrator")
 }
 
+func TestBlueskyConnectionStatusRequestsReplacementForInvalidAppPassword(t *testing.T) {
+	connection := &gtsmodel.BlueskyConnection{AppPasswordData: []byte("encrypted")}
+	health := &gtsmodel.BlueskyHealth{LastErrorCode: bluesky.ErrorCodeAuth}
+	status, message, reconnect := blueskyConnectionStatus(connection, health, true)
+	require.Equal(t, "action_required", status)
+	require.True(t, reconnect)
+	require.Contains(t, message, "Replace")
+	require.Contains(t, message, "app password")
+}
+
 func TestBlueskyConnectionStatusReportsPendingWork(t *testing.T) {
 	status, message, reconnect := blueskyConnectionStatus(
 		&gtsmodel.BlueskyConnection{OAuthSessionID: "session", OAuthData: []byte("encrypted")},

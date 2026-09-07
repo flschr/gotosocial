@@ -4,6 +4,21 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
+## Unreleased
+
+### Durable Bluesky app-password connection
+
+- Add a second Bluesky authentication option using a dedicated, revocable app
+  password while retaining the existing OAuth flow.
+- Store the app password and session tokens encrypted, never return them from
+  the API, and remove them when the account is disconnected, forgotten, or
+  deleted.
+- Refresh normal sessions automatically and create a new session with the
+  saved app password when both tokens have expired. A revoked app password is
+  reported as an actionable connection error.
+- Extend the sync health check and settings page to understand both
+  authentication methods.
+
 ## v0.22.1-plus.6 — 2026-08-29
 
 ### Bluesky sync monitoring

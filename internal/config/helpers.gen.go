@@ -382,7 +382,7 @@ func (cfg *Configuration) RegisterFlags(flags *pflag.FlagSet) {
 	flags.Bool("oidc-link-existing", cfg.OIDCLinkExisting, "link existing user accounts to OIDC logins based on the stored email value")
 	flags.StringSlice("oidc-allowed-groups", cfg.OIDCAllowedGroups, "Membership of one of the listed groups allows access to GtS. If this is empty, all groups are allowed.")
 	flags.StringSlice("oidc-admin-groups", cfg.OIDCAdminGroups, "Membership of one of the listed groups makes someone a GtS admin")
-	flags.String("bluesky-oauth-encryption-key", cfg.BlueskyOAuthEncryptionKey, "Base64-encoded 32-byte key used to encrypt Bluesky OAuth tokens and DPoP keys at rest.")
+	flags.String("bluesky-oauth-encryption-key", cfg.BlueskyOAuthEncryptionKey, "Base64-encoded 32-byte key used to encrypt Bluesky OAuth credentials and app passwords at rest.")
 	flags.Bool("tracing-enabled", cfg.TracingEnabled, "Enable OTLP Tracing")
 	flags.Bool("metrics-enabled", cfg.MetricsEnabled, "Enable OpenTelemetry based metrics support.")
 	flags.String("smtp-host", cfg.SMTPHost, "Host of the smtp server. Eg., 'smtp.eu.mailgun.org'")

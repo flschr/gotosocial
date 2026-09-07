@@ -32,7 +32,9 @@ func (b *blueskyDB) GetBlueskyConnectionByAccountID(ctx context.Context, account
 
 func (b *blueskyDB) GetBlueskyConnections(ctx context.Context) ([]*gtsmodel.BlueskyConnection, error) {
 	connections := make([]*gtsmodel.BlueskyConnection, 0)
-	err := b.db.NewSelect().Model(&connections).Where("oauth_session_id IS NOT NULL").Where("oauth_data IS NOT NULL").Scan(ctx)
+	err := b.db.NewSelect().Model(&connections).
+		Where("app_password_data IS NOT NULL OR (oauth_session_id IS NOT NULL AND oauth_data IS NOT NULL)").
+		Scan(ctx)
 	return connections, err
 }
 
@@ -101,7 +103,7 @@ func (b *blueskyDB) DeleteBlueskyDataByAccountID(ctx context.Context, accountID 
 func (b *blueskyDB) DeleteBlueskyConnectionDataByAccountID(ctx context.Context, accountID string) error {
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).
-			Set("oauth_session_id = NULL, oauth_data = NULL, last_sync_error = NULL, last_sync_error_code = NULL, sync_claimed_until = NULL").
+			Set("oauth_session_id = NULL, oauth_data = NULL, app_password_data = NULL, last_sync_error = NULL, last_sync_error_code = NULL, sync_claimed_until = NULL").
 			Where("account_id = ?", accountID).Exec(ctx); err != nil {
 			return err
 		}
