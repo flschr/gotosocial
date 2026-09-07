@@ -29,13 +29,21 @@ func newATClient(state *state.State, host string) *atclient.APIClient {
 }
 
 func protectedHTTPClient(state *state.State) *http.Client {
-	return &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
-		response, err := state.HTTPClient.Do(request.WithContext(gtscontext.SetFastFail(request.Context())))
-		if err != nil {
-			return nil, err
-		}
-		return decodeGzipResponse(response)
-	})}
+	return &http.Client{
+		Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			response, err := state.HTTPClient.Do(request.WithContext(gtscontext.SetFastFail(request.Context())))
+			if err != nil {
+				return nil, err
+			}
+			return decodeGzipResponse(response)
+		}),
+		// The shared client inside the transport already handles ordinary
+		// redirects. Do not let this wrapper follow a redirect intentionally
+		// returned for a credential-bearing no-redirect request.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 // decodeGzipResponse handles ATProto services which return a gzip body without

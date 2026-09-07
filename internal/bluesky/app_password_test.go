@@ -107,6 +107,30 @@ func TestAppPasswordXRPCURLRejectsPlaintextRemotePDS(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:3000/pds/xrpc/com.atproto.server.createSession", endpoint)
 }
 
+func TestCreateAppPasswordSessionDoesNotFollowRedirect(t *testing.T) {
+	receivedPassword := make(chan struct{}, 1)
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		receivedPassword <- struct{}{}
+	}))
+	defer target.Close()
+	redirector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		response.Header().Set("Location", target.URL+"/xrpc/com.atproto.server.createSession")
+		response.WriteHeader(http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
+	testState := &state.State{HTTPClient: httpclient.New(httpclient.Config{
+		AllowRanges: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}, Timeout: time.Second,
+	})}
+
+	_, err := createAppPasswordSession(t.Context(), testState, redirector.URL, "did:plc:apppasswordtest", "must-not-leak")
+	require.Error(t, err)
+	select {
+	case <-receivedPassword:
+		t.Fatal("app password request followed a redirect")
+	default:
+	}
+}
+
 func TestCreateAppPasswordSessionRejectsMainPasswordScopeAndRevokesSession(t *testing.T) {
 	revoked := false
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

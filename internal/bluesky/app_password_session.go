@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strings"
 
+	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -70,7 +71,7 @@ func createAppPasswordSession(ctx context.Context, state *state.State, pdsURL, d
 	if err != nil {
 		return atclient.PasswordSessionData{}, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(gtscontext.SetNoRedirect(ctx), http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return atclient.PasswordSessionData{}, err
 	}
@@ -124,7 +125,7 @@ func deleteAppPasswordSession(ctx context.Context, state *state.State, host, ref
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	req, err := http.NewRequestWithContext(gtscontext.SetNoRedirect(ctx), http.MethodPost, endpoint, nil)
 	if err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"code.superseriousbusiness.org/gotosocial/internal/gtscontext"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/atclient"
@@ -43,6 +44,7 @@ func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request,
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	request = request.WithContext(gtscontext.SetNoRedirect(request.Context()))
 	applyAppPasswordPathPrefix(request, a.session.Host)
 	request.Header.Set("Authorization", "Bearer "+a.session.AccessToken)
 	response, err := client.Do(request)
@@ -144,7 +146,7 @@ func (a *appPasswordAuth) refresh(ctx context.Context, client *http.Client) (atc
 	if err != nil {
 		return atclient.PasswordSessionData{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	req, err := http.NewRequestWithContext(gtscontext.SetNoRedirect(ctx), http.MethodPost, endpoint, nil)
 	if err != nil {
 		return atclient.PasswordSessionData{}, err
 	}

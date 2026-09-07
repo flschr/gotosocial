@@ -34,6 +34,7 @@ const (
 	_ ctxkey = iota
 	barebonesKey
 	fastFailKey
+	noRedirectKey
 	outgoingPubKeyIDKey
 	requestIDKey
 	receivingAccountKey
@@ -352,6 +353,28 @@ type fastFailContext struct{ context.Context }
 
 func (ctx fastFailContext) Value(key any) any {
 	if key == fastFailKey {
+		return struct{}{}
+	}
+	return ctx.Context.Value(key)
+}
+
+// NoRedirect returns whether redirects must be returned to the caller instead
+// of being followed by the shared HTTP client.
+func NoRedirect(ctx context.Context) bool {
+	_, ok := ctx.Value(noRedirectKey).(struct{})
+	return ok
+}
+
+// SetNoRedirect marks outbound requests that carry credentials which must
+// never be replayed to a redirect target.
+func SetNoRedirect(ctx context.Context) context.Context {
+	return noRedirectContext{ctx}
+}
+
+type noRedirectContext struct{ context.Context }
+
+func (ctx noRedirectContext) Value(key any) any {
+	if key == noRedirectKey {
 		return struct{}{}
 	}
 	return ctx.Context.Value(key)
