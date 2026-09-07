@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request,
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	applyAppPasswordPathPrefix(request, a.session.Host)
 	request.Header.Set("Authorization", "Bearer "+a.session.AccessToken)
 	response, err := client.Do(request)
 	if err != nil {
@@ -86,6 +88,19 @@ func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request,
 	}
 	retry.Header.Set("Authorization", "Bearer "+a.session.AccessToken)
 	return client.Do(retry)
+}
+
+func applyAppPasswordPathPrefix(request *http.Request, host string) {
+	u, err := url.Parse(host)
+	if err != nil {
+		return
+	}
+	prefix := strings.TrimRight(u.Path, "/")
+	if prefix == "" || !strings.HasPrefix(request.URL.Path, "/xrpc/") {
+		return
+	}
+	request.URL.Path = prefix + request.URL.Path
+	request.URL.RawPath = ""
 }
 
 func (a *appPasswordAuth) discardUnpersisted(ctx context.Context, session atclient.PasswordSessionData) {

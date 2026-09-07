@@ -215,6 +215,35 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordCASRejectsReplacedConnecti
 	suite.Empty(stored.AppPasswordData)
 }
 
+func (suite *BlueskyTestSuite) TestClearBlueskyConnectionDataRequiresLoadedCredentialGeneration() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:disconnect-cas",
+		Handle: "disconnect-cas.example", PDSURL: "https://pds.example.test",
+		AppPasswordData: []byte("first-generation"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+	loaded, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, account.ID, []byte("first-generation"), []byte("second-generation"))
+	suite.Require().NoError(err)
+	suite.True(updated)
+
+	cleared, err := suite.db.ClearBlueskyConnectionData(ctx, loaded)
+	suite.Require().NoError(err)
+	suite.False(cleared)
+	current, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal([]byte("second-generation"), current.AppPasswordData)
+	cleared, err = suite.db.ClearBlueskyConnectionData(ctx, current)
+	suite.Require().NoError(err)
+	suite.True(cleared)
+	current, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.False(current.Active())
+}
+
 func (suite *BlueskyTestSuite) TestActivateAppPasswordRevokesAfterCanceledActivation() {
 	previousKey := config.GetBlueskyOAuthEncryptionKey()
 	defer config.SetBlueskyOAuthEncryptionKey(previousKey)

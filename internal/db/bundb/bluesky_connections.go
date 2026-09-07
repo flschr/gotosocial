@@ -203,6 +203,52 @@ func (b *blueskyDB) DeleteBlueskyConnectionDataByAccountID(ctx context.Context, 
 	})
 }
 
+func (b *blueskyDB) ClearBlueskyConnectionData(ctx context.Context, connection *gtsmodel.BlueskyConnection) (bool, error) {
+	cleared := false
+	err := b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		query := tx.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).
+			Set("oauth_session_id = NULL, oauth_data = NULL, app_password_data = NULL, last_sync_error = NULL, last_sync_error_code = NULL, sync_claimed_until = NULL").
+			Where("account_id = ?", connection.AccountID).
+			Where("id = ?", connection.ID).
+			Where("did = ?", connection.DID)
+		if connection.OAuthSessionID == "" {
+			query = query.Where("oauth_session_id IS NULL")
+		} else {
+			query = query.Where("oauth_session_id = ?", connection.OAuthSessionID)
+		}
+		if len(connection.OAuthData) == 0 {
+			query = query.Where("oauth_data IS NULL")
+		} else {
+			query = query.Where("oauth_data = ?", connection.OAuthData)
+		}
+		if len(connection.AppPasswordData) == 0 {
+			query = query.Where("app_password_data IS NULL")
+		} else {
+			query = query.Where("app_password_data = ?", connection.AppPasswordData)
+		}
+		result, err := query.Exec(ctx)
+		if err != nil {
+			return err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil || affected != 1 {
+			return err
+		}
+		cleared = true
+		for _, model := range []any{(*gtsmodel.BlueskyNotification)(nil), (*gtsmodel.BlueskyInteraction)(nil), (*gtsmodel.BlueskyOAuthState)(nil)} {
+			if _, err := tx.NewDelete().Model(model).Where("account_id = ?", connection.AccountID).Exec(ctx); err != nil {
+				return err
+			}
+		}
+		_, err = tx.NewDelete().Model((*gtsmodel.BlueskyDelivery)(nil)).
+			Where("account_id = ?", connection.AccountID).
+			Where("status_id NOT IN (SELECT status_id FROM bluesky_posts WHERE account_id = ?)", connection.AccountID).
+			Exec(ctx)
+		return err
+	})
+	return cleared, err
+}
+
 func (b *blueskyDB) deleteBlueskyModels(ctx context.Context, accountID string, models []any) error {
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		for _, model := range models {

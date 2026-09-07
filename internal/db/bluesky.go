@@ -28,6 +28,7 @@ type Bluesky interface {
 	ReleaseBlueskyConnectionClaim(context.Context, string, time.Time) error
 	DeleteBlueskyDataByAccountID(context.Context, string) error
 	DeleteBlueskyConnectionDataByAccountID(context.Context, string) error
+	ClearBlueskyConnectionData(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	GetBlueskyHealth(context.Context, string) (*gtsmodel.BlueskyHealth, error)
 	RetryBlueskyFailures(context.Context, string, time.Time) error
 	GetBlueskyOAuthState(context.Context, string) (*gtsmodel.BlueskyOAuthState, error)

@@ -148,7 +148,7 @@ func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
-		case "/xrpc/app.test.endpoint":
+		case "/pds/xrpc/app.test.endpoint":
 			requests++
 			response.Header().Set("Content-Type", "application/json")
 			if requests == 1 {

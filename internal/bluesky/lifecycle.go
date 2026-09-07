@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"code.superseriousbusiness.org/gotosocial/internal/db"
+	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -49,15 +50,47 @@ func Disconnect(ctx context.Context, state *state.State, accountID string) error
 	if err := stubProxyStatuses(ctx, state, accountID); err != nil {
 		return err
 	}
-	if len(connection.AppPasswordData) != 0 {
-		_ = logoutAppPassword(ctx, state, connection)
-	}
-	if app, _, appErr := NewOAuthClient(state, accountID); appErr == nil && connection.OAuthSessionID != "" {
-		if did, parseErr := syntax.ParseDID(connection.DID); parseErr == nil {
-			_ = app.Logout(ctx, did, connection.OAuthSessionID)
+	for range 3 {
+		revokeConnectionCredentialsDetached(ctx, state, connection)
+		cleared, err := state.DB.ClearBlueskyConnectionData(ctx, connection)
+		if err != nil {
+			return err
+		}
+		if cleared {
+			return nil
+		}
+		connection, err = state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
+		if errors.Is(err, db.ErrNoEntries) {
+			return state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID)
+		}
+		if err != nil {
+			return err
 		}
 	}
-	return state.DB.DeleteBlueskyConnectionDataByAccountID(ctx, accountID)
+	return ErrCredentialsChanged
+}
+
+func revokeConnectionCredentialsDetached(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) {
+	cleanupCtx, cancel := credentialCleanupContext(ctx)
+	defer cancel()
+	if len(connection.AppPasswordData) != 0 {
+		_ = revokeAppPasswordData(cleanupCtx, state, connection.AccountID, connection.AppPasswordData)
+	}
+	if connection.OAuthSessionID == "" || len(connection.OAuthData) == 0 {
+		return
+	}
+	did, err := syntax.ParseDID(connection.DID)
+	if err != nil {
+		return
+	}
+	app, store, err := NewOAuthClient(state, connection.AccountID)
+	if err != nil {
+		return
+	}
+	session, err := store.GetSession(cleanupCtx, did, connection.OAuthSessionID)
+	if err == nil {
+		_ = RevokeOAuthSession(cleanupCtx, app, *session)
+	}
 }
 
 // Forget removes a disconnected account binding and all retained mappings.
