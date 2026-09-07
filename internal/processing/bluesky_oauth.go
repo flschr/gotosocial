@@ -107,7 +107,7 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 	persisted := false
 	defer func() {
 		if !persisted {
-			_ = bluesky.RevokeOAuthSession(ctx, app, *session)
+			_ = bluesky.RevokeOAuthSessionDetached(ctx, app, *session)
 		}
 	}()
 	identity, err := app.Dir.LookupDID(ctx, session.AccountDID)

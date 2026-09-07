@@ -27,7 +27,7 @@ type refreshSessionResponse struct {
 
 var ErrRequestNotReplayable = errors.New("Bluesky request body cannot be replayed after session refresh")
 
-const appPasswordCleanupTimeout = 10 * time.Second
+const credentialCleanupTimeout = 10 * time.Second
 
 type appPasswordAuth struct {
 	mu       sync.Mutex
@@ -92,13 +92,13 @@ func (a *appPasswordAuth) discardUnpersisted(ctx context.Context, session atclie
 	if a.discard == nil {
 		return
 	}
-	cleanupCtx, cancel := appPasswordCleanupContext(ctx)
+	cleanupCtx, cancel := credentialCleanupContext(ctx)
 	defer cancel()
 	_ = a.discard(cleanupCtx, session)
 }
 
-func appPasswordCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), appPasswordCleanupTimeout)
+func credentialCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), credentialCleanupTimeout)
 }
 
 func passwordAuthFailure(response *http.Response) (bool, error) {

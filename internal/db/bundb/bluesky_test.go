@@ -654,7 +654,7 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	account := suite.testAccounts["local_account_1"]
 	crypter, err := bluesky.NewCrypter(base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	suite.Require().NoError(err)
-	store := bluesky.NewOAuthStore(suite.db, crypter, account.ID)
+	store := bluesky.NewOAuthStore(suite.db, crypter, account.ID, nil)
 
 	request := oauth.AuthRequestData{State: "encrypted-state", PKCEVerifier: "pkce-secret"}
 	suite.Require().NoError(store.SaveAuthRequestInfo(ctx, request))
@@ -697,7 +697,12 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	storedSession, err = store.GetSession(ctx, did, deferredSession.SessionID)
 	suite.Require().NoError(err)
 	suite.Equal(session.RefreshToken, storedSession.RefreshToken)
-	staleStore := bluesky.NewOAuthStore(suite.db, crypter, account.ID)
+	var discardedSession *oauth.ClientSessionData
+	staleStore := bluesky.NewOAuthStore(suite.db, crypter, account.ID, func(ctx context.Context, session oauth.ClientSessionData) error {
+		suite.Require().NoError(ctx.Err())
+		discardedSession = &session
+		return nil
+	})
 	_, err = staleStore.GetSession(ctx, did, deferredSession.SessionID)
 	suite.Require().NoError(err)
 	freshSession := deferredSession
@@ -706,6 +711,8 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	staleRefresh := deferredSession
 	staleRefresh.RefreshToken = "stale-refresh-token"
 	suite.ErrorIs(staleStore.SaveSession(ctx, staleRefresh), bluesky.ErrCredentialsChanged)
+	suite.Require().NotNil(discardedSession)
+	suite.Equal(staleRefresh.RefreshToken, discardedSession.RefreshToken)
 	storedSession, err = store.GetSession(ctx, did, deferredSession.SessionID)
 	suite.Require().NoError(err)
 	suite.Equal(freshSession.RefreshToken, storedSession.RefreshToken)

@@ -5,6 +5,8 @@
 package bluesky
 
 import (
+	"context"
+
 	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -41,8 +43,11 @@ func NewOAuthClient(state *state.State, accountID string) (*oauth.ClientApp, *OA
 		return nil, nil, err
 	}
 	clientConfig := OAuthClientConfig()
-	store := NewOAuthStore(state.DB, crypter, accountID)
-	app := oauth.NewClientApp(&clientConfig, store)
+	var app *oauth.ClientApp
+	store := NewOAuthStore(state.DB, crypter, accountID, func(ctx context.Context, session oauth.ClientSessionData) error {
+		return RevokeOAuthSession(ctx, app, session)
+	})
+	app = oauth.NewClientApp(&clientConfig, store)
 	client := protectedHTTPClient(state)
 	app.Client = client
 	app.Resolver.Client = client

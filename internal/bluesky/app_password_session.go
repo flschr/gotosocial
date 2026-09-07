@@ -47,6 +47,12 @@ func revokeAppPasswordData(ctx context.Context, state *state.State, accountID st
 	return deleteAppPasswordSession(ctx, state, credentials.Session.Host, credentials.Session.RefreshToken)
 }
 
+func revokeAppPasswordDataDetached(ctx context.Context, state *state.State, accountID string, encrypted []byte) {
+	cleanupCtx, cancel := credentialCleanupContext(ctx)
+	defer cancel()
+	_ = revokeAppPasswordData(cleanupCtx, state, accountID, encrypted)
+}
+
 func createAppPasswordSession(ctx context.Context, state *state.State, pdsURL, did, password string) (atclient.PasswordSessionData, error) {
 	client := newATClient(state, pdsURL)
 	client.Headers.Set("User-Agent", "GoToSocial Plus")

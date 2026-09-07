@@ -32,6 +32,12 @@ func useAppPasswordTestKey(t *testing.T) {
 	t.Cleanup(func() { config.SetBlueskyOAuthEncryptionKey(previous) })
 }
 
+type testSessionRevoker func(context.Context) error
+
+func (fn testSessionRevoker) RevokeSession(ctx context.Context) error {
+	return fn(ctx)
+}
+
 func testPasswordSession(t *testing.T, host, access, refresh string) atclient.PasswordSessionData {
 	t.Helper()
 	did, err := syntax.ParseDID("did:plc:apppasswordtest")
@@ -292,6 +298,18 @@ func TestAppPasswordAuthRevokesSessionThatCannotBePersisted(t *testing.T) {
 	_, err = auth.DoWithAuth(server.Client(), request, syntax.NSID("app.test.endpoint"))
 	require.ErrorIs(t, err, ErrCredentialsChanged)
 	require.True(t, discarded)
+}
+
+func TestRevokeSessionDetachedSurvivesRequestCancellation(t *testing.T) {
+	requestCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+	revoked := false
+	revokeSessionDetached(requestCtx, testSessionRevoker(func(ctx context.Context) error {
+		require.NoError(t, ctx.Err())
+		revoked = true
+		return nil
+	}))
+	require.True(t, revoked)
 }
 
 func TestAppPasswordAuthDoesNotReplayNonReplayableBody(t *testing.T) {

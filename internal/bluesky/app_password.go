@@ -81,9 +81,7 @@ func ActivateAppPassword(ctx context.Context, state *state.State, candidate *gts
 	activated := false
 	defer func() {
 		if !activated {
-			cleanupCtx, cancel := appPasswordCleanupContext(ctx)
-			defer cancel()
-			_ = revokeAppPasswordData(cleanupCtx, state, candidate.AccountID, encrypted)
+			revokeAppPasswordDataDetached(ctx, state, candidate.AccountID, encrypted)
 		}
 	}()
 	for range 3 {
@@ -131,12 +129,10 @@ func ActivateAppPassword(ctx context.Context, state *state.State, candidate *gts
 		existing.LastSyncError = ""
 		existing.LastSyncErrorCode = ""
 		if len(oldAppPasswordData) != 0 {
-			old := *existing
-			old.AppPasswordData = oldAppPasswordData
-			_ = logoutAppPassword(ctx, state, &old)
+			revokeAppPasswordDataDetached(ctx, state, existing.AccountID, oldAppPasswordData)
 		}
 		if oldOAuthSession != nil {
-			_ = oldOAuthSession.RevokeSession(ctx)
+			revokeSessionDetached(ctx, oldOAuthSession)
 		}
 		activated = true
 		return existing, nil
