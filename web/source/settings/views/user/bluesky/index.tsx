@@ -61,7 +61,7 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 	};
 	const [submitForm, result] = useFormSubmit(form, useUpdateBlueskySettingsMutation());
 	const canSubmitAppPassword = connection.configured &&
-		(connection.connected || Boolean(identifier || connection.handle)) &&
+		(connection.connected || Boolean(identifier || connection.did || connection.handle)) &&
 		Boolean(appPassword) &&
 		!appPasswordResult.isLoading;
 	const submitAppPasswordOnEnter = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -128,7 +128,7 @@ function BlueskySettingsForm({ connection }: { connection: BlueskyConnection }) 
 					<input value={identifier} placeholder="fischr.org" autoCapitalize="none" autoCorrect="off" onChange={(event) => setIdentifier(event.target.value)} />
 					<small>We use your handle once to find the correct Bluesky login provider. You can enter it with or without @.</small>
 				</label>}
-				<button type="button" disabled={!connection.configured || (!identifier && !connection.handle) || connectResult.isLoading} onClick={() => void startConnection()}>{connection.handle ? "Reconnect saved Bluesky account with OAuth" : "Connect Bluesky account with OAuth"}</button>
+				<button type="button" disabled={!connection.configured || (!identifier && !connection.did && !connection.handle) || connectResult.isLoading} onClick={() => void startConnection()}>{connection.handle ? "Reconnect saved Bluesky account with OAuth" : "Connect Bluesky account with OAuth"}</button>
 				{!connection.configured && <small>Bluesky connections are not configured by this server administrator.</small>}
 				<small>You will be redirected to your Bluesky provider to approve access. Your password is never shared with GoToSocial.</small>
 				<div className="info">

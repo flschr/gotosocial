@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -145,8 +146,16 @@ func appPasswordXRPCURL(host, endpoint string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if u.Scheme == "" || u.Host == "" {
+	if u.Scheme == "" || u.Host == "" || u.User != nil {
 		return "", errors.New("invalid Bluesky PDS URL")
+	}
+	if !strings.EqualFold(u.Scheme, "https") {
+		host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+		address, addressErr := netip.ParseAddr(host)
+		loopback := host == "localhost" || (addressErr == nil && address.IsLoopback())
+		if !strings.EqualFold(u.Scheme, "http") || !loopback {
+			return "", errors.New("Bluesky PDS URL must use HTTPS")
+		}
 	}
 	u.Path = strings.TrimRight(u.Path, "/") + "/xrpc/" + endpoint
 	u.RawPath = ""

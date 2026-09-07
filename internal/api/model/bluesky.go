@@ -9,6 +9,7 @@ import "time"
 type BlueskyConnection struct {
 	Connected         bool      `json:"connected"`
 	AuthMethod        string    `json:"auth_method,omitempty"`
+	DID               string    `json:"did,omitempty"`
 	Handle            string    `json:"handle,omitempty"`
 	ProfileURL        string    `json:"profile_url,omitempty"`
 	CrosspostPublic   bool      `json:"crosspost_public"`

@@ -44,13 +44,13 @@ export default function useBlueskyController(connection: BlueskyConnection) {
 
 	const startConnection = async () => {
 		const normalizedIdentifier = identifier.trim().replace(/^@/, "");
-		const response = await connect({ identifier: normalizedIdentifier || connection.handle || "" }).unwrap();
+		const response = await connect({ identifier: connection.did || normalizedIdentifier || connection.handle || "" }).unwrap();
 		window.location.assign(response.authorization_url);
 	};
 	const startAppPasswordConnection = async () => {
 		const normalizedIdentifier = identifier.trim().replace(/^@/, "");
 		await connectAppPassword({
-			identifier: normalizedIdentifier || connection.handle || "",
+			identifier: connection.did || normalizedIdentifier || connection.handle || "",
 			app_password: appPassword,
 		}).unwrap();
 		setAppPassword("");

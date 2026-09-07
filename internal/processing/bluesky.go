@@ -57,6 +57,7 @@ func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) 
 	return &apimodel.BlueskyConnection{
 		Connected:         connection.Active(),
 		AuthMethod:        connection.AuthMethod(),
+		DID:               connection.DID,
 		Configured:        config.GetBlueskyOAuthEncryptionKey() != "",
 		Status:            status,
 		StatusMessage:     statusMessage,

@@ -98,6 +98,15 @@ func TestCreateAppPasswordSessionUsesResolvedDID(t *testing.T) {
 	require.Equal(t, pdsURL, session.Host)
 }
 
+func TestAppPasswordXRPCURLRejectsPlaintextRemotePDS(t *testing.T) {
+	_, err := appPasswordXRPCURL("http://pds.example.test", "com.atproto.server.createSession")
+	require.EqualError(t, err, "Bluesky PDS URL must use HTTPS")
+
+	endpoint, err := appPasswordXRPCURL("http://127.0.0.1:3000/pds", "com.atproto.server.createSession")
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:3000/pds/xrpc/com.atproto.server.createSession", endpoint)
+}
+
 func TestCreateAppPasswordSessionRejectsMainPasswordScopeAndRevokesSession(t *testing.T) {
 	revoked := false
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
