@@ -60,7 +60,7 @@ func authenticatedClient(ctx context.Context, state *state.State, connection *gt
 	if connection.AuthMethod() == "app_password" {
 		return newAppPasswordClient(state, connection)
 	}
-	app, _, err := NewOAuthClient(state, connection.AccountID)
+	app, store, err := NewOAuthClient(state, connection.AccountID)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
 	}
@@ -68,6 +68,7 @@ func authenticatedClient(ctx context.Context, state *state.State, connection *gt
 	if err != nil {
 		return nil, err
 	}
+	store.TrackConnection(connection)
 	session, err := app.ResumeSession(ctx, did, connection.OAuthSessionID)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeAuth, Err: fmt.Errorf("resume OAuth session: %w", err)}

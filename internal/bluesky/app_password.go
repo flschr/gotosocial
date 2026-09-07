@@ -159,6 +159,7 @@ func newAppPasswordClient(state *state.State, connection *gtsmodel.BlueskyConnec
 			replacement, err := persistAppPasswordSession(ctx, state, connection, credentials.Password, expectedData, session)
 			if err == nil {
 				expectedData = replacement
+				connection.AppPasswordData = bytes.Clone(replacement)
 			}
 			return err
 		},

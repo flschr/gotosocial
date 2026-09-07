@@ -906,9 +906,16 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	})
 	_, err = staleStore.GetSession(ctx, did, deferredSession.SessionID)
 	suite.Require().NoError(err)
+	trackedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	store.TrackConnection(trackedConnection)
 	freshSession := deferredSession
 	freshSession.RefreshToken = "fresh-refresh-token"
 	suite.Require().NoError(store.SaveSession(ctx, freshSession))
+	persistedConnection, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal(persistedConnection.OAuthSessionID, trackedConnection.OAuthSessionID)
+	suite.Equal(persistedConnection.OAuthData, trackedConnection.OAuthData)
 	staleRefresh := deferredSession
 	staleRefresh.RefreshToken = "stale-refresh-token"
 	suite.ErrorIs(staleStore.SaveSession(ctx, staleRefresh), bluesky.ErrCredentialsChanged)

@@ -5,6 +5,7 @@
 package bluesky
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -35,6 +36,7 @@ type OAuthStore struct {
 	expectedAccessToken     string
 	expectedRefreshToken    string
 	discardSession          func(context.Context, oauth.ClientSessionData) error
+	trackedConnection       *gtsmodel.BlueskyConnection
 }
 
 // DeferSessionPersistence keeps ProcessCallback from activating a reconnect
@@ -43,6 +45,14 @@ func (s *OAuthStore) DeferSessionPersistence() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.deferSessionPersistence = true
+}
+
+// TrackConnection keeps a caller's loaded credential generation current when
+// this store persists OAuth token or DPoP nonce rotation during a request.
+func (s *OAuthStore) TrackConnection(connection *gtsmodel.BlueskyConnection) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.trackedConnection = connection
 }
 
 func (s *OAuthStore) PersistSession(ctx context.Context, session oauth.ClientSessionData) error {
@@ -81,6 +91,10 @@ func (s *OAuthStore) GetSession(ctx context.Context, _ syntax.DID, sessionID str
 	s.expectedData = append(s.expectedData[:0], connection.OAuthData...)
 	s.expectedAccessToken = session.AccessToken
 	s.expectedRefreshToken = session.RefreshToken
+	if s.trackedConnection != nil && s.trackedConnection.ID == connection.ID && s.trackedConnection.DID == connection.DID {
+		s.trackedConnection.OAuthSessionID = connection.OAuthSessionID
+		s.trackedConnection.OAuthData = bytes.Clone(connection.OAuthData)
+	}
 	s.mu.Unlock()
 	return &session, nil
 }
@@ -142,6 +156,10 @@ func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessio
 	s.expectedData = append(s.expectedData[:0], encrypted...)
 	s.expectedAccessToken = session.AccessToken
 	s.expectedRefreshToken = session.RefreshToken
+	if s.trackedConnection != nil && s.trackedConnection.ID == connection.ID && s.trackedConnection.DID == connection.DID {
+		s.trackedConnection.OAuthSessionID = session.SessionID
+		s.trackedConnection.OAuthData = bytes.Clone(encrypted)
+	}
 	return nil
 }
 
