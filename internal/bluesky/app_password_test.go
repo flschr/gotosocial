@@ -107,6 +107,22 @@ func TestAppPasswordXRPCURLRejectsPlaintextRemotePDS(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:3000/pds/xrpc/com.atproto.server.createSession", endpoint)
 }
 
+func TestNewAppPasswordClientRejectsStoredPlaintextRemotePDS(t *testing.T) {
+	useAppPasswordTestKey(t)
+	connection := &gtsmodel.BlueskyConnection{
+		ID: "connection", AccountID: "account", DID: "did:plc:apppasswordtest",
+	}
+	var err error
+	connection.AppPasswordData, err = encodeAppPassword(
+		connection.AccountID, "app-password",
+		testPasswordSession(t, "http://pds.example.test", "access-secret", "refresh-secret"),
+	)
+	require.NoError(t, err)
+
+	_, err = newAppPasswordClient(new(state.State), connection)
+	require.ErrorContains(t, err, "must use HTTPS")
+}
+
 func TestCreateAppPasswordSessionDoesNotFollowRedirect(t *testing.T) {
 	receivedPassword := make(chan struct{}, 1)
 	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

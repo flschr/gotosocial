@@ -148,6 +148,9 @@ func newAppPasswordClient(state *state.State, connection *gtsmodel.BlueskyConnec
 	if credentials.Session.AccountDID.String() != connection.DID {
 		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: ErrIdentityMismatch}
 	}
+	if _, err := appPasswordXRPCURL(credentials.Session.Host, "com.atproto.server.getSession"); err != nil {
+		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
+	}
 	client := newATClient(state, credentials.Session.Host)
 	expectedData := bytes.Clone(connection.AppPasswordData)
 	client.Auth = &appPasswordAuth{
