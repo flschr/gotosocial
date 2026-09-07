@@ -93,8 +93,7 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 	}
 	if existingErr == nil && existing.Active() {
 		_ = p.state.DB.DeleteBlueskyOAuthState(ctx, state)
-		baseURL, _, _ := bluesky.OAuthURLs()
-		return baseURL + "/settings/user/bluesky?connected=true", nil
+		return "", gtserror.NewErrorConflict(errors.New("Bluesky account already connected"), "Another Bluesky connection completed before this authorization")
 	}
 	store.DeferSessionPersistence()
 	session, err := app.ProcessCallback(ctx, params)
@@ -132,14 +131,20 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 		if err := p.state.DB.UpdateBlueskyConnection(ctx, connection, "handle", "pds_url"); err != nil {
 			return "", gtserror.NewErrorInternalError(err)
 		}
-	} else if putErr := p.state.DB.PutBlueskyConnection(ctx, connection); putErr != nil {
+	} else if inserted, putErr := p.state.DB.PutBlueskyConnectionIfAccountExists(ctx, connection); putErr != nil || !inserted {
 		current, currentErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, storedState.AccountID)
 		if currentErr == nil && current.Active() {
+			if !oauthRaceWinnerMatches(current, *session) {
+				return "", gtserror.NewErrorConflict(errors.New("different Bluesky identity"), "Another Bluesky identity completed first; reload before trying again")
+			}
 			baseURL, _, _ := bluesky.OAuthURLs()
 			return baseURL + "/settings/user/bluesky?connected=true", nil
 		}
 		if currentErr == nil {
-			return "", gtserror.NewErrorConflict(putErr, "Another Bluesky connection is finishing; reload and try again if needed")
+			return "", gtserror.NewErrorConflict(errors.Join(putErr, bluesky.ErrCredentialsChanged), "Another Bluesky connection is finishing; reload and try again if needed")
+		}
+		if putErr == nil && errors.Is(currentErr, db.ErrNoEntries) {
+			return "", gtserror.NewErrorConflict(errors.New("local account no longer exists"), "The local account changed while Bluesky authorization was finishing")
 		}
 		return "", gtserror.NewErrorInternalError(errors.Join(putErr, currentErr))
 	}
@@ -150,6 +155,9 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 		if errors.Is(err, bluesky.ErrCredentialsChanged) {
 			current, currentErr := p.state.DB.GetBlueskyConnectionByAccountID(ctx, storedState.AccountID)
 			if currentErr == nil && current.Active() {
+				if !oauthRaceWinnerMatches(current, *session) {
+					return "", gtserror.NewErrorConflict(errors.New("different Bluesky identity"), "Another Bluesky identity completed first; reload before trying again")
+				}
 				baseURL, _, _ := bluesky.OAuthURLs()
 				return baseURL + "/settings/user/bluesky?connected=true", nil
 			}
@@ -165,4 +173,8 @@ func (p *Processor) BlueskyConnectCallback(ctx context.Context, params url.Value
 
 func sameBlueskyIdentity(connection *gtsmodel.BlueskyConnection, did string) bool {
 	return connection != nil && connection.DID == did
+}
+
+func oauthRaceWinnerMatches(connection *gtsmodel.BlueskyConnection, session oauth.ClientSessionData) bool {
+	return connection.Active() && sameBlueskyIdentity(connection, session.AccountDID.String())
 }

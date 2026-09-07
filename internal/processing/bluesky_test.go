@@ -9,6 +9,8 @@ import (
 
 	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,4 +80,20 @@ func TestSameBlueskyIdentity(t *testing.T) {
 	connection := &gtsmodel.BlueskyConnection{DID: "did:plc:expected"}
 	require.True(t, sameBlueskyIdentity(connection, "did:plc:expected"))
 	require.False(t, sameBlueskyIdentity(connection, "did:plc:different"))
+}
+
+func TestOAuthRaceWinnerRequiresSameActiveIdentity(t *testing.T) {
+	session := oauth.ClientSessionData{AccountDID: syntax.DID("did:plc:expected")}
+	require.True(t, oauthRaceWinnerMatches(
+		&gtsmodel.BlueskyConnection{DID: "did:plc:expected", OAuthSessionID: "session", OAuthData: []byte("encrypted")},
+		session,
+	))
+	require.False(t, oauthRaceWinnerMatches(
+		&gtsmodel.BlueskyConnection{DID: "did:plc:different", OAuthSessionID: "session", OAuthData: []byte("encrypted")},
+		session,
+	))
+	require.False(t, oauthRaceWinnerMatches(
+		&gtsmodel.BlueskyConnection{DID: "did:plc:expected"},
+		session,
+	))
 }
