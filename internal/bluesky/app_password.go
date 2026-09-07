@@ -81,7 +81,9 @@ func ActivateAppPassword(ctx context.Context, state *state.State, candidate *gts
 	activated := false
 	defer func() {
 		if !activated {
-			_ = revokeAppPasswordData(ctx, state, candidate.AccountID, encrypted)
+			cleanupCtx, cancel := appPasswordCleanupContext(ctx)
+			defer cancel()
+			_ = revokeAppPasswordData(cleanupCtx, state, candidate.AccountID, encrypted)
 		}
 	}()
 	for range 3 {

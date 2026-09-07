@@ -92,9 +92,13 @@ func (a *appPasswordAuth) discardUnpersisted(ctx context.Context, session atclie
 	if a.discard == nil {
 		return
 	}
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), appPasswordCleanupTimeout)
+	cleanupCtx, cancel := appPasswordCleanupContext(ctx)
 	defer cancel()
 	_ = a.discard(cleanupCtx, session)
+}
+
+func appPasswordCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), appPasswordCleanupTimeout)
 }
 
 func passwordAuthFailure(response *http.Response) (bool, error) {

@@ -69,7 +69,9 @@ func (b *blueskyDB) ActivateBlueskyAppPassword(ctx context.Context, connection *
 		Set("pds_url = ?", connection.PDSURL).
 		Set("app_password_data = ?", connection.AppPasswordData).
 		Set("oauth_session_id = NULL, oauth_data = NULL, last_sync_error = NULL, last_sync_error_code = NULL").
-		Where("account_id = ?", connection.AccountID)
+		Where("account_id = ?", connection.AccountID).
+		Where("id = ?", connection.ID).
+		Where("did = ?", connection.DID)
 	if expectedOAuthSessionID == "" {
 		query = query.Where("oauth_session_id IS NULL")
 	} else {

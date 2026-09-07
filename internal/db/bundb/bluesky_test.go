@@ -5,12 +5,18 @@
 package bundb_test
 
 import (
+	"context"
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
+	"code.superseriousbusiness.org/gotosocial/internal/config"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"code.superseriousbusiness.org/gotosocial/internal/httpclient"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/typeutils"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -181,6 +187,79 @@ func (suite *BlueskyTestSuite) TestAppPasswordSessionCompareAndSwap() {
 	suite.Require().NoError(err)
 	suite.Equal("updated.example", stored.Handle)
 	suite.Equal([]byte("activated"), stored.AppPasswordData)
+}
+
+func (suite *BlueskyTestSuite) TestActivateAppPasswordCASRejectsReplacedConnectionRow() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	stale := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:stale-row",
+		Handle: "stale.example", PDSURL: "https://stale.example.test",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, stale))
+	suite.Require().NoError(suite.db.DeleteBlueskyConnection(ctx, stale.ID))
+	replacement := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:replacement-row",
+		Handle: "replacement.example", PDSURL: "https://replacement.example.test",
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, replacement))
+
+	stale.AppPasswordData = []byte("encrypted-stale-session")
+	activated, err := suite.db.ActivateBlueskyAppPassword(ctx, stale, "", nil, nil)
+	suite.Require().NoError(err)
+	suite.False(activated)
+	stored, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Equal(replacement.ID, stored.ID)
+	suite.Equal(replacement.DID, stored.DID)
+	suite.Empty(stored.AppPasswordData)
+}
+
+func (suite *BlueskyTestSuite) TestActivateAppPasswordRevokesAfterCanceledActivation() {
+	previousKey := config.GetBlueskyOAuthEncryptionKey()
+	defer config.SetBlueskyOAuthEncryptionKey(previousKey)
+	config.SetBlueskyOAuthEncryptionKey(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	revoked := make(chan struct{}, 1)
+	accessToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"scope":"com.atproto.appPass"}`)) + ".signature"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/com.atproto.server.createSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"` + accessToken + `","refreshJwt":"cleanup-refresh","did":"did:plc:canceled-activation"}`))
+		case "/xrpc/com.atproto.server.deleteSession":
+			revoked <- struct{}{}
+			_, _ = response.Write([]byte(`{}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	previousHTTPClient := suite.state.HTTPClient
+	defer func() { suite.state.HTTPClient = previousHTTPClient }()
+	suite.state.HTTPClient = httpclient.New(httpclient.Config{
+		AllowRanges: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
+		Timeout:     time.Second,
+	})
+	account := suite.testAccounts["local_account_1"]
+	encrypted, err := bluesky.CreateAppPasswordData(
+		suite.T().Context(), &suite.state, account.ID, server.URL,
+		"did:plc:canceled-activation", "test-app-password",
+	)
+	suite.Require().NoError(err)
+
+	canceledCtx, cancel := context.WithCancel(suite.T().Context())
+	cancel()
+	candidate := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:canceled-activation",
+		Handle: "canceled.example", PDSURL: server.URL,
+	}
+	_, err = bluesky.ActivateAppPassword(canceledCtx, &suite.state, candidate, encrypted)
+	suite.Error(err)
+	select {
+	case <-revoked:
+	default:
+		suite.Fail("unpersisted session was not revoked")
+	}
 }
 
 func (suite *BlueskyTestSuite) TestActivateAppPasswordReplacesOAuthAndPreservesSettings() {
