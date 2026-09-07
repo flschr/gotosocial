@@ -195,6 +195,7 @@ func TestDeleteAppPasswordSessionDetachedSurvivesRequestCancellation(t *testing.
 
 func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 	requests := 0
+	newAccess := testAccessToken(t, "com.atproto.appPass")
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/pds/xrpc/app.test.endpoint":
@@ -206,12 +207,12 @@ func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 				_, _ = response.Write([]byte(`{"error":"ExpiredToken"}`))
 				return
 			}
-			require.Equal(t, "Bearer new-access", request.Header.Get("Authorization"))
+			require.Equal(t, "Bearer "+newAccess, request.Header.Get("Authorization"))
 			_, _ = response.Write([]byte(`{}`))
 		case "/pds/xrpc/com.atproto.server.refreshSession":
 			require.Equal(t, "Bearer old-refresh", request.Header.Get("Authorization"))
 			response.Header().Set("Content-Type", "application/json")
-			_, _ = response.Write([]byte(`{"accessJwt":"new-access","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
+			_, _ = response.Write([]byte(`{"accessJwt":"` + newAccess + `","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
 		default:
 			http.NotFound(response, request)
 		}
@@ -234,9 +235,32 @@ func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 	response, err := auth.DoWithAuth(server.Client(), request, syntax.NSID("app.test.endpoint"))
 	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
-	require.Equal(t, "new-access", persisted.AccessToken)
+	require.Equal(t, newAccess, persisted.AccessToken)
 	require.Equal(t, "new-refresh", persisted.RefreshToken)
 	require.Equal(t, 2, requests)
+}
+
+func TestAppPasswordAuthRevokesRefreshIdentityMismatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "/xrpc/com.atproto.server.refreshSession", request.URL.Path)
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"accessJwt":"` + testAccessToken(t, "com.atproto.appPass") + `","refreshJwt":"rotated-refresh","did":"did:plc:different"}`))
+	}))
+	defer server.Close()
+
+	var discarded atclient.PasswordSessionData
+	auth := &appPasswordAuth{
+		session: testPasswordSession(t, server.URL, "old-access", "old-refresh"),
+		discard: func(ctx context.Context, session atclient.PasswordSessionData) error {
+			require.NoError(t, ctx.Err())
+			discarded = session
+			return nil
+		},
+	}
+	_, err := auth.refresh(t.Context(), server.Client())
+	require.ErrorIs(t, err, ErrIdentityMismatch)
+	require.Equal(t, "rotated-refresh", discarded.RefreshToken)
+	require.Equal(t, server.URL, discarded.Host)
 }
 
 func TestAppPasswordPathPrefixOnlyAppliesToPDSRequests(t *testing.T) {
@@ -354,7 +378,7 @@ func TestAppPasswordAuthRevokesSessionThatCannotBePersisted(t *testing.T) {
 			response.WriteHeader(http.StatusBadRequest)
 			_, _ = response.Write([]byte(`{"error":"ExpiredToken"}`))
 		case "/xrpc/com.atproto.server.refreshSession":
-			_, _ = response.Write([]byte(`{"accessJwt":"new-access","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
+			_, _ = response.Write([]byte(`{"accessJwt":"` + testAccessToken(t, "com.atproto.appPass") + `","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
 		}
 	}))
 	defer server.Close()
@@ -406,7 +430,7 @@ func TestAppPasswordAuthDoesNotReplayNonReplayableBody(t *testing.T) {
 			response.WriteHeader(http.StatusBadRequest)
 			_, _ = response.Write([]byte(`{"error":"ExpiredToken"}`))
 		case "/xrpc/com.atproto.server.refreshSession":
-			_, _ = response.Write([]byte(`{"accessJwt":"new-access","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
+			_, _ = response.Write([]byte(`{"accessJwt":"` + testAccessToken(t, "com.atproto.appPass") + `","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
 		}
 	}))
 	defer server.Close()

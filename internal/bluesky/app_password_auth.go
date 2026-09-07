@@ -168,16 +168,23 @@ func (a *appPasswordAuth) refresh(ctx context.Context, client *http.Client) (atc
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		return atclient.PasswordSessionData{}, err
 	}
+	rotated := atclient.PasswordSessionData{
+		AccessToken: body.AccessJWT, RefreshToken: body.RefreshJWT,
+		AccountDID: a.session.AccountDID, Host: a.session.Host,
+	}
 	if body.DID != "" && body.DID != a.session.AccountDID.String() {
+		a.discardUnpersisted(ctx, rotated)
 		return atclient.PasswordSessionData{}, ErrIdentityMismatch
 	}
 	if body.AccessJWT == "" || body.RefreshJWT == "" {
+		a.discardUnpersisted(ctx, rotated)
 		return atclient.PasswordSessionData{}, errors.New("Bluesky returned an incomplete refreshed session")
 	}
-	return atclient.PasswordSessionData{
-		AccessToken: body.AccessJWT, RefreshToken: body.RefreshJWT,
-		AccountDID: a.session.AccountDID, Host: a.session.Host,
-	}, nil
+	if err := validateAppPasswordAccessToken(body.AccessJWT); err != nil {
+		a.discardUnpersisted(ctx, rotated)
+		return atclient.PasswordSessionData{}, err
+	}
+	return rotated, nil
 }
 
 func persistAppPasswordSession(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection, password string, expected []byte, session atclient.PasswordSessionData) ([]byte, error) {
