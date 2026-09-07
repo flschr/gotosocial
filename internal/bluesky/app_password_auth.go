@@ -121,7 +121,11 @@ func passwordAuthFailure(response *http.Response) (bool, error) {
 }
 
 func (a *appPasswordAuth) refresh(ctx context.Context, client *http.Client) (atclient.PasswordSessionData, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.session.Host+"/xrpc/com.atproto.server.refreshSession", nil)
+	endpoint, err := appPasswordXRPCURL(a.session.Host, "com.atproto.server.refreshSession")
+	if err != nil {
+		return atclient.PasswordSessionData{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
 	if err != nil {
 		return atclient.PasswordSessionData{}, err
 	}

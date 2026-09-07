@@ -78,7 +78,7 @@ func TestBlueskyConnectionAuthMethod(t *testing.T) {
 func TestCreateAppPasswordSessionUsesResolvedDID(t *testing.T) {
 	const password = "abcd-efgh-ijkl-mnop"
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		require.Equal(t, "/xrpc/com.atproto.server.createSession", request.URL.Path)
+		require.Equal(t, "/pds/xrpc/com.atproto.server.createSession", request.URL.Path)
 		var body createSessionRequest
 		require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
 		require.Equal(t, "did:plc:apppasswordtest", body.Identifier)
@@ -90,11 +90,12 @@ func TestCreateAppPasswordSessionUsesResolvedDID(t *testing.T) {
 	loopback := netip.MustParsePrefix("127.0.0.0/8")
 	testState := &state.State{HTTPClient: httpclient.New(httpclient.Config{AllowRanges: []netip.Prefix{loopback}, Timeout: time.Second})}
 
-	session, err := createAppPasswordSession(t.Context(), testState, server.URL, "did:plc:apppasswordtest", password)
+	pdsURL := server.URL + "/pds"
+	session, err := createAppPasswordSession(t.Context(), testState, pdsURL, "did:plc:apppasswordtest", password)
 	require.NoError(t, err)
 	require.Equal(t, testAccessToken(t, "com.atproto.appPass"), session.AccessToken)
 	require.Equal(t, "refresh", session.RefreshToken)
-	require.Equal(t, server.URL, session.Host)
+	require.Equal(t, pdsURL, session.Host)
 }
 
 func TestCreateAppPasswordSessionRejectsMainPasswordScopeAndRevokesSession(t *testing.T) {
@@ -121,6 +122,28 @@ func TestCreateAppPasswordSessionRejectsMainPasswordScopeAndRevokesSession(t *te
 	require.True(t, revoked)
 }
 
+func TestDeleteAppPasswordSessionDetachedSurvivesRequestCancellation(t *testing.T) {
+	revoked := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "/pds/xrpc/com.atproto.server.deleteSession", request.URL.Path)
+		require.Equal(t, "Bearer cleanup-refresh", request.Header.Get("Authorization"))
+		revoked <- struct{}{}
+		_, _ = response.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+	testState := &state.State{HTTPClient: httpclient.New(httpclient.Config{
+		AllowRanges: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}, Timeout: time.Second,
+	})}
+	requestCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+	deleteAppPasswordSessionDetached(requestCtx, testState, server.URL+"/pds", "cleanup-refresh")
+	select {
+	case <-revoked:
+	default:
+		t.Fatal("rejected session was not revoked")
+	}
+}
+
 func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -136,7 +159,7 @@ func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 			}
 			require.Equal(t, "Bearer new-access", request.Header.Get("Authorization"))
 			_, _ = response.Write([]byte(`{}`))
-		case "/xrpc/com.atproto.server.refreshSession":
+		case "/pds/xrpc/com.atproto.server.refreshSession":
 			require.Equal(t, "Bearer old-refresh", request.Header.Get("Authorization"))
 			response.Header().Set("Content-Type", "application/json")
 			_, _ = response.Write([]byte(`{"accessJwt":"new-access","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
@@ -148,7 +171,7 @@ func TestAppPasswordAuthRefreshesAndPersistsSession(t *testing.T) {
 
 	var persisted atclient.PasswordSessionData
 	auth := &appPasswordAuth{
-		session: testPasswordSession(t, server.URL, "old-access", "old-refresh"),
+		session: testPasswordSession(t, server.URL+"/pds", "old-access", "old-refresh"),
 		recreate: func(context.Context) (atclient.PasswordSessionData, error) {
 			return atclient.PasswordSessionData{}, errors.New("unexpected recreation")
 		},

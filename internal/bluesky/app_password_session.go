@@ -5,12 +5,14 @@
 package bluesky
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
@@ -53,31 +55,59 @@ func revokeAppPasswordDataDetached(ctx context.Context, state *state.State, acco
 	_ = revokeAppPasswordData(cleanupCtx, state, accountID, encrypted)
 }
 
+func deleteAppPasswordSessionDetached(ctx context.Context, state *state.State, host, refreshToken string) {
+	cleanupCtx, cancel := credentialCleanupContext(ctx)
+	defer cancel()
+	_ = deleteAppPasswordSession(cleanupCtx, state, host, refreshToken)
+}
+
 func createAppPasswordSession(ctx context.Context, state *state.State, pdsURL, did, password string) (atclient.PasswordSessionData, error) {
-	client := newATClient(state, pdsURL)
-	client.Headers.Set("User-Agent", "GoToSocial Plus")
+	body, err := json.Marshal(&createSessionRequest{Identifier: did, Password: password})
+	if err != nil {
+		return atclient.PasswordSessionData{}, err
+	}
+	endpoint, err := appPasswordXRPCURL(pdsURL, "com.atproto.server.createSession")
+	if err != nil {
+		return atclient.PasswordSessionData{}, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return atclient.PasswordSessionData{}, err
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("User-Agent", "GoToSocial Plus")
+	httpResponse, err := protectedHTTPClient(state).Do(request)
+	if err != nil {
+		return atclient.PasswordSessionData{}, err
+	}
+	defer httpResponse.Body.Close()
+	if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
+		var errorBody atclient.ErrorBody
+		if err := json.NewDecoder(httpResponse.Body).Decode(&errorBody); err != nil {
+			return atclient.PasswordSessionData{}, &atclient.APIError{StatusCode: httpResponse.StatusCode}
+		}
+		return atclient.PasswordSessionData{}, errorBody.APIError(httpResponse.StatusCode)
+	}
 	var response createSessionResponse
-	if err := client.Post(ctx, syntax.NSID("com.atproto.server.createSession"), &createSessionRequest{
-		Identifier: did,
-		Password:   password,
-	}, &response); err != nil {
+	if err := json.NewDecoder(httpResponse.Body).Decode(&response); err != nil {
 		return atclient.PasswordSessionData{}, err
 	}
 	accountDID, err := syntax.ParseDID(response.DID)
 	if err != nil {
-		_ = deleteAppPasswordSession(ctx, state, pdsURL, response.RefreshJWT)
+		deleteAppPasswordSessionDetached(ctx, state, pdsURL, response.RefreshJWT)
 		return atclient.PasswordSessionData{}, fmt.Errorf("parse Bluesky session DID: %w", err)
 	}
 	if accountDID.String() != did {
-		_ = deleteAppPasswordSession(ctx, state, pdsURL, response.RefreshJWT)
+		deleteAppPasswordSessionDetached(ctx, state, pdsURL, response.RefreshJWT)
 		return atclient.PasswordSessionData{}, ErrIdentityMismatch
 	}
 	if response.AccessJWT == "" || response.RefreshJWT == "" {
-		_ = deleteAppPasswordSession(ctx, state, pdsURL, response.RefreshJWT)
+		deleteAppPasswordSessionDetached(ctx, state, pdsURL, response.RefreshJWT)
 		return atclient.PasswordSessionData{}, errors.New("Bluesky returned an incomplete app password session")
 	}
 	if err := validateAppPasswordAccessToken(response.AccessJWT); err != nil {
-		_ = deleteAppPasswordSession(ctx, state, pdsURL, response.RefreshJWT)
+		deleteAppPasswordSessionDetached(ctx, state, pdsURL, response.RefreshJWT)
 		return atclient.PasswordSessionData{}, err
 	}
 	return atclient.PasswordSessionData{
@@ -98,7 +128,11 @@ func deleteAppPasswordSession(ctx context.Context, state *state.State, host, ref
 	if refreshToken == "" {
 		return nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(host, "/")+"/xrpc/com.atproto.server.deleteSession", nil)
+	endpoint, err := appPasswordXRPCURL(host, "com.atproto.server.deleteSession")
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
 	if err != nil {
 		return err
 	}
@@ -113,6 +147,21 @@ func deleteAppPasswordSession(ctx context.Context, state *state.State, host, ref
 		return &atclient.APIError{StatusCode: response.StatusCode}
 	}
 	return nil
+}
+
+func appPasswordXRPCURL(host, endpoint string) (string, error) {
+	u, err := url.Parse(host)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return "", errors.New("invalid Bluesky PDS URL")
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + "/xrpc/" + endpoint
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String(), nil
 }
 
 func validateAppPasswordAccessToken(token string) error {

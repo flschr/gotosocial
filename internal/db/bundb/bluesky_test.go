@@ -262,6 +262,47 @@ func (suite *BlueskyTestSuite) TestActivateAppPasswordRevokesAfterCanceledActiva
 	}
 }
 
+func (suite *BlueskyTestSuite) TestSyncInteractionsReloadsConnectionAfterAccountLock() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	connection := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: "did:plc:stale-sync-session",
+		Handle: "stale-sync.example", PDSURL: "https://pds.example.test",
+		AppPasswordData: []byte("stale-encrypted-session"),
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
+
+	unlock := bluesky.LockAccount(account.ID)
+	defer func() {
+		if unlock != nil {
+			unlock()
+		}
+	}()
+	syncResult := make(chan error, 1)
+	go func() { syncResult <- bluesky.SyncInteractions(ctx, &suite.state) }()
+	suite.Require().Eventually(func() bool {
+		stored, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+		return err == nil && !stored.SyncClaimedUntil.IsZero()
+	}, 2*time.Second, 10*time.Millisecond)
+	stored, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	stored.AppPasswordData = nil
+	suite.Require().NoError(suite.db.UpdateBlueskyConnection(ctx, stored, "app_password_data"))
+	unlock()
+	unlock = nil
+	select {
+	case err := <-syncResult:
+		suite.Require().NoError(err)
+	case <-time.After(2 * time.Second):
+		suite.FailNow("Bluesky sync did not finish after releasing the account lock")
+	}
+
+	stored, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Require().NoError(err)
+	suite.Empty(stored.LastSyncError)
+	suite.Empty(stored.LastSyncErrorCode)
+}
+
 func (suite *BlueskyTestSuite) TestActivateAppPasswordReplacesOAuthAndPreservesSettings() {
 	ctx := suite.T().Context()
 	account := suite.testAccounts["local_account_1"]
