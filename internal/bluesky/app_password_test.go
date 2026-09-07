@@ -256,6 +256,44 @@ func TestAppPasswordAuthPreservesTransientRecreationError(t *testing.T) {
 	require.Equal(t, ErrorCodeRemote, errorCode(err))
 }
 
+func TestAppPasswordAuthRevokesSessionThatCannotBePersisted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/xrpc/app.test.endpoint":
+			response.WriteHeader(http.StatusBadRequest)
+			_, _ = response.Write([]byte(`{"error":"ExpiredToken"}`))
+		case "/xrpc/com.atproto.server.refreshSession":
+			_, _ = response.Write([]byte(`{"accessJwt":"new-access","refreshJwt":"new-refresh","did":"did:plc:apppasswordtest"}`))
+		}
+	}))
+	defer server.Close()
+
+	requestCtx, cancel := context.WithCancel(t.Context())
+	discarded := false
+	auth := &appPasswordAuth{
+		session: testPasswordSession(t, server.URL, "old-access", "old-refresh"),
+		recreate: func(context.Context) (atclient.PasswordSessionData, error) {
+			return atclient.PasswordSessionData{}, errors.New("unexpected recreation")
+		},
+		persist: func(context.Context, atclient.PasswordSessionData) error {
+			cancel()
+			return &ConnectionError{Code: ErrorCodeData, Err: ErrCredentialsChanged}
+		},
+		discard: func(ctx context.Context, session atclient.PasswordSessionData) error {
+			require.NoError(t, ctx.Err())
+			require.Equal(t, "new-refresh", session.RefreshToken)
+			discarded = true
+			return nil
+		},
+	}
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, server.URL+"/xrpc/app.test.endpoint", nil)
+	require.NoError(t, err)
+	_, err = auth.DoWithAuth(server.Client(), request, syntax.NSID("app.test.endpoint"))
+	require.ErrorIs(t, err, ErrCredentialsChanged)
+	require.True(t, discarded)
+}
+
 func TestAppPasswordAuthDoesNotReplayNonReplayableBody(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/state"
 	"github.com/bluesky-social/indigo/atproto/atclient"
@@ -26,11 +27,14 @@ type refreshSessionResponse struct {
 
 var ErrRequestNotReplayable = errors.New("Bluesky request body cannot be replayed after session refresh")
 
+const appPasswordCleanupTimeout = 10 * time.Second
+
 type appPasswordAuth struct {
 	mu       sync.Mutex
 	session  atclient.PasswordSessionData
 	recreate func(context.Context) (atclient.PasswordSessionData, error)
 	persist  func(context.Context, atclient.PasswordSessionData) error
+	discard  func(context.Context, atclient.PasswordSessionData) error
 }
 
 func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request, _ syntax.NSID) (*http.Response, error) {
@@ -61,6 +65,7 @@ func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request,
 		return nil, refreshErr
 	}
 	if err := a.persist(request.Context(), session); err != nil {
+		a.discardUnpersisted(request.Context(), session)
 		var connectionErr *ConnectionError
 		if errors.As(err, &connectionErr) {
 			return nil, err
@@ -81,6 +86,15 @@ func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request,
 	}
 	retry.Header.Set("Authorization", "Bearer "+a.session.AccessToken)
 	return client.Do(retry)
+}
+
+func (a *appPasswordAuth) discardUnpersisted(ctx context.Context, session atclient.PasswordSessionData) {
+	if a.discard == nil {
+		return
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), appPasswordCleanupTimeout)
+	defer cancel()
+	_ = a.discard(cleanupCtx, session)
 }
 
 func passwordAuthFailure(response *http.Response) (bool, error) {

@@ -164,6 +164,9 @@ func newAppPasswordClient(state *state.State, connection *gtsmodel.BlueskyConnec
 			}
 			return err
 		},
+		discard: func(ctx context.Context, session atclient.PasswordSessionData) error {
+			return deleteAppPasswordSession(ctx, state, session.Host, session.RefreshToken)
+		},
 	}
 	client.AccountDID = &credentials.Session.AccountDID
 	client.Headers.Set("User-Agent", "GoToSocial Plus")
