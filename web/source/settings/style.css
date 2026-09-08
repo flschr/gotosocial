@@ -997,23 +997,110 @@ section > div.domain-limit-details {
 	}
 }
 
-.bluesky-status {
-	align-items: flex-start;
-	flex-direction: column;
-	gap: 0.25rem;
-	max-width: 42rem;
-	padding: 0.75rem 1rem;
-
-	.bluesky-status-title {
-		font-size: 1.1rem;
+.bluesky-settings {
+	.bluesky-connection-banner,
+	.bluesky-card {
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 48rem;
 	}
 
-	.bluesky-status-message {
+	.bluesky-connection-banner {
+		padding: 0.6rem 0.75rem;
+	}
+
+	.bluesky-card {
 		margin: 0;
+		padding: 0.75rem 1rem 1rem;
+		border: $boxshadow-border;
+		border-radius: $br;
+		box-shadow: $boxshadow;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+
+		> legend {
+			padding: 0 0.35rem;
+			font-size: 1.1rem;
+			font-weight: bold;
+		}
+
+		> p {
+			margin: 0;
+		}
 	}
 
-	.bluesky-status-meta {
-		opacity: 0.85;
+	.bluesky-option {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+
+		.form-field.checkbox label {
+			font-weight: bold;
+		}
+	}
+
+	.bluesky-status {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 0.25rem;
+		padding: 0.75rem 1rem;
+
+		.bluesky-status-title {
+			font-size: 1.1rem;
+		}
+
+		.bluesky-status-message {
+			margin: 0;
+		}
+
+		.bluesky-status-meta {
+			opacity: 0.85;
+		}
+	}
+
+	.bluesky-password-controls {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 0.75rem;
+		align-items: end;
+	}
+
+	.bluesky-password-field {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.bluesky-danger-zone {
+		border-color: $error3;
+
+		> h2 {
+			font-size: 1.1rem;
+		}
+	}
+
+	.bluesky-confirmation {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+
+		> p {
+			margin: 0;
+		}
+	}
+
+	.bluesky-action-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+	}
+
+	@media screen and (max-width: 35rem) {
+		.bluesky-password-controls {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 }
 
