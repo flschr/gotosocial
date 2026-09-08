@@ -1007,6 +1007,7 @@ section > div.domain-limit-details {
 
 	.bluesky-connection-banner {
 		padding: 0.6rem 0.75rem;
+		flex-wrap: wrap;
 	}
 
 	.bluesky-card {
