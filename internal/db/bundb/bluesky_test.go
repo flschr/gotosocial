@@ -178,15 +178,17 @@ func (suite *BlueskyTestSuite) TestAppPasswordSessionCompareAndSwap() {
 		Handle: "cas.example", PDSURL: "https://pds.example.test", AppPasswordData: []byte("first"),
 	}
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
-	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, connection, []byte("first"), []byte("second"))
+	connection.PDSURL = "https://migrated-pds.example.test"
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, connection, []byte("first"), []byte("second"), connection.PDSURL)
 	suite.Require().NoError(err)
 	suite.True(updated)
-	updated, err = suite.db.UpdateBlueskyAppPasswordData(ctx, connection, []byte("first"), []byte("stale"))
+	updated, err = suite.db.UpdateBlueskyAppPasswordData(ctx, connection, []byte("first"), []byte("stale"), connection.PDSURL)
 	suite.Require().NoError(err)
 	suite.False(updated)
 	stored, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
 	suite.Equal([]byte("second"), stored.AppPasswordData)
+	suite.Equal("https://migrated-pds.example.test", stored.PDSURL)
 	stored.Handle = "updated.example"
 	stored.PDSURL = "https://new-pds.example.test"
 	stored.AppPasswordData = []byte("activated")
@@ -245,7 +247,7 @@ func (suite *BlueskyTestSuite) TestSessionCASRejectsReplacedConnectionRow() {
 	}
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, replacement))
 
-	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, stale, []byte("same-generation"), []byte("rotated"))
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, stale, []byte("same-generation"), []byte("rotated"), stale.PDSURL)
 	suite.Require().NoError(err)
 	suite.False(updated)
 	suite.Require().NoError(suite.db.DeleteBlueskyConnection(ctx, replacement.ID))
@@ -267,7 +269,7 @@ func (suite *BlueskyTestSuite) TestSyncStatusRequiresLoadedCredentialGeneration(
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
 	loaded, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
-	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"))
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"), loaded.PDSURL)
 	suite.Require().NoError(err)
 	suite.True(updated)
 
@@ -293,7 +295,7 @@ func (suite *BlueskyTestSuite) TestClearBlueskyConnectionDataRequiresLoadedCrede
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
 	loaded, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
-	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"))
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"), loaded.PDSURL)
 	suite.Require().NoError(err)
 	suite.True(updated)
 
@@ -322,7 +324,7 @@ func (suite *BlueskyTestSuite) TestDeleteBlueskyDataRequiresLoadedCredentialGene
 	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, connection))
 	loaded, err := suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
 	suite.Require().NoError(err)
-	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"))
+	updated, err := suite.db.UpdateBlueskyAppPasswordData(ctx, loaded, []byte("first-generation"), []byte("second-generation"), loaded.PDSURL)
 	suite.Require().NoError(err)
 	suite.True(updated)
 

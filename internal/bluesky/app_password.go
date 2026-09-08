@@ -177,9 +177,14 @@ func newAppPasswordClient(state *state.State, connection *gtsmodel.BlueskyConnec
 	client := newATClient(state, credentials.Session.Host)
 	expectedData := bytes.Clone(connection.AppPasswordData)
 	client.Auth = &appPasswordAuth{
-		session: credentials.Session,
+		session:     credentials.Session,
+		requestHost: credentials.Session.Host,
 		recreate: func(ctx context.Context) (atclient.PasswordSessionData, error) {
-			return createAppPasswordSession(ctx, state, credentials.Session.Host, credentials.Session.AccountDID.String(), credentials.Password)
+			pdsURL, err := resolveBlueskyPDS(ctx, state, credentials.Session.AccountDID.String())
+			if err != nil {
+				return atclient.PasswordSessionData{}, fmt.Errorf("resolve current Bluesky PDS: %w", err)
+			}
+			return createAppPasswordSession(ctx, state, pdsURL, credentials.Session.AccountDID.String(), credentials.Password)
 		},
 		persist: func(ctx context.Context, session atclient.PasswordSessionData) error {
 			replacement, err := persistAppPasswordSession(ctx, state, connection, credentials.Password, expectedData, session)

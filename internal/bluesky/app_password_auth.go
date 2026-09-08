@@ -33,19 +33,27 @@ var ErrRequestNotReplayable = errors.New("Bluesky request body cannot be replaye
 const credentialCleanupTimeout = 10 * time.Second
 
 type appPasswordAuth struct {
-	mu       sync.Mutex
-	session  atclient.PasswordSessionData
-	recreate func(context.Context) (atclient.PasswordSessionData, error)
-	persist  func(context.Context, atclient.PasswordSessionData) error
-	discard  func(context.Context, atclient.PasswordSessionData) error
+	mu          sync.Mutex
+	session     atclient.PasswordSessionData
+	requestHost string
+	recreate    func(context.Context) (atclient.PasswordSessionData, error)
+	persist     func(context.Context, atclient.PasswordSessionData) error
+	discard     func(context.Context, atclient.PasswordSessionData) error
 }
 
-func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request, _ syntax.NSID) (*http.Response, error) {
+func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request, method syntax.NSID) (*http.Response, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	previousHost := a.session.Host
+	requestHost := a.requestHost
+	if requestHost == "" {
+		requestHost = previousHost
+	}
 	request = request.WithContext(gtscontext.SetNoRedirect(request.Context()))
-	applyAppPasswordPathPrefix(request, a.session.Host)
+	if err := retargetAppPasswordRequest(request, requestHost, a.session.Host, method); err != nil {
+		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
+	}
 	request.Header.Set("Authorization", "Bearer "+a.session.AccessToken)
 	response, err := client.Do(request)
 	if err != nil {
@@ -90,23 +98,33 @@ func (a *appPasswordAuth) DoWithAuth(client *http.Client, request *http.Request,
 		}
 	}
 	retry.Header.Set("Authorization", "Bearer "+a.session.AccessToken)
+	if err := retargetAppPasswordRequest(retry, previousHost, a.session.Host, method); err != nil {
+		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
+	}
 	return client.Do(retry)
 }
 
-func applyAppPasswordPathPrefix(request *http.Request, host string) {
-	u, err := url.Parse(host)
+func retargetAppPasswordRequest(request *http.Request, previousHost, replacementHost string, method syntax.NSID) error {
+	previous, err := url.Parse(previousHost)
 	if err != nil {
-		return
+		return err
 	}
-	if request.URL.Scheme != u.Scheme || request.URL.Host != u.Host {
-		return
+	if request.URL.Scheme != previous.Scheme || request.URL.Host != previous.Host {
+		return nil
 	}
-	prefix := strings.TrimRight(u.Path, "/")
-	if prefix == "" || !strings.HasPrefix(request.URL.Path, "/xrpc/") {
-		return
+	endpoint, err := appPasswordXRPCURL(replacementHost, string(method))
+	if err != nil {
+		return err
 	}
-	request.URL.Path = prefix + request.URL.Path
-	request.URL.RawPath = ""
+	replacement, err := url.Parse(endpoint)
+	if err != nil {
+		return err
+	}
+	request.URL.Scheme = replacement.Scheme
+	request.URL.Host = replacement.Host
+	request.URL.Path = replacement.Path
+	request.URL.RawPath = replacement.RawPath
+	return nil
 }
 
 func (a *appPasswordAuth) discardUnpersisted(ctx context.Context, session atclient.PasswordSessionData) {
@@ -192,13 +210,14 @@ func persistAppPasswordSession(ctx context.Context, state *state.State, connecti
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
 	}
-	updated, err := state.DB.UpdateBlueskyAppPasswordData(ctx, connection, expected, encrypted)
+	updated, err := state.DB.UpdateBlueskyAppPasswordData(ctx, connection, expected, encrypted, session.Host)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeData, Err: err}
 	}
 	if !updated {
 		return nil, &ConnectionError{Code: ErrorCodeData, Err: ErrCredentialsChanged}
 	}
+	connection.PDSURL = session.Host
 	return encrypted, nil
 }
 

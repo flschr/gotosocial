@@ -120,9 +120,9 @@ func (b *blueskyDB) ActivateBlueskyAppPassword(ctx context.Context, connection *
 	return affected == 1, err
 }
 
-func (b *blueskyDB) UpdateBlueskyAppPasswordData(ctx context.Context, connection *gtsmodel.BlueskyConnection, expected, replacement []byte) (bool, error) {
+func (b *blueskyDB) UpdateBlueskyAppPasswordData(ctx context.Context, connection *gtsmodel.BlueskyConnection, expected, replacement []byte, replacementPDSURL string) (bool, error) {
 	result, err := b.db.NewUpdate().Model((*gtsmodel.BlueskyConnection)(nil)).
-		Set("app_password_data = ?", replacement).
+		Set("app_password_data = ?, pds_url = ?", replacement, replacementPDSURL).
 		Where("account_id = ?", connection.AccountID).
 		Where("id = ?", connection.ID).
 		Where("did = ?", connection.DID).

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"code.superseriousbusiness.org/gotosocial/internal/config"
+	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/httpclient"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
@@ -36,6 +37,15 @@ type testSessionRevoker func(context.Context) error
 
 func (fn testSessionRevoker) RevokeSession(ctx context.Context) error {
 	return fn(ctx)
+}
+
+type appPasswordMigrationDB struct {
+	db.DB
+	update func(context.Context, *gtsmodel.BlueskyConnection, []byte, []byte, string) (bool, error)
+}
+
+func (d *appPasswordMigrationDB) UpdateBlueskyAppPasswordData(ctx context.Context, connection *gtsmodel.BlueskyConnection, expected, replacement []byte, replacementPDSURL string) (bool, error) {
+	return d.update(ctx, connection, expected, replacement, replacementPDSURL)
 }
 
 func testPasswordSession(t *testing.T, host, access, refresh string) atclient.PasswordSessionData {
@@ -121,6 +131,109 @@ func TestNewAppPasswordClientRejectsStoredPlaintextRemotePDS(t *testing.T) {
 
 	_, err = newAppPasswordClient(new(state.State), connection)
 	require.ErrorContains(t, err, "must use HTTPS")
+}
+
+func TestNewAppPasswordClientRecreatesSessionOnCurrentPDS(t *testing.T) {
+	useAppPasswordTestKey(t)
+	const password = "abcd-efgh-ijkl-mnop"
+	var did, oldPDS, newPDS string
+	requests := make([]string, 0, 5)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		requests = append(requests, request.Method+" "+request.URL.RequestURI())
+		response.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/.well-known/did.json":
+			_ = json.NewEncoder(response).Encode(map[string]any{
+				"id": did,
+				"service": []map[string]string{{
+					"id": "#atproto_pds", "type": "AtprotoPersonalDataServer", "serviceEndpoint": newPDS,
+				}},
+			})
+		case "/old-pds/xrpc/app.test.endpoint":
+			require.Equal(t, "Bearer old-access", request.Header.Get("Authorization"))
+			response.WriteHeader(http.StatusUnauthorized)
+			_, _ = response.Write([]byte(`{"error":"InvalidToken"}`))
+		case "/old-pds/xrpc/com.atproto.server.refreshSession":
+			require.Equal(t, "Bearer old-refresh", request.Header.Get("Authorization"))
+			response.WriteHeader(http.StatusBadRequest)
+			_, _ = response.Write([]byte(`{"error":"InvalidToken"}`))
+		case "/old-pds/xrpc/com.atproto.server.createSession":
+			t.Fatal("app password was submitted to the stale PDS")
+		case "/new-pds/xrpc/com.atproto.server.createSession":
+			var body createSessionRequest
+			require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
+			require.Equal(t, did, body.Identifier)
+			require.Equal(t, password, body.Password)
+			_ = json.NewEncoder(response).Encode(map[string]string{
+				"accessJwt":  testAccessToken(t, "com.atproto.appPass"),
+				"refreshJwt": "new-refresh",
+				"did":        did,
+			})
+		case "/new-pds/xrpc/app.test.endpoint":
+			require.Contains(t, []string{"cursor=next", "cursor=again"}, request.URL.RawQuery)
+			require.Equal(t, "Bearer "+testAccessToken(t, "com.atproto.appPass"), request.Header.Get("Authorization"))
+			_, _ = response.Write([]byte(`{}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	host := strings.TrimPrefix(server.URL, "https://")
+	did = "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+	oldPDS = server.URL + "/old-pds"
+	newPDS = server.URL + "/new-pds"
+
+	testState := &state.State{HTTPClient: httpclient.New(httpclient.Config{
+		AllowRanges:           []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
+		TLSInsecureSkipVerify: true,
+		Timeout:               time.Second,
+	})}
+	oldSessionDID, err := syntax.ParseDID(did)
+	require.NoError(t, err)
+	oldSession := atclient.PasswordSessionData{
+		AccessToken: "old-access", RefreshToken: "old-refresh", AccountDID: oldSessionDID, Host: oldPDS,
+	}
+	connection := &gtsmodel.BlueskyConnection{
+		ID: "connection", AccountID: "account", DID: did, Handle: "migrated.example", PDSURL: oldPDS,
+	}
+	connection.AppPasswordData, err = encodeAppPassword(connection.AccountID, password, oldSession)
+	require.NoError(t, err)
+	expectedData := append([]byte(nil), connection.AppPasswordData...)
+	var persisted []byte
+	testState.DB = &appPasswordMigrationDB{update: func(_ context.Context, updated *gtsmodel.BlueskyConnection, expected, replacement []byte, replacementPDSURL string) (bool, error) {
+		require.Equal(t, expectedData, expected)
+		require.Equal(t, oldPDS, updated.PDSURL)
+		require.Equal(t, newPDS, replacementPDSURL)
+		persisted = append([]byte(nil), replacement...)
+		return true, nil
+	}}
+
+	client, err := newAppPasswordClient(testState, connection)
+	require.NoError(t, err)
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, oldPDS+"/xrpc/app.test.endpoint?cursor=next", nil)
+	require.NoError(t, err)
+	transportClient := &http.Client{Transport: testState.HTTPClient, Timeout: 2 * time.Second}
+	response, err := client.Auth.DoWithAuth(transportClient, request, syntax.NSID("app.test.endpoint"))
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, newPDS, connection.PDSURL)
+	require.NotEmpty(t, persisted)
+	decoded, err := decodeAppPassword(connection.AccountID, persisted)
+	require.NoError(t, err)
+	require.Equal(t, newPDS, decoded.Session.Host)
+	request, err = http.NewRequestWithContext(t.Context(), http.MethodGet, oldPDS+"/xrpc/app.test.endpoint?cursor=again", nil)
+	require.NoError(t, err)
+	response, err = client.Auth.DoWithAuth(transportClient, request, syntax.NSID("app.test.endpoint"))
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, []string{
+		"GET /old-pds/xrpc/app.test.endpoint?cursor=next",
+		"POST /old-pds/xrpc/com.atproto.server.refreshSession",
+		"GET /.well-known/did.json",
+		"POST /new-pds/xrpc/com.atproto.server.createSession",
+		"GET /new-pds/xrpc/app.test.endpoint?cursor=next",
+		"GET /new-pds/xrpc/app.test.endpoint?cursor=again",
+	}, requests)
 }
 
 func TestCreateAppPasswordSessionDoesNotFollowRedirect(t *testing.T) {
@@ -263,15 +376,15 @@ func TestAppPasswordAuthRevokesRefreshIdentityMismatch(t *testing.T) {
 	require.Equal(t, server.URL, discarded.Host)
 }
 
-func TestAppPasswordPathPrefixOnlyAppliesToPDSRequests(t *testing.T) {
+func TestAppPasswordRetargetOnlyAppliesToPDSRequests(t *testing.T) {
 	pdsRequest, err := http.NewRequest(http.MethodPost, "https://pds.example.test/xrpc/app.test.endpoint", nil)
 	require.NoError(t, err)
-	applyAppPasswordPathPrefix(pdsRequest, "https://pds.example.test/pds")
+	require.NoError(t, retargetAppPasswordRequest(pdsRequest, "https://pds.example.test", "https://pds.example.test/pds", syntax.NSID("app.test.endpoint")))
 	require.Equal(t, "/pds/xrpc/app.test.endpoint", pdsRequest.URL.Path)
 
 	appViewRequest, err := http.NewRequest(http.MethodGet, "https://api.bsky.app/xrpc/app.bsky.notification.listNotifications", nil)
 	require.NoError(t, err)
-	applyAppPasswordPathPrefix(appViewRequest, "https://pds.example.test/pds")
+	require.NoError(t, retargetAppPasswordRequest(appViewRequest, "https://pds.example.test", "https://pds.example.test/pds", syntax.NSID("app.bsky.notification.listNotifications")))
 	require.Equal(t, "/xrpc/app.bsky.notification.listNotifications", appViewRequest.URL.Path)
 }
 

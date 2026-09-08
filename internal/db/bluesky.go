@@ -20,7 +20,7 @@ type Bluesky interface {
 	PutBlueskyConnectionIfAccountExists(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
 	ActivateBlueskyAppPassword(context.Context, *gtsmodel.BlueskyConnection, string, []byte, []byte) (bool, error)
-	UpdateBlueskyAppPasswordData(context.Context, *gtsmodel.BlueskyConnection, []byte, []byte) (bool, error)
+	UpdateBlueskyAppPasswordData(context.Context, *gtsmodel.BlueskyConnection, []byte, []byte, string) (bool, error)
 	UpdateBlueskyOAuthSession(context.Context, *gtsmodel.BlueskyConnection, string, []byte, string, []byte) (bool, error)
 	UpdateBlueskyConnectionSyncStatus(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	DeleteBlueskyConnection(context.Context, string) error
