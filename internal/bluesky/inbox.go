@@ -57,7 +57,10 @@ func processNotificationInbox(ctx context.Context, state *state.State, connectio
 }
 
 func authenticatedClient(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (*atclient.APIClient, error) {
-	app, _, err := NewOAuthClient(state, connection.AccountID)
+	if connection.AuthMethod() == "app_password" {
+		return newAppPasswordClient(state, connection)
+	}
+	app, store, err := NewOAuthClient(state, connection.AccountID)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeConfiguration, Err: err}
 	}
@@ -65,6 +68,7 @@ func authenticatedClient(ctx context.Context, state *state.State, connection *gt
 	if err != nil {
 		return nil, err
 	}
+	store.TrackConnection(connection)
 	session, err := app.ResumeSession(ctx, did, connection.OAuthSessionID)
 	if err != nil {
 		return nil, &ConnectionError{Code: ErrorCodeAuth, Err: fmt.Errorf("resume OAuth session: %w", err)}

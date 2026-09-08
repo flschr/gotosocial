@@ -5,40 +5,65 @@
 package bluesky
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-var ErrIdentityMismatch = errors.New("Bluesky identity does not match saved account")
+var (
+	ErrIdentityMismatch   = errors.New("Bluesky identity does not match saved account")
+	ErrCredentialsChanged = errors.New("Bluesky credentials changed concurrently")
+)
 
 type OAuthStore struct {
 	db                      db.DB
 	crypter                 *Crypter
 	accountID               string
+	mu                      sync.Mutex
 	deferSessionPersistence bool
+	expectedSessionID       string
+	expectedData            []byte
+	expectedAccessToken     string
+	expectedRefreshToken    string
+	discardSession          func(context.Context, oauth.ClientSessionData) error
+	trackedConnection       *gtsmodel.BlueskyConnection
 }
 
 // DeferSessionPersistence keeps ProcessCallback from activating a reconnect
 // before the caller has completed identity and PDS validation.
 func (s *OAuthStore) DeferSessionPersistence() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deferSessionPersistence = true
 }
 
+// TrackConnection keeps a caller's loaded credential generation current when
+// this store persists OAuth token or DPoP nonce rotation during a request.
+func (s *OAuthStore) TrackConnection(connection *gtsmodel.BlueskyConnection) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.trackedConnection = connection
+}
+
 func (s *OAuthStore) PersistSession(ctx context.Context, session oauth.ClientSessionData) error {
+	s.mu.Lock()
 	s.deferSessionPersistence = false
+	s.mu.Unlock()
 	return s.SaveSession(ctx, session)
 }
 
-func NewOAuthStore(database db.DB, crypter *Crypter, accountID string) *OAuthStore {
-	return &OAuthStore{db: database, crypter: crypter, accountID: accountID}
+func NewOAuthStore(database db.DB, crypter *Crypter, accountID string, discardSession func(context.Context, oauth.ClientSessionData) error) *OAuthStore {
+	return &OAuthStore{db: database, crypter: crypter, accountID: accountID, discardSession: discardSession}
 }
 
 func (s *OAuthStore) associatedData(sessionID string) []byte {
@@ -61,36 +86,125 @@ func (s *OAuthStore) GetSession(ctx context.Context, _ syntax.DID, sessionID str
 	if err := json.Unmarshal(plaintext, &session); err != nil {
 		return nil, fmt.Errorf("decode Bluesky OAuth session: %w", err)
 	}
+	s.mu.Lock()
+	s.expectedSessionID = connection.OAuthSessionID
+	s.expectedData = append(s.expectedData[:0], connection.OAuthData...)
+	s.expectedAccessToken = session.AccessToken
+	s.expectedRefreshToken = session.RefreshToken
+	if s.trackedConnection != nil && s.trackedConnection.ID == connection.ID && s.trackedConnection.DID == connection.DID {
+		s.trackedConnection.OAuthSessionID = connection.OAuthSessionID
+		s.trackedConnection.OAuthData = bytes.Clone(connection.OAuthData)
+	}
+	s.mu.Unlock()
 	return &session, nil
 }
 
 func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessionData) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	connection, err := s.db.GetBlueskyConnectionByAccountID(ctx, s.accountID)
 	if errors.Is(err, db.ErrNoEntries) {
+		if !s.deferSessionPersistence || s.expectedSessionID == session.SessionID {
+			s.discardRotatedSession(ctx, session)
+			return ErrCredentialsChanged
+		}
 		// ProcessCallback returns this session to the caller, which creates the
 		// connection atomically after identity verification.
 		return nil
 	}
 	if err != nil {
+		s.discardRotatedSession(ctx, session)
 		return err
 	}
 	if connection.DID != session.AccountDID.String() {
+		s.discardRotatedSession(ctx, session)
 		return ErrIdentityMismatch
 	}
 	if s.deferSessionPersistence {
 		return nil
 	}
+	if len(connection.AppPasswordData) != 0 || (connection.OAuthSessionID != "" && connection.OAuthSessionID != session.SessionID) {
+		s.discardRotatedSession(ctx, session)
+		return ErrCredentialsChanged
+	}
+	expectedSessionID := connection.OAuthSessionID
+	expectedData := connection.OAuthData
+	if s.expectedSessionID == session.SessionID {
+		expectedSessionID = s.expectedSessionID
+		expectedData = s.expectedData
+	}
 	encoded, err := json.Marshal(session)
 	if err != nil {
+		s.discardRotatedSession(ctx, session)
 		return fmt.Errorf("encode Bluesky OAuth session: %w", err)
 	}
 	encrypted, err := s.crypter.Encrypt(encoded, s.associatedData(session.SessionID))
 	if err != nil {
+		s.discardRotatedSession(ctx, session)
 		return err
 	}
-	connection.OAuthSessionID = session.SessionID
-	connection.OAuthData = encrypted
-	return s.db.UpdateBlueskyConnection(ctx, connection, "oauth_session_id", "oauth_data")
+	updated, err := s.db.UpdateBlueskyOAuthSession(ctx, connection, expectedSessionID, expectedData, session.SessionID, encrypted)
+	if err != nil {
+		s.discardRotatedSession(ctx, session)
+		return err
+	}
+	if !updated {
+		s.discardRotatedSession(ctx, session)
+		return ErrCredentialsChanged
+	}
+	s.expectedSessionID = session.SessionID
+	s.expectedData = append(s.expectedData[:0], encrypted...)
+	s.expectedAccessToken = session.AccessToken
+	s.expectedRefreshToken = session.RefreshToken
+	if s.trackedConnection != nil && s.trackedConnection.ID == connection.ID && s.trackedConnection.DID == connection.DID {
+		s.trackedConnection.OAuthSessionID = session.SessionID
+		s.trackedConnection.OAuthData = bytes.Clone(encrypted)
+	}
+	return nil
+}
+
+func (s *OAuthStore) discardRotatedSession(ctx context.Context, session oauth.ClientSessionData) {
+	if s.discardSession == nil || s.expectedSessionID != session.SessionID ||
+		(s.expectedAccessToken == session.AccessToken && s.expectedRefreshToken == session.RefreshToken) {
+		return
+	}
+	cleanupCtx, cancel := credentialCleanupContext(ctx)
+	defer cancel()
+	_ = s.discardSession(cleanupCtx, session)
+}
+
+type sessionRevoker interface {
+	RevokeSession(context.Context) error
+}
+
+func revokeSessionDetached(ctx context.Context, session sessionRevoker) {
+	cleanupCtx, cancel := credentialCleanupContext(ctx)
+	defer cancel()
+	_ = session.RevokeSession(cleanupCtx)
+}
+
+// RevokeOAuthSession revokes a callback session that was deliberately not
+// persisted, for example after an identity or concurrent-connection check.
+func RevokeOAuthSession(ctx context.Context, app *oauth.ClientApp, data oauth.ClientSessionData) error {
+	if data.AuthServerRevocationEndpoint == "" {
+		return nil
+	}
+	privateKey, err := atcrypto.ParsePrivateMultibase(data.DPoPPrivateKeyMultibase)
+	if err != nil {
+		return err
+	}
+	session := &oauth.ClientSession{
+		Client: app.Client, Config: app.Config, Data: &data, DPoPPrivateKey: privateKey,
+	}
+	return session.RevokeSession(ctx)
+}
+
+// RevokeOAuthSessionDetached revokes an unpersisted session even if the
+// originating request has already been canceled.
+func RevokeOAuthSessionDetached(ctx context.Context, app *oauth.ClientApp, data oauth.ClientSessionData) error {
+	cleanupCtx, cancel := credentialCleanupContext(ctx)
+	defer cancel()
+	return RevokeOAuthSession(cleanupCtx, app, data)
 }
 
 func (s *OAuthStore) DeleteSession(ctx context.Context, _ syntax.DID, sessionID string) error {

@@ -47,6 +47,7 @@ CREATE TABLE bluesky_connections (
   updated_at TEXT NOT NULL,
   oauth_session_id TEXT,
   oauth_data BLOB,
+  app_password_data BLOB,
   last_sync_at TEXT,
   last_sync_error TEXT,
   last_sync_error_code TEXT,

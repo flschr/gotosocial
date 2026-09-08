@@ -9,6 +9,8 @@ import (
 
 	"code.superseriousbusiness.org/gotosocial/internal/bluesky"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,6 +44,16 @@ func TestBlueskyConnectionStatusUsesFriendlyMessages(t *testing.T) {
 	require.Contains(t, message, "server administrator")
 }
 
+func TestBlueskyConnectionStatusRequestsReplacementForInvalidAppPassword(t *testing.T) {
+	connection := &gtsmodel.BlueskyConnection{AppPasswordData: []byte("encrypted")}
+	health := &gtsmodel.BlueskyHealth{LastErrorCode: bluesky.ErrorCodeAuth}
+	status, message, reconnect := blueskyConnectionStatus(connection, health, true)
+	require.Equal(t, "action_required", status)
+	require.True(t, reconnect)
+	require.Contains(t, message, "Replace")
+	require.Contains(t, message, "app password")
+}
+
 func TestBlueskyConnectionStatusReportsPendingWork(t *testing.T) {
 	status, message, reconnect := blueskyConnectionStatus(
 		&gtsmodel.BlueskyConnection{OAuthSessionID: "session", OAuthData: []byte("encrypted")},
@@ -68,4 +80,20 @@ func TestSameBlueskyIdentity(t *testing.T) {
 	connection := &gtsmodel.BlueskyConnection{DID: "did:plc:expected"}
 	require.True(t, sameBlueskyIdentity(connection, "did:plc:expected"))
 	require.False(t, sameBlueskyIdentity(connection, "did:plc:different"))
+}
+
+func TestOAuthRaceWinnerRequiresSameActiveIdentity(t *testing.T) {
+	session := oauth.ClientSessionData{AccountDID: syntax.DID("did:plc:expected")}
+	require.True(t, oauthRaceWinnerMatches(
+		&gtsmodel.BlueskyConnection{DID: "did:plc:expected", OAuthSessionID: "session", OAuthData: []byte("encrypted")},
+		session,
+	))
+	require.False(t, oauthRaceWinnerMatches(
+		&gtsmodel.BlueskyConnection{DID: "did:plc:different", OAuthSessionID: "session", OAuthData: []byte("encrypted")},
+		session,
+	))
+	require.False(t, oauthRaceWinnerMatches(
+		&gtsmodel.BlueskyConnection{DID: "did:plc:expected"},
+		session,
+	))
 }

@@ -21,6 +21,7 @@ CREATE TABLE bluesky_connections (
   updated_at TEXT NOT NULL,
   oauth_session_id TEXT,
   oauth_data BLOB,
+  app_password_data BLOB,
   last_sync_at TEXT,
   last_sync_error TEXT,
   last_sync_error_code TEXT,
@@ -92,14 +93,17 @@ set -e
 sqlite3 "${database}" "UPDATE bluesky_connections SET oauth_session_id=NULL, oauth_data=NULL;"
 expect_failure "crossposting is enabled"
 
-sqlite3 "${database}" "UPDATE bluesky_connections SET oauth_session_id='session', oauth_data=X'01', last_sync_at=datetime('now','-11 minutes');"
+sqlite3 "${database}" "UPDATE bluesky_connections SET app_password_data=X'02', last_sync_at=datetime('now');"
+run_check >/dev/null
+
+sqlite3 "${database}" "UPDATE bluesky_connections SET app_password_data=NULL, oauth_session_id='session', oauth_data=X'01', last_sync_at=datetime('now','-11 minutes');"
 expect_failure "incoming sync scheduler is stale"
 
 sqlite3 "${database}" "UPDATE bluesky_connections SET last_sync_at=datetime('now'); INSERT INTO bluesky_notifications VALUES ('notification', 1);"
 expect_failure "1 failed incoming item(s)"
 
 sqlite3 "${database}" "DELETE FROM bluesky_notifications; UPDATE bluesky_connections SET last_sync_error='TOKEN REFRESH FAILED: INVALID_GRANT';"
-expect_failure "authorization expired"
+expect_failure "authorization is invalid"
 
 sqlite3 "${database}" "UPDATE bluesky_connections SET last_sync_error=NULL; INSERT INTO bluesky_deliveries VALUES ('delivery', datetime('now','-16 minutes'), 0);"
 expect_failure "waiting longer than 15 minutes"

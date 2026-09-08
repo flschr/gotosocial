@@ -20,6 +20,7 @@ package workers
 import (
 	"context"
 	"errors"
+	"time"
 
 	"code.superseriousbusiness.org/gopkg/log"
 	"code.superseriousbusiness.org/gotosocial/internal/ap"
@@ -1129,6 +1130,16 @@ func (p *clientAPI) DeleteAccountOrUser(ctx context.Context, cMsg *messages.From
 
 	// Extract target account.
 	account := cMsg.Target
+	// Mark the account unavailable before the Bluesky cleanup begins. New
+	// connection activation checks this marker transactionally, so a session
+	// verified concurrently is either included in the cleanup below or rejected.
+	if account.SuspendedAt.IsZero() {
+		account.SuspendedAt = time.Now()
+		account.SuspensionOrigin = originID
+		if err := p.state.DB.UpdateAccount(ctx, account, "suspended_at", "suspension_origin"); err != nil {
+			return gtserror.Newf("error marking account %s for deletion: %w", account.ID, err)
+		}
+	}
 
 	// Revoke the connected Bluesky session and erase encrypted credentials
 	// before the local account is stubbed or removed.

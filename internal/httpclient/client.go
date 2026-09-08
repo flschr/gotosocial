@@ -138,6 +138,20 @@ func New(cfg Config) *Client {
 
 	// Prepare client fields.
 	c.client.Timeout = cfg.Timeout
+	c.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if gtscontext.NoRedirect(req.Context()) {
+			return http.ErrUseLastResponse
+		}
+		for _, previous := range via {
+			if gtscontext.NoRedirect(previous.Context()) {
+				return http.ErrUseLastResponse
+			}
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
 
 	// Prepare transport TLS config.
 	var tlsClientConfig *tls.Config

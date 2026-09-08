@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/bluesky-social/indigo/atproto/atclient"
 )
 
 const (
@@ -29,6 +31,10 @@ func errorCode(err error) string {
 	var connectionErr *ConnectionError
 	if errors.As(err, &connectionErr) {
 		return connectionErr.Code
+	}
+	var apiErr *atclient.APIError
+	if errors.As(err, &apiErr) && (apiErr.Name == "ExpiredToken" || apiErr.Name == "InvalidToken" || apiErr.Name == "InvalidLogin") {
+		return ErrorCodeAuth
 	}
 	// Indigo currently returns OAuth token endpoint failures as formatted
 	// errors rather than a typed error. Treat terminal refresh failures as

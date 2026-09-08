@@ -20,6 +20,7 @@ func BenchmarkContexts(b *testing.B) {
 
 			ctx = gtscontext.SetBarebones(ctx)
 			ctx = gtscontext.SetFastFail(ctx)
+			ctx = gtscontext.SetNoRedirect(ctx)
 			ctx = gtscontext.SetDryRun(ctx)
 			ctx = gtscontext.SetReceivingAccount(ctx, receiving)
 			ctx = gtscontext.SetRequestingAccount(ctx, requesting)
@@ -30,6 +31,10 @@ func BenchmarkContexts(b *testing.B) {
 			}
 
 			if !gtscontext.IsFastfail(ctx) {
+				println("oh no!")
+			}
+
+			if !gtscontext.NoRedirect(ctx) {
 				println("oh no!")
 			}
 

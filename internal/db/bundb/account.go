@@ -830,14 +830,20 @@ func (a *accountDB) DeleteAccount(ctx context.Context, id string) error {
 			return err
 		}
 
-		// delete the account
-		_, err := tx.
+		// Delete the account first so first-time Bluesky connection creation,
+		// which locks/checks this row transactionally, can no longer succeed.
+		if _, err := tx.
 			NewDelete().
 			Model(&deleted).
 			Where("? = ?", bun.Ident("id"), id).
 			Returning("?", bun.Ident("uri")).
-			Exec(ctx)
-		return err
+			Exec(ctx); err != nil {
+			return err
+		}
+
+		// Re-run Bluesky cleanup inside the same transaction. This closes the
+		// window between the earlier remote cleanup and final account removal.
+		return deleteBlueskyModelsWithDB(ctx, tx, id, allBlueskyModels())
 	}); err != nil {
 		return err
 	}

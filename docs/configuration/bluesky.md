@@ -1,8 +1,8 @@
 # Bluesky integration
 
-GoToSocial Plus can connect an existing Bluesky account using OAuth. The
-connection is optional and configured separately by each user under
-**Settings → Bluesky**.
+GoToSocial Plus can connect an existing Bluesky account using OAuth or a
+dedicated Bluesky app password. The connection is optional and configured
+separately by each user under **Settings → Bluesky**.
 
 ## Instance configuration
 
@@ -20,8 +20,33 @@ bluesky-oauth-encryption-key: "YOUR_GENERATED_KEY"
 
 Alternatively, set `GTS_BLUESKY_OAUTH_ENCRYPTION_KEY`. Keep the key in your
 secret store and include it in your backup process. Changing or losing it
-invalidates existing Bluesky connections because their OAuth tokens and DPoP
-keys can no longer be decrypted.
+invalidates existing Bluesky connections because their OAuth tokens, DPoP
+keys, or app-password sessions can no longer be decrypted.
+
+## Choosing an authentication method
+
+OAuth redirects the user to their Bluesky provider and never shares a
+password with GoToSocial. A public OAuth client's session can eventually
+expire and then needs to be connected again.
+
+An app password is a separate, revocable password created at
+<https://bsky.app/settings/app-passwords>. Enter it once on the GoToSocial
+Bluesky settings page; never enter the main Bluesky account password.
+GoToSocial stores the app password and its session encrypted with the instance
+connection key. When the access and refresh tokens have expired, it can use
+the app password to create a new session automatically. The connection keeps
+working until the app password is revoked, becomes invalid, or the provider
+stops supporting password-based sessions.
+
+GoToSocial verifies that the provider returned a standard app-password-scoped
+session. Leave **Allow access to your direct messages** turned off when creating
+it. Main account passwords and app passwords with direct-message access are
+refused; the newly created session is revoked and the password is never saved.
+
+The [AT Protocol client documentation](https://github.com/bluesky-social/atproto/tree/main/packages/api#session-management)
+recommends OAuth for new applications and describes password-based session
+management as deprecated. The app-password option therefore remains an
+explicit alternative rather than replacing OAuth.
 
 ## User behavior
 
@@ -53,11 +78,12 @@ Before publishing a reply, GoToSocial refreshes the current Bluesky parent and
 root records so edits cannot leave a new reply with stale content references.
 
 The settings page reports whether the connector is healthy, syncing, retrying,
-or needs to be reconnected. OAuth revocation, an unusable refresh token, and a
-missing encryption key are shown as actionable messages; protocol details stay
-in the server log.
+or needs action. OAuth revocation, an unusable refresh token, a revoked app
+password, and a missing encryption key are shown as actionable messages;
+protocol details stay in the server log.
 
-Disconnecting removes the local OAuth session and attempts to revoke it at the
+Disconnecting removes the local OAuth or app-password session, deletes the
+encrypted credentials, and attempts to revoke the remote session at the
 provider. Existing post mappings remain available so historical relationships
 are not guessed from post text or URLs. After reconnecting the same Bluesky
 account, edits and deletions can therefore continue to target their exact

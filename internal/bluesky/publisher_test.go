@@ -66,6 +66,7 @@ func TestConnectionErrorCode(t *testing.T) {
 	err := fmt.Errorf("wrapped: %w", &ConnectionError{Code: ErrorCodeAuth, Err: errors.New("expired")})
 	require.Equal(t, ErrorCodeAuth, errorCode(err))
 	require.Equal(t, ErrorCodeRemote, errorCode(errors.New("timeout")))
+	require.Equal(t, ErrorCodeAuth, errorCode(&atclient.APIError{StatusCode: http.StatusUnauthorized, Name: "InvalidToken"}))
 }
 
 func TestOAuthRefreshFailureIsAuthenticationError(t *testing.T) {

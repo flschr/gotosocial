@@ -7,8 +7,10 @@ package user_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	userapi "code.superseriousbusiness.org/gotosocial/internal/api/client/user"
 	"code.superseriousbusiness.org/gotosocial/testrig"
 	"github.com/stretchr/testify/suite"
 )
@@ -33,6 +35,19 @@ func (suite *BlueskyHandlerTestSuite) TestInvalidCallbackRedirectsSafely() {
 	suite.userModule.BlueskyCallbackGETHandler(ctx)
 	suite.Equal(http.StatusFound, recorder.Code)
 	suite.Equal("/settings/user/bluesky?error=connection_failed", recorder.Header().Get("Location"))
+}
+
+func (suite *BlueskyHandlerTestSuite) TestAppPasswordRequiresBoundedSecret() {
+	_, code := suite.POST(userapi.BlueskyAppPasswordPath, map[string][]string{
+		"identifier": {"fischr.org"},
+	}, suite.userModule.BlueskyAppPasswordPOSTHandler)
+	suite.Equal(http.StatusBadRequest, code)
+
+	_, code = suite.POST(userapi.BlueskyAppPasswordPath, map[string][]string{
+		"identifier":   {"fischr.org"},
+		"app_password": {strings.Repeat("x", 257)},
+	}, suite.userModule.BlueskyAppPasswordPOSTHandler)
+	suite.Equal(http.StatusBadRequest, code)
 }
 
 func TestBlueskyHandlerTestSuite(t *testing.T) {

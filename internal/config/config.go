@@ -166,7 +166,7 @@ type Configuration struct {
 	OIDCAllowedGroups    []string `name:"oidc-allowed-groups" usage:"Membership of one of the listed groups allows access to GtS. If this is empty, all groups are allowed."`
 	OIDCAdminGroups      []string `name:"oidc-admin-groups" usage:"Membership of one of the listed groups makes someone a GtS admin"`
 
-	BlueskyOAuthEncryptionKey string `name:"bluesky-oauth-encryption-key" usage:"Base64-encoded 32-byte key used to encrypt Bluesky OAuth tokens and DPoP keys at rest."`
+	BlueskyOAuthEncryptionKey string `name:"bluesky-oauth-encryption-key" usage:"Base64-encoded 32-byte key used to encrypt Bluesky OAuth credentials and app passwords at rest."`
 	TracingEnabled            bool   `name:"tracing-enabled" usage:"Enable OTLP Tracing"`
 	MetricsEnabled            bool   `name:"metrics-enabled" usage:"Enable OpenTelemetry based metrics support."`
 

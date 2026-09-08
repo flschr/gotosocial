@@ -26,14 +26,10 @@ func (p *Processor) BlueskyDisconnect(ctx context.Context, accountID string) gts
 }
 
 func (p *Processor) BlueskyForget(ctx context.Context, accountID string) gtserror.WithCode {
-	connection, err := p.state.DB.GetBlueskyConnectionByAccountID(ctx, accountID)
-	if err != nil && !errors.Is(err, db.ErrNoEntries) {
-		return gtserror.NewErrorInternalError(err)
-	}
-	if err == nil && connection.Active() {
-		return gtserror.NewErrorConflict(errors.New("Bluesky account is connected"), "disconnect Bluesky before forgetting the saved account")
-	}
 	if err := bluesky.Forget(ctx, p.state, accountID); err != nil {
+		if errors.Is(err, bluesky.ErrConnectionActive) {
+			return gtserror.NewErrorConflict(err, "disconnect Bluesky before forgetting the saved account")
+		}
 		return gtserror.NewErrorInternalError(err)
 	}
 	return nil
@@ -60,6 +56,8 @@ func (p *Processor) BlueskyConnectionGet(ctx context.Context, accountID string) 
 	status, statusMessage, needsReconnect := blueskyConnectionStatus(connection, health, config.GetBlueskyOAuthEncryptionKey() != "")
 	return &apimodel.BlueskyConnection{
 		Connected:         connection.Active(),
+		AuthMethod:        connection.AuthMethod(),
+		DID:               connection.DID,
 		Configured:        config.GetBlueskyOAuthEncryptionKey() != "",
 		Status:            status,
 		StatusMessage:     statusMessage,
@@ -84,6 +82,9 @@ func blueskyConnectionStatus(connection *gtsmodel.BlueskyConnection, health *gts
 		return "disconnected", "Bluesky is disconnected. Reconnect the saved account to resume syncing.", true
 	}
 	if health.LastErrorCode == bluesky.ErrorCodeAuth {
+		if connection.AuthMethod() == "app_password" {
+			return "action_required", "The saved Bluesky app password is no longer valid. Replace it to resume syncing.", true
+		}
 		return "action_required", "Bluesky authorization is no longer valid. Disconnect and reconnect the account to resume syncing.", true
 	}
 	if health.LastErrorCode == bluesky.ErrorCodeConfiguration {

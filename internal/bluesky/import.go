@@ -339,8 +339,10 @@ func resolveBlueskyPDS(ctx context.Context, state *state.State, did string) (str
 		return "", err
 	}
 	for _, service := range document.Service {
-		if (service.ID == "#atproto_pds" || service.Type == "AtprotoPersonalDataServer") && strings.HasPrefix(service.ServiceEndpoint, "https://") {
-			return service.ServiceEndpoint, nil
+		if service.ID == "#atproto_pds" || service.Type == "AtprotoPersonalDataServer" {
+			if _, err := parseBlueskyPDSURL(service.ServiceEndpoint); err == nil {
+				return service.ServiceEndpoint, nil
+			}
 		}
 	}
 	return "", fmt.Errorf("Bluesky DID document has no PDS endpoint")

@@ -17,13 +17,21 @@ type Bluesky interface {
 	GetBlueskyConnections(context.Context) ([]*gtsmodel.BlueskyConnection, error)
 	GetBlueskyStatusesChangedBetween(context.Context, string, time.Time, time.Time) ([]*gtsmodel.Status, error)
 	PutBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection) error
+	PutBlueskyConnectionIfAccountExists(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	UpdateBlueskyConnection(context.Context, *gtsmodel.BlueskyConnection, ...string) error
+	ActivateBlueskyAppPassword(context.Context, *gtsmodel.BlueskyConnection, string, []byte, []byte) (bool, error)
+	UpdateBlueskyAppPasswordData(context.Context, *gtsmodel.BlueskyConnection, []byte, []byte, string) (bool, error)
+	UpdateBlueskyOAuthSession(context.Context, *gtsmodel.BlueskyConnection, string, []byte, string, []byte) (bool, error)
+	UpdateBlueskyConnectionSyncStatus(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	DeleteBlueskyConnection(context.Context, string) error
+	DeleteInactiveBlueskyConnection(context.Context, string) (bool, error)
 	ClaimBlueskyConnection(context.Context, string, time.Time, time.Time) (bool, error)
 	RenewBlueskyConnectionClaim(context.Context, string, time.Time, time.Time) (bool, error)
 	ReleaseBlueskyConnectionClaim(context.Context, string, time.Time) error
 	DeleteBlueskyDataByAccountID(context.Context, string) error
+	DeleteBlueskyData(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	DeleteBlueskyConnectionDataByAccountID(context.Context, string) error
+	ClearBlueskyConnectionData(context.Context, *gtsmodel.BlueskyConnection) (bool, error)
 	GetBlueskyHealth(context.Context, string) (*gtsmodel.BlueskyHealth, error)
 	RetryBlueskyFailures(context.Context, string, time.Time) error
 	GetBlueskyOAuthState(context.Context, string) (*gtsmodel.BlueskyOAuthState, error)

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"code.superseriousbusiness.org/gotosocial/internal/db"
 	"code.superseriousbusiness.org/gotosocial/internal/gtsmodel"
 	"code.superseriousbusiness.org/gotosocial/internal/id"
 	"code.superseriousbusiness.org/gotosocial/internal/state"
@@ -97,6 +98,17 @@ func syncConnectionWithLease(ctx context.Context, state *state.State, connection
 
 func syncConnection(ctx context.Context, state *state.State, connection *gtsmodel.BlueskyConnection) (syncErr error) {
 	defer lockAccount(connection.AccountID)()
+	claimedID := connection.ID
+	connection, err := state.DB.GetBlueskyConnectionByAccountID(ctx, connection.AccountID)
+	if errors.Is(err, db.ErrNoEntries) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if connection.ID != claimedID || !connection.Active() {
+		return nil
+	}
 	defer func() {
 		connection.LastSyncAt = time.Now()
 		if syncErr != nil {
@@ -106,7 +118,8 @@ func syncConnection(ctx context.Context, state *state.State, connection *gtsmode
 			connection.LastSyncError = ""
 			connection.LastSyncErrorCode = ""
 		}
-		if err := state.DB.UpdateBlueskyConnection(ctx, connection, "last_sync_at", "last_sync_error", "last_sync_error_code"); err != nil && syncErr == nil {
+		_, err := state.DB.UpdateBlueskyConnectionSyncStatus(ctx, connection)
+		if err != nil && syncErr == nil {
 			syncErr = err
 		}
 	}()
