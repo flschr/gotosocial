@@ -376,6 +376,55 @@ func TestAppPasswordAuthRevokesRefreshIdentityMismatch(t *testing.T) {
 	require.Equal(t, server.URL, discarded.Host)
 }
 
+func TestAppPasswordAuthRevokesRefreshMissingDID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "/xrpc/com.atproto.server.refreshSession", request.URL.Path)
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"accessJwt":"` + testAccessToken(t, "com.atproto.appPass") + `","refreshJwt":"rotated-refresh"}`))
+	}))
+	defer server.Close()
+
+	var discarded atclient.PasswordSessionData
+	auth := &appPasswordAuth{
+		session: testPasswordSession(t, server.URL, "old-access", "old-refresh"),
+		discard: func(ctx context.Context, session atclient.PasswordSessionData) error {
+			require.NoError(t, ctx.Err())
+			discarded = session
+			return nil
+		},
+	}
+	_, err := auth.refresh(t.Context(), server.Client())
+	require.ErrorContains(t, err, "parse refreshed Bluesky session DID")
+	require.Equal(t, "rotated-refresh", discarded.RefreshToken)
+	require.Equal(t, server.URL, discarded.Host)
+}
+
+func TestResolveBlueskyPDSAllowsLoopbackEndpoint(t *testing.T) {
+	var did string
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "/.well-known/did.json", request.URL.Path)
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]any{
+			"id": did,
+			"service": []map[string]string{{
+				"id": "#atproto_pds", "type": "AtprotoPersonalDataServer", "serviceEndpoint": "http://127.0.0.1:3000/pds",
+			}},
+		})
+	}))
+	defer server.Close()
+	host := strings.TrimPrefix(server.URL, "https://")
+	did = "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+	testState := &state.State{HTTPClient: httpclient.New(httpclient.Config{
+		AllowRanges:           []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
+		TLSInsecureSkipVerify: true,
+		Timeout:               time.Second,
+	})}
+
+	pds, err := resolveBlueskyPDS(t.Context(), testState, did)
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:3000/pds", pds)
+}
+
 func TestAppPasswordRetargetOnlyAppliesToPDSRequests(t *testing.T) {
 	pdsRequest, err := http.NewRequest(http.MethodPost, "https://pds.example.test/xrpc/app.test.endpoint", nil)
 	require.NoError(t, err)

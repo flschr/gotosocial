@@ -143,26 +143,34 @@ func deleteAppPasswordSession(ctx context.Context, state *state.State, host, ref
 }
 
 func appPasswordXRPCURL(host, endpoint string) (string, error) {
-	u, err := url.Parse(host)
+	u, err := parseBlueskyPDSURL(host)
 	if err != nil {
 		return "", err
-	}
-	if u.Scheme == "" || u.Host == "" || u.User != nil {
-		return "", errors.New("invalid Bluesky PDS URL")
-	}
-	if !strings.EqualFold(u.Scheme, "https") {
-		host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
-		address, addressErr := netip.ParseAddr(host)
-		loopback := host == "localhost" || (addressErr == nil && address.IsLoopback())
-		if !strings.EqualFold(u.Scheme, "http") || !loopback {
-			return "", errors.New("Bluesky PDS URL must use HTTPS")
-		}
 	}
 	u.Path = strings.TrimRight(u.Path, "/") + "/xrpc/" + endpoint
 	u.RawPath = ""
 	u.RawQuery = ""
 	u.Fragment = ""
 	return u.String(), nil
+}
+
+func parseBlueskyPDSURL(host string) (*url.URL, error) {
+	u, err := url.Parse(host)
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme == "" || u.Host == "" || u.User != nil {
+		return nil, errors.New("invalid Bluesky PDS URL")
+	}
+	if !strings.EqualFold(u.Scheme, "https") {
+		host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+		address, addressErr := netip.ParseAddr(host)
+		loopback := host == "localhost" || (addressErr == nil && address.IsLoopback())
+		if !strings.EqualFold(u.Scheme, "http") || !loopback {
+			return nil, errors.New("Bluesky PDS URL must use HTTPS")
+		}
+	}
+	return u, nil
 }
 
 func validateAppPasswordAccessToken(token string) error {

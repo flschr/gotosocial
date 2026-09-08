@@ -190,10 +190,16 @@ func (a *appPasswordAuth) refresh(ctx context.Context, client *http.Client) (atc
 		AccessToken: body.AccessJWT, RefreshToken: body.RefreshJWT,
 		AccountDID: a.session.AccountDID, Host: a.session.Host,
 	}
-	if body.DID != "" && body.DID != a.session.AccountDID.String() {
+	refreshedDID, err := syntax.ParseDID(body.DID)
+	if err != nil {
+		a.discardUnpersisted(ctx, rotated)
+		return atclient.PasswordSessionData{}, fmt.Errorf("parse refreshed Bluesky session DID: %w", err)
+	}
+	if refreshedDID.String() != a.session.AccountDID.String() {
 		a.discardUnpersisted(ctx, rotated)
 		return atclient.PasswordSessionData{}, ErrIdentityMismatch
 	}
+	rotated.AccountDID = refreshedDID
 	if body.AccessJWT == "" || body.RefreshJWT == "" {
 		a.discardUnpersisted(ctx, rotated)
 		return atclient.PasswordSessionData{}, errors.New("Bluesky returned an incomplete refreshed session")
