@@ -104,7 +104,7 @@ func (s *OAuthStore) SaveSession(ctx context.Context, session oauth.ClientSessio
 	defer s.mu.Unlock()
 	connection, err := s.db.GetBlueskyConnectionByAccountID(ctx, s.accountID)
 	if errors.Is(err, db.ErrNoEntries) {
-		if s.expectedSessionID == session.SessionID {
+		if !s.deferSessionPersistence || s.expectedSessionID == session.SessionID {
 			s.discardRotatedSession(ctx, session)
 			return ErrCredentialsChanged
 		}

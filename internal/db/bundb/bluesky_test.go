@@ -1123,6 +1123,32 @@ func (suite *BlueskyTestSuite) TestEncryptedOAuthStore() {
 	suite.NotContains(string(storedConnection.OAuthData), session.RefreshToken)
 }
 
+func (suite *BlueskyTestSuite) TestOAuthStoreRejectsPersistenceAfterConnectionDeleted() {
+	ctx := suite.T().Context()
+	account := suite.testAccounts["local_account_1"]
+	crypter, err := bluesky.NewCrypter(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	suite.Require().NoError(err)
+	store := bluesky.NewOAuthStore(suite.db, crypter, account.ID, nil)
+	did := syntax.DID("did:plc:deleted-oauth-placeholder")
+	session := oauth.ClientSessionData{
+		AccountDID: did, SessionID: "deferred-callback-session", HostURL: "https://pds.example.test",
+		AccessToken: "access-secret", RefreshToken: "refresh-secret",
+	}
+
+	store.DeferSessionPersistence()
+	suite.Require().NoError(store.SaveSession(ctx, session))
+	placeholder := &gtsmodel.BlueskyConnection{
+		ID: id.NewULID(), AccountID: account.ID, DID: did.String(),
+		Handle: "deleted-placeholder.example", PDSURL: session.HostURL,
+	}
+	suite.Require().NoError(suite.db.PutBlueskyConnection(ctx, placeholder))
+	suite.Require().NoError(suite.db.DeleteBlueskyConnection(ctx, placeholder.ID))
+
+	suite.ErrorIs(store.PersistSession(ctx, session), bluesky.ErrCredentialsChanged)
+	_, err = suite.db.GetBlueskyConnectionByAccountID(ctx, account.ID)
+	suite.Error(err)
+}
+
 func TestBlueskyTestSuite(t *testing.T) {
 	suite.Run(t, new(BlueskyTestSuite))
 }
