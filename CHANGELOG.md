@@ -4,7 +4,7 @@ This changelog summarizes user-visible product features. Individual fixes,
 visual refinements, and internal implementation changes remain available in
 the Git history without becoming separate changelog entries.
 
-## Unreleased
+## v0.22.1-plus.7 — 2026-09-08
 
 ### Durable Bluesky app-password connection
 
@@ -18,6 +18,21 @@ the Git history without becoming separate changelog entries.
   reported as an actionable connection error.
 - Extend the sync health check and settings page to understand both
   authentication methods.
+- Reorganize the Bluesky settings page into clear publishing, sync,
+  app-password, and disconnect sections with responsive mobile controls.
+
+### Upgrade notes
+
+- This release remains based on GoToSocial 0.22.1.
+- A database migration adds encrypted app-password credential storage and runs
+  automatically on startup.
+- Existing Bluesky OAuth connections continue to work. Users can switch to a
+  dedicated app password from the Bluesky settings page.
+- Keep the existing `bluesky-oauth-encryption-key` configured; it protects both
+  OAuth credentials and saved app passwords.
+- Create app passwords in Bluesky with direct-message access disabled. The main
+  Bluesky account password is rejected and must not be entered.
+- Deploy the binary, web assets, and templates from the same release archive.
 
 ## v0.22.1-plus.6 — 2026-08-29
 
